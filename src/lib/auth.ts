@@ -1,7 +1,43 @@
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import { getDb } from "./db";
+
+/**
+ * Гарантируем что ADMIN_LOGIN / ADMIN_PASSWORD_HASH подгружены.
+ * Next.js обычно сам читает .env, но при запуске через PM2 в нестандартных
+ * окружениях это иногда не срабатывает — делаем явный фолбэк.
+ */
+function ensureAdminEnv() {
+  if (process.env.ADMIN_LOGIN && process.env.ADMIN_PASSWORD_HASH) return;
+  // ищем .env в нескольких типичных местах
+  const tryPaths = [
+    path.join(process.cwd(), ".env"),
+    path.join(process.cwd(), ".env.local"),
+    "/home/maria/call-agent/.env",
+    "/var/www/call-agent/.env",
+  ];
+  for (const p of tryPaths) {
+    if (!fs.existsSync(p)) continue;
+    try {
+      for (const rawLine of fs.readFileSync(p, "utf8").split("\n")) {
+        const line = rawLine.trim();
+        if (!line || line.startsWith("#")) continue;
+        const eq = line.indexOf("=");
+        if (eq === -1) continue;
+        const k = line.slice(0, eq).trim();
+        let v = line.slice(eq + 1).trim();
+        if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+          v = v.slice(1, -1);
+        }
+        if (k && v && !process.env[k]) process.env[k] = v;
+      }
+      if (process.env.ADMIN_LOGIN && process.env.ADMIN_PASSWORD_HASH) return;
+    } catch {}
+  }
+}
 
 const COOKIE_NAME = "ca_session";
 const SESSION_TTL_HOURS = 24 * 14;
@@ -24,6 +60,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 }
 
 export async function login(loginRaw: string, password: string): Promise<boolean> {
+  ensureAdminEnv();
   const expectedLogin = process.env.ADMIN_LOGIN || "";
   const expectedHash = process.env.ADMIN_PASSWORD_HASH || "";
   if (!expectedLogin || !expectedHash) {
