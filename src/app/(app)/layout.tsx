@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { BarChart3, Phone, Settings, LogOut } from "lucide-react";
 import { getSessionUser, logout } from "@/lib/auth";
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
@@ -31,9 +32,15 @@ export default async function AuthedLayout({ children }: { children: React.React
         </div>
 
         <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Link className="nav-link" href="/dashboard">📊 Дашборд</Link>
-          <Link className="nav-link" href="/calls">📞 Звонки</Link>
-          <Link className="nav-link" href="/settings">⚙ Настройки</Link>
+          <Link className="nav-link" href="/dashboard">
+            <BarChart3 size={16} strokeWidth={2} /> Дашборд
+          </Link>
+          <Link className="nav-link" href="/calls">
+            <Phone size={16} strokeWidth={2} /> Звонки
+          </Link>
+          <Link className="nav-link" href="/settings">
+            <Settings size={16} strokeWidth={2} /> Настройки
+          </Link>
         </nav>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -46,7 +53,9 @@ export default async function AuthedLayout({ children }: { children: React.React
               background: "rgba(255,255,255,0.06)",
               borderColor: "rgba(255,255,255,0.12)",
               color: "var(--sidebar-fg)",
+              gap: 8,
             }}>
+              <LogOut size={14} strokeWidth={2} />
               Выйти
             </button>
           </form>

@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  ArrowLeft, Star, ClipboardList, User, FileAudio, Info,
+  CheckCircle2, XCircle, CircleDot, MessageSquare, Tag,
+  Phone, ArrowDownLeft, ArrowUpRight,
+} from "lucide-react";
 import { getDb } from "@/lib/db";
 import { ReprocessButton } from "./ReprocessButton";
 
@@ -62,12 +67,20 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
   return (
     <>
-      <Link href="/calls" className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>← К списку</Link>
+      <Link href="/calls" className="ds-body-sm" style={{
+        color: "var(--muted-foreground)", display: "inline-flex", alignItems: "center", gap: 4,
+      }}>
+        <ArrowLeft size={14} /> К списку
+      </Link>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "8px 0 20px" }}>
-        <h1 className="ds-h1">
+        <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           Звонок #{call.id}
           {analysis?.client_name && (
-            <span style={{ fontSize: 16, color: "var(--muted-foreground)", marginLeft: 12, fontWeight: 500 }}>
+            <span style={{
+              fontSize: 16, color: "var(--muted-foreground)",
+              fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
+            }}>
+              <User size={16} strokeWidth={2} />
               с {analysis.client_name}
             </span>
           )}
@@ -85,13 +98,28 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         <div className="ds-card">
-          <h2 className="ds-h3" style={{ marginBottom: 12 }}>Информация</h2>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Info size={16} strokeWidth={2} /> Информация
+          </h2>
           <Row label="Bitrix call ID" value={call.bitrix_call_id || "—"} />
           <Row label="Дата" value={call.started_at || "—"} />
           <Row label="Менеджер" value={call.manager_name || call.manager_id || "—"} />
           <Row label="Клиент" value={call.client_phone || "—"} />
           <Row label="Имя клиента (из разговора)" value={analysis?.client_name || "—"} />
-          <Row label="Направление" value={call.direction === "in" ? "Входящий" : call.direction === "out" ? "Исходящий" : "—"} />
+          <Row
+            label="Направление"
+            value={
+              call.direction === "in"
+                ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <ArrowDownLeft size={13} color="var(--success)" /> Входящий
+                  </span>
+                : call.direction === "out"
+                ? <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <ArrowUpRight size={13} color="var(--primary)" /> Исходящий
+                  </span>
+                : "—"
+            }
+          />
           <Row label="Длительность" value={`${Math.floor(call.duration_sec / 60)}:${String(call.duration_sec % 60).padStart(2, "0")}`} />
           <Row label="Связь с CRM" value={
             call.bitrix_deal_id ? `Сделка #${call.bitrix_deal_id}` :
@@ -101,7 +129,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
         </div>
 
         <div className="ds-card">
-          <h2 className="ds-h3" style={{ marginBottom: 12 }}>Запись</h2>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <FileAudio size={16} strokeWidth={2} /> Запись
+          </h2>
           {call.recording_path ? (
             <audio controls style={{ width: "100%" }} src={`/call-agent/api/recordings/${call.id}`} />
           ) : (
@@ -117,14 +147,28 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <h2 className="ds-h3" style={{ marginBottom: 14 }}>AI-анализ</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 18 }}>
-            <Metric label="Настроение" value={
-              analysis.sentiment === "positive" ? "🟢 Позитив" :
-              analysis.sentiment === "negative" ? "🔴 Негатив" : "🟡 Нейтрально"
-            } />
-            <Metric label="Оценка менеджера"
-              value={analysis.manager_score != null ? `${analysis.manager_score.toFixed(1)} / 10` : "—"} />
-            <Metric label="Чек-лист QC"
-              value={analysis.script_compliance != null ? `${Math.round(analysis.script_compliance * 100)}%` : "—"} />
+            <Metric
+              label="Настроение"
+              icon={
+                analysis.sentiment === "positive" ? <CheckCircle2 size={18} color="var(--success)" /> :
+                analysis.sentiment === "negative" ? <XCircle size={18} color="var(--destructive)" /> :
+                <CircleDot size={18} color="var(--muted-foreground)" />
+              }
+              value={
+                analysis.sentiment === "positive" ? "Позитив" :
+                analysis.sentiment === "negative" ? "Негатив" : "Нейтральное"
+              }
+            />
+            <Metric
+              icon={<Star size={18} color="var(--warning)" />}
+              label="Оценка менеджера"
+              value={analysis.manager_score != null ? `${analysis.manager_score.toFixed(1)} / 10` : "—"}
+            />
+            <Metric
+              icon={<ClipboardList size={18} color="var(--primary)" />}
+              label="Чек-лист QC"
+              value={analysis.script_compliance != null ? `${Math.round(analysis.script_compliance * 100)}%` : "—"}
+            />
           </div>
 
           <Section title="Краткое содержание" body={analysis.summary} />
@@ -132,7 +176,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
           {objections.length > 0 && (
             <div style={{ marginTop: 14 }}>
-              <div className="ds-caption" style={{ marginBottom: 6 }}>Возражения</div>
+              <div className="ds-caption" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                <MessageSquare size={12} /> Возражения
+              </div>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {objections.map((o, i) => <li key={i} className="ds-body-sm">{o}</li>)}
               </ul>
@@ -141,7 +187,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
           {topics.length > 0 && (
             <div style={{ marginTop: 14 }}>
-              <div className="ds-caption" style={{ marginBottom: 6 }}>Темы</div>
+              <div className="ds-caption" style={{ marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                <Tag size={12} /> Темы
+              </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {topics.map((t) => <span key={t} className="ds-badge ds-badge-info">{t}</span>)}
               </div>
@@ -152,7 +200,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
       {checklistScores.length > 0 && (
         <div className="ds-card" style={{ marginBottom: 16 }}>
-          <h2 className="ds-h3" style={{ marginBottom: 12 }}>Чек-лист (по пунктам)</h2>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <ClipboardList size={16} strokeWidth={2} /> Чек-лист (по пунктам)
+          </h2>
           <table className="ds-table">
             <thead><tr><th>Пункт</th><th style={{ width: 120 }}>Оценка</th><th>Комментарий AI</th></tr></thead>
             <tbody>
@@ -174,7 +224,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
       {dialogue.length > 0 && (
         <div className="ds-card" style={{ marginBottom: 16 }}>
-          <h2 className="ds-h3" style={{ marginBottom: 12 }}>Диалог</h2>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <MessageSquare size={16} strokeWidth={2} /> Диалог
+          </h2>
           <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 10 }}>
             Псевдо-диаризация — реплики размечены AI по косвенным признакам, точность не 100%.
           </div>
@@ -207,7 +259,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
       )}
 
       <div className="ds-card">
-        <h2 className="ds-h3" style={{ marginBottom: 12 }}>Полная стенограмма</h2>
+        <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <Phone size={16} strokeWidth={2} /> Полная стенограмма
+        </h2>
         {transcript ? (
           <div style={{
             whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.65,
@@ -226,7 +280,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13 }}>
       <span style={{ color: "var(--muted-foreground)" }}>{label}</span>
@@ -234,11 +288,13 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
     <div style={{ padding: 12, background: "var(--muted)", borderRadius: 6 }}>
       <div className="ds-caption" style={{ marginBottom: 4 }}>{label}</div>
-      <div style={{ fontWeight: 700, fontSize: 18 }}>{value}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 18 }}>
+        {icon}{value}
+      </div>
     </div>
   );
 }

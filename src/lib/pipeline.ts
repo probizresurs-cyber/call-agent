@@ -144,23 +144,23 @@ async function syncBackToBitrix(row: CallRow, analysis: CallAnalysis) {
   const ownerId = row.bitrix_deal_id || row.bitrix_lead_id || row.bitrix_contact_id;
   if (!ownerType || !ownerId) return;
 
-  const sentimentEmoji =
-    analysis.sentiment === "positive" ? "🟢" :
-    analysis.sentiment === "negative" ? "🔴" : "🟡";
+  const sentimentLabel =
+    analysis.sentiment === "positive" ? "положительное" :
+    analysis.sentiment === "negative" ? "отрицательное" : "нейтральное";
 
   const checklistBlock = (analysis.checklist_scores || [])
     .map((c) => {
       const pct = Math.round(c.score * 100);
-      const tick = c.score >= 0.8 ? "✅" : c.score >= 0.4 ? "🟡" : "❌";
-      return `${tick} ${c.title} — ${pct}% ${c.notes ? `(${c.notes})` : ""}`;
+      const mark = c.score >= 0.8 ? "[V]" : c.score >= 0.4 ? "[~]" : "[X]";
+      return `${mark} ${c.title} — ${pct}% ${c.notes ? `(${c.notes})` : ""}`;
     })
     .join("\n") || "—";
 
   const comment = `[B]Анализ звонка (Call-Agent)[/B]
-${sentimentEmoji} Настроение: ${analysis.sentiment}
-⭐ Оценка менеджера: ${analysis.manager_score}/10
-📋 Чек-лист QC: ${Math.round((analysis.checklist_compliance || 0) * 100)}%
-${analysis.client_name ? `👤 Клиент: ${analysis.client_name}` : ""}
+Настроение: ${sentimentLabel}
+Оценка менеджера: ${analysis.manager_score}/10
+Чек-лист QC: ${Math.round((analysis.checklist_compliance || 0) * 100)}%
+${analysis.client_name ? `Клиент: ${analysis.client_name}` : ""}
 
 [B]Краткое содержание:[/B]
 ${analysis.summary}
@@ -168,7 +168,7 @@ ${analysis.summary}
 [B]Что хочет клиент:[/B] ${analysis.client_intent}
 
 [B]Возражения:[/B]
-${(analysis.objections || []).map((o) => `• ${o}`).join("\n") || "—"}
+${(analysis.objections || []).map((o) => `- ${o}`).join("\n") || "—"}
 
 [B]По чек-листу:[/B]
 ${checklistBlock}
@@ -177,7 +177,7 @@ ${checklistBlock}
 
 [B]Следующий шаг:[/B] ${analysis.next_action}
 
-—————
+-----
 [I]Полная стенограмма и диалог сохранены в Call-Agent.[/I]`;
 
   await crmTimelineCommentAdd({

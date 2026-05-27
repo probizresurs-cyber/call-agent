@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { getDb } from "@/lib/db";
+import { SentimentBadge, StatusBadge } from "@/app/_components/Badges";
 
 export const dynamic = "force-dynamic";
 
@@ -94,8 +96,14 @@ export default async function CallsListPage(props: {
                   <td style={{ whiteSpace: "nowrap" }}>{formatDate(r.started_at)}</td>
                   <td>{r.manager_name || (r.manager_id ? `ID ${r.manager_id}` : "—")}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
-                    {r.direction === "in" ? "← " : r.direction === "out" ? "→ " : ""}
-                    {r.client_phone || "—"}
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      {r.direction === "in"
+                        ? <ArrowDownLeft size={14} strokeWidth={2} color="var(--success)" />
+                        : r.direction === "out"
+                        ? <ArrowUpRight size={14} strokeWidth={2} color="var(--primary)" />
+                        : null}
+                      {r.client_phone || "—"}
+                    </span>
                   </td>
                   <td>{formatDuration(r.duration_sec)}</td>
                   <td><SentimentBadge value={r.sentiment} /></td>
@@ -124,17 +132,4 @@ function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
-}
-function SentimentBadge({ value }: { value: string | null }) {
-  if (!value) return <span style={{ color: "var(--muted-foreground)" }}>—</span>;
-  const cls = value === "positive" ? "ds-badge ds-badge-success"
-    : value === "negative" ? "ds-badge ds-badge-danger"
-    : "ds-badge";
-  const t = value === "positive" ? "Позитив" : value === "negative" ? "Негатив" : "Нейтр.";
-  return <span className={cls}>{t}</span>;
-}
-function StatusBadge({ value }: { value: string }) {
-  if (value === "done") return <span className="ds-badge ds-badge-success">Готово</span>;
-  if (value === "failed") return <span className="ds-badge ds-badge-danger">Ошибка</span>;
-  return <span className="ds-badge ds-badge-info">{value}</span>;
 }
