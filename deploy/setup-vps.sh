@@ -30,21 +30,41 @@ if [ ! -f .env ]; then
   echo "▶ Создаю .env из шаблона"
   cp .env.example .env
 
-  # подтягиваем ключи из MarketRadar, если он рядом
-  for MR_DIR in ~/market-radar ~/nextjs-app; do
-    if [ -f "$MR_DIR/.env" ] || [ -f "$MR_DIR/.env.local" ]; then
-      MR_ENV="$MR_DIR/.env"
-      [ -f "$MR_DIR/.env.local" ] && MR_ENV="$MR_DIR/.env.local"
-      echo "▶ Нашёл $MR_ENV — подтягиваю ANTHROPIC_/OPENAI_/ANTHROPIC_BASE_URL"
-      for KEY in ANTHROPIC_API_KEY OPENAI_API_KEY ANTHROPIC_BASE_URL; do
-        VAL=$(grep -E "^${KEY}=" "$MR_ENV" 2>/dev/null | head -1 | cut -d= -f2-)
-        if [ -n "$VAL" ]; then
-          sed -i "s|^${KEY}=.*|${KEY}=${VAL}|" .env
-        fi
-      done
-      break
+  # подтягиваем ключи из MarketRadar — пробуем стандартные пути
+  MR_ENV=""
+  for CAND in \
+      /var/www/market-radar/.env.local \
+      /var/www/market-radar/.env \
+      ~/market-radar/.env.local \
+      ~/market-radar/.env \
+      ~/nextjs-app/.env.local \
+      ~/nextjs-app/.env \
+      /var/www/marketradar/.env \
+      /opt/market-radar/.env; do
+    if [ -f "$CAND" ] && [ -r "$CAND" ]; then
+      MR_ENV="$CAND"; break
     fi
   done
+  # Если стандартные не найдены — пробуем поиском (с разумной глубиной)
+  if [ -z "$MR_ENV" ]; then
+    MR_ENV=$(find /var/www /opt /home -maxdepth 4 -type f \
+      \( -name ".env" -o -name ".env.local" \) 2>/dev/null \
+      | xargs grep -l "ANTHROPIC_API_KEY" 2>/dev/null | head -1)
+  fi
+
+  if [ -n "$MR_ENV" ] && [ -r "$MR_ENV" ]; then
+    echo "▶ Нашёл $MR_ENV — подтягиваю ANTHROPIC_/OPENAI_/ANTHROPIC_BASE_URL"
+    for KEY in ANTHROPIC_API_KEY OPENAI_API_KEY ANTHROPIC_BASE_URL; do
+      VAL=$(grep -E "^${KEY}=" "$MR_ENV" 2>/dev/null | head -1 | cut -d= -f2- | sed -e 's/^"//' -e 's/"$//')
+      if [ -n "$VAL" ]; then
+        # экранируем символы | / & и переносы для sed
+        ESCAPED=$(printf '%s' "$VAL" | sed -e 's/[&|\\/]/\\&/g')
+        sed -i "s|^${KEY}=.*|${KEY}=${ESCAPED}|" .env
+      fi
+    done
+  else
+    echo "⚠ .env MarketRadar не найден. Ключи ANTHROPIC_/OPENAI_ нужно будет вписать вручную в .env"
+  fi
 
   # Генерим секреты
   SESSION_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
