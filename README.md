@@ -23,7 +23,7 @@ cp .env.example .env.local
 # заполнить ADMIN_LOGIN/PASSWORD_HASH и ключи API
 
 npm install
-npm run dev          # → http://localhost:3001/call-agent
+npm run dev          # → http://localhost:3002/call-agent
 ```
 
 Воркер очереди в отдельном терминале:

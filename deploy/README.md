@@ -37,7 +37,7 @@ pm2 status
 
 | Переменная | Что туда |
 |---|---|
-| `PORT` | `3001` (фиксировано) |
+| `PORT` | `3002` (фиксировано) |
 | `APP_BASE_URL` | `https://staging.marketradar24.ru/call-agent` |
 | `ADMIN_LOGIN` | любой логин для входа |
 | `ADMIN_PASSWORD_HASH` | bcrypt-хеш пароля (см. команду выше) |
@@ -59,7 +59,7 @@ sudo systemctl reload nginx
 
 После этого:
 - `https://staging.marketradar24.ru/` → MarketRadar (3000) — без изменений
-- `https://staging.marketradar24.ru/call-agent/` → новое приложение (3001)
+- `https://staging.marketradar24.ru/call-agent/` → новое приложение (3002)
 
 ## 4. Настройка Битрикс24
 
