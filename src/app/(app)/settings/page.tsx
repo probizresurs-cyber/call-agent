@@ -6,8 +6,14 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const db = getDb();
   const script = db
-    .prepare(`SELECT id, name, content_md, is_active, updated_at FROM sales_scripts WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 1`)
-    .get() as { id: number; name: string; content_md: string; is_active: number; updated_at: string } | undefined;
+    .prepare(
+      `SELECT id, name, content_md, checklist_json, is_active, updated_at
+       FROM sales_scripts WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 1`
+    )
+    .get() as {
+      id: number; name: string; content_md: string;
+      checklist_json: string | null; is_active: number; updated_at: string;
+    } | undefined;
 
   const inboundUrl =
     (process.env.APP_BASE_URL || "https://staging.marketradar24.ru/call-agent") +
@@ -30,16 +36,17 @@ export default async function SettingsPage() {
           borderRadius: 6, fontSize: 12, wordBreak: "break-all",
         }}>{inboundUrl}</code>
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 12 }}>
-          Обратное направление (запись в карточку CRM) использует входящий вебхук из
-          переменной <code>BITRIX_WEBHOOK_URL</code> в .env.
+          Для обратной записи в карточку CRM нужен <b>входящий вебхук</b>
+          с правами <code>crm</code>, <code>telephony</code>, <code>user</code> — его URL
+          задаётся переменной <code>BITRIX_WEBHOOK_URL</code> в .env.
         </p>
       </div>
 
       <div className="ds-card">
-        <h2 className="ds-h3" style={{ marginBottom: 12 }}>Эталонный скрипт продаж</h2>
+        <h2 className="ds-h3" style={{ marginBottom: 8 }}>Чек-лист контроля качества</h2>
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 12 }}>
-          Используется для оценки <b>script_compliance</b> — насколько менеджер придерживался плана разговора.
-          Поддерживается Markdown.
+          AI оценит каждый пункт от 0 до 1 после каждого звонка.
+          Взвешенное среднее = итоговый процент соблюдения скрипта.
         </p>
         <SettingsForm initial={script ?? null} />
       </div>

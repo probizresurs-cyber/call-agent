@@ -19,15 +19,30 @@ type Call = {
   status: string;
   recording_path: string | null;
   error: string | null;
+  deal_context_json: string | null;
 };
-type Transcript = { text: string; segments_json: string | null; language: string | null; model: string | null };
-type Analysis = {
-  summary: string | null; sentiment: string | null;
-  manager_score: number | null; script_compliance: number | null;
-  next_action: string | null;
-  objections_json: string | null; topics_json: string | null;
+type Transcript = {
+  text: string;
+  segments_json: string | null;
+  dialogue_json: string | null;
+  language: string | null;
   model: string | null;
 };
+type Analysis = {
+  summary: string | null;
+  sentiment: string | null;
+  manager_score: number | null;
+  script_compliance: number | null;
+  next_action: string | null;
+  objections_json: string | null;
+  topics_json: string | null;
+  model: string | null;
+  client_name: string | null;
+  checklist_scores_json: string | null;
+};
+
+type Dialogue = Array<{ speaker: "manager" | "client" | "unknown"; text: string }>;
+type ChecklistScore = { id: string; title: string; score: number; notes: string };
 
 export default async function CallDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await props.params;
@@ -41,20 +56,28 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
   const objections: string[] = analysis?.objections_json ? JSON.parse(analysis.objections_json) : [];
   const topics: string[] = analysis?.topics_json ? JSON.parse(analysis.topics_json) : [];
+  const checklistScores: ChecklistScore[] = analysis?.checklist_scores_json
+    ? JSON.parse(analysis.checklist_scores_json) : [];
+  const dialogue: Dialogue = transcript?.dialogue_json ? JSON.parse(transcript.dialogue_json) : [];
 
   return (
     <>
       <Link href="/calls" className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>← К списку</Link>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "8px 0 20px" }}>
-        <h1 className="ds-h1">Звонок #{call.id}</h1>
+        <h1 className="ds-h1">
+          Звонок #{call.id}
+          {analysis?.client_name && (
+            <span style={{ fontSize: 16, color: "var(--muted-foreground)", marginLeft: 12, fontWeight: 500 }}>
+              с {analysis.client_name}
+            </span>
+          )}
+        </h1>
         <ReprocessButton callId={call.id} />
       </div>
 
       {call.error && (
         <div className="ds-card" style={{
-          background: "rgba(212,67,67,0.08)",
-          borderColor: "rgba(212,67,67,0.30)",
-          marginBottom: 16,
+          background: "rgba(212,67,67,0.08)", borderColor: "rgba(212,67,67,0.30)", marginBottom: 16,
         }}>
           <b style={{ color: "var(--destructive)" }}>Ошибка обработки:</b> {call.error}
         </div>
@@ -67,6 +90,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <Row label="Дата" value={call.started_at || "—"} />
           <Row label="Менеджер" value={call.manager_name || call.manager_id || "—"} />
           <Row label="Клиент" value={call.client_phone || "—"} />
+          <Row label="Имя клиента (из разговора)" value={analysis?.client_name || "—"} />
           <Row label="Направление" value={call.direction === "in" ? "Входящий" : call.direction === "out" ? "Исходящий" : "—"} />
           <Row label="Длительность" value={`${Math.floor(call.duration_sec / 60)}:${String(call.duration_sec % 60).padStart(2, "0")}`} />
           <Row label="Связь с CRM" value={
@@ -95,12 +119,11 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 18 }}>
             <Metric label="Настроение" value={
               analysis.sentiment === "positive" ? "🟢 Позитив" :
-              analysis.sentiment === "negative" ? "🔴 Негатив" :
-              "🟡 Нейтрально"
+              analysis.sentiment === "negative" ? "🔴 Негатив" : "🟡 Нейтрально"
             } />
             <Metric label="Оценка менеджера"
               value={analysis.manager_score != null ? `${analysis.manager_score.toFixed(1)} / 10` : "—"} />
-            <Metric label="Соблюдение скрипта"
+            <Metric label="Чек-лист QC"
               value={analysis.script_compliance != null ? `${Math.round(analysis.script_compliance * 100)}%` : "—"} />
           </div>
 
@@ -127,16 +150,69 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
         </div>
       )}
 
+      {checklistScores.length > 0 && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12 }}>Чек-лист (по пунктам)</h2>
+          <table className="ds-table">
+            <thead><tr><th>Пункт</th><th style={{ width: 120 }}>Оценка</th><th>Комментарий AI</th></tr></thead>
+            <tbody>
+              {checklistScores.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.title}</td>
+                  <td>
+                    <ScoreBar value={c.score} />
+                  </td>
+                  <td className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+                    {c.notes || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {dialogue.length > 0 && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12 }}>Диалог</h2>
+          <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 10 }}>
+            Псевдо-диаризация — реплики размечены AI по косвенным признакам, точность не 100%.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {dialogue.map((turn, i) => {
+              const isManager = turn.speaker === "manager";
+              const isClient = turn.speaker === "client";
+              return (
+                <div key={i} style={{
+                  display: "flex",
+                  justifyContent: isClient ? "flex-end" : "flex-start",
+                }}>
+                  <div style={{
+                    maxWidth: "75%",
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                    background: isManager ? "var(--accent)" : isClient ? "rgba(31,157,85,0.12)" : "var(--muted)",
+                    border: "1px solid var(--border)",
+                  }}>
+                    <div className="ds-caption" style={{ marginBottom: 4 }}>
+                      {isManager ? "Менеджер" : isClient ? "Клиент" : "?"}
+                    </div>
+                    <div className="ds-body-sm" style={{ whiteSpace: "pre-wrap" }}>{turn.text}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="ds-card">
-        <h2 className="ds-h3" style={{ marginBottom: 12 }}>Стенограмма</h2>
+        <h2 className="ds-h3" style={{ marginBottom: 12 }}>Полная стенограмма</h2>
         {transcript ? (
           <div style={{
-            whiteSpace: "pre-wrap",
-            fontSize: 14, lineHeight: 1.65,
-            maxHeight: 600, overflowY: "auto",
-            padding: 12,
-            background: "var(--muted)",
-            borderRadius: 6,
+            whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.65,
+            maxHeight: 480, overflowY: "auto",
+            padding: 12, background: "var(--muted)", borderRadius: 6,
           }}>
             {transcript.text}
           </div>
@@ -172,6 +248,18 @@ function Section({ title, body }: { title: string; body: string | null }) {
     <div style={{ marginTop: 14 }}>
       <div className="ds-caption" style={{ marginBottom: 4 }}>{title}</div>
       <div className="ds-body">{body}</div>
+    </div>
+  );
+}
+function ScoreBar({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  const color = pct >= 80 ? "#1f9d55" : pct >= 40 ? "#d97706" : "#d44343";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ flex: 1, height: 6, background: "var(--muted)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ width: `${pct}%`, height: "100%", background: color }} />
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 600, minWidth: 32, textAlign: "right" }}>{Math.round(pct)}%</span>
     </div>
   );
 }

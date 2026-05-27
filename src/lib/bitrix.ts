@@ -154,4 +154,178 @@ export function entityTypeStringToId(t?: string | null): number | null {
   return null;
 }
 
+// ──────────────────────────────────────────────────────────────
+// Контекст сделки/лида — нужен Claude как фон для оценки звонка
+
+export interface Deal {
+  ID: string;
+  TITLE?: string;
+  STAGE_ID?: string;
+  OPPORTUNITY?: string;     // сумма
+  CURRENCY_ID?: string;
+  TYPE_ID?: string;
+  ASSIGNED_BY_ID?: string;
+  COMMENTS?: string;
+  DATE_CREATE?: string;
+  CONTACT_ID?: string;
+  COMPANY_ID?: string;
+  CATEGORY_ID?: string;
+}
+
+export interface Lead {
+  ID: string;
+  TITLE?: string;
+  NAME?: string;
+  LAST_NAME?: string;
+  STATUS_ID?: string;
+  OPPORTUNITY?: string;
+  ASSIGNED_BY_ID?: string;
+  COMMENTS?: string;
+  DATE_CREATE?: string;
+}
+
+export async function crmDealGet(id: string | number): Promise<Deal | null> {
+  try {
+    return await call<Deal>("crm.deal.get", { id });
+  } catch {
+    return null;
+  }
+}
+
+export async function crmLeadGet(id: string | number): Promise<Lead | null> {
+  try {
+    return await call<Lead>("crm.lead.get", { id });
+  } catch {
+    return null;
+  }
+}
+
+/** Последние N комментариев таймлайна сущности — выжимка истории сделки */
+export async function crmTimelineComments(
+  entityType: "deal" | "lead" | "contact" | "company",
+  entityId: string | number,
+  limit = 5
+): Promise<Array<{ ID: string; COMMENT: string; CREATED: string; AUTHOR_ID: string }>> {
+  try {
+    const result = await call<Array<{ ID: string; COMMENT: string; CREATED: string; AUTHOR_ID: string }>>(
+      "crm.timeline.comment.list",
+      {
+        filter: { ENTITY_ID: entityId, ENTITY_TYPE: entityType },
+        order: { ID: "DESC" },
+        select: ["ID", "COMMENT", "CREATED", "AUTHOR_ID"],
+      }
+    );
+    return (result ?? []).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+/** Прошлые звонки по этой же сущности (по нашей БД? нет — по Битриксу) */
+export async function crmPriorActivities(
+  ownerType: "deal" | "lead",
+  ownerId: string | number,
+  limit = 10
+): Promise<Array<{ ID: string; SUBJECT: string; START_TIME: string; PROVIDER_TYPE_ID: string }>> {
+  const ownerTypeId = ownerType === "deal" ? 2 : 1;
+  try {
+    const result = await call<any[]>("crm.activity.list", {
+      filter: { OWNER_TYPE_ID: ownerTypeId, OWNER_ID: ownerId },
+      order: { ID: "DESC" },
+      select: ["ID", "SUBJECT", "START_TIME", "PROVIDER_TYPE_ID"],
+    });
+    return (result ?? []).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+export interface DealContext {
+  kind: "deal" | "lead" | null;
+  entityId: string | null;
+  title: string | null;
+  stage: string | null;
+  opportunity: string | null;
+  createdAt: string | null;
+  recentComments: Array<{ author: string; text: string; createdAt: string }>;
+  priorActivities: Array<{ subject: string; type: string; startAt: string }>;
+}
+
+/** Собирает фон по звонку: если связан со сделкой/лидом — возвращает свёртку */
+export async function buildCallContext(args: {
+  bitrixDealId: string | null;
+  bitrixLeadId: string | null;
+}): Promise<DealContext | null> {
+  const { bitrixDealId, bitrixLeadId } = args;
+  if (!bitrixDealId && !bitrixLeadId) return null;
+
+  if (bitrixDealId) {
+    const deal = await crmDealGet(bitrixDealId);
+    if (!deal) return null;
+    const [comments, acts] = await Promise.all([
+      crmTimelineComments("deal", bitrixDealId, 5),
+      crmPriorActivities("deal", bitrixDealId, 10),
+    ]);
+    return {
+      kind: "deal",
+      entityId: bitrixDealId,
+      title: deal.TITLE ?? null,
+      stage: deal.STAGE_ID ?? null,
+      opportunity: deal.OPPORTUNITY
+        ? `${deal.OPPORTUNITY}${deal.CURRENCY_ID ? " " + deal.CURRENCY_ID : ""}`
+        : null,
+      createdAt: deal.DATE_CREATE ?? null,
+      recentComments: comments.map((c) => ({
+        author: c.AUTHOR_ID,
+        text: stripBitrixHtml(c.COMMENT),
+        createdAt: c.CREATED,
+      })),
+      priorActivities: acts.map((a) => ({
+        subject: a.SUBJECT,
+        type: a.PROVIDER_TYPE_ID,
+        startAt: a.START_TIME,
+      })),
+    };
+  }
+
+  // lead
+  const lead = await crmLeadGet(bitrixLeadId!);
+  if (!lead) return null;
+  const [comments, acts] = await Promise.all([
+    crmTimelineComments("lead", bitrixLeadId!, 5),
+    crmPriorActivities("lead", bitrixLeadId!, 10),
+  ]);
+  return {
+    kind: "lead",
+    entityId: bitrixLeadId,
+    title:
+      lead.TITLE ||
+      [lead.NAME, lead.LAST_NAME].filter(Boolean).join(" ") ||
+      null,
+    stage: lead.STATUS_ID ?? null,
+    opportunity: lead.OPPORTUNITY ?? null,
+    createdAt: lead.DATE_CREATE ?? null,
+    recentComments: comments.map((c) => ({
+      author: c.AUTHOR_ID,
+      text: stripBitrixHtml(c.COMMENT),
+      createdAt: c.CREATED,
+    })),
+    priorActivities: acts.map((a) => ({
+      subject: a.SUBJECT,
+      type: a.PROVIDER_TYPE_ID,
+      startAt: a.START_TIME,
+    })),
+  };
+}
+
+function stripBitrixHtml(s: string): string {
+  return s
+    .replace(/\[\/?B\]/gi, "")
+    .replace(/\[\/?I\]/gi, "")
+    .replace(/\[\/?U\]/gi, "")
+    .replace(/<\/?[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export { call as bitrixCall };

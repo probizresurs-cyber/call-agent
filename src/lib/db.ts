@@ -17,9 +17,32 @@ export function getDb(): Database.Database {
 
   // Миграции выполняются на старте процесса (idempotent CREATE IF NOT EXISTS)
   db.exec(SCHEMA_SQL);
+  applyAlterMigrations(db);
 
   _db = db;
   return db;
+}
+
+/**
+ * SQLite не поддерживает `ALTER TABLE … ADD COLUMN IF NOT EXISTS`,
+ * поэтому идём через pragma_table_info и добавляем колонку только если её нет.
+ * Добавлять можно только сюда (без дефолта на CURRENT_TIMESTAMP — это запрещено для ADD COLUMN).
+ */
+function applyAlterMigrations(db: Database.Database) {
+  const ensureColumn = (table: string, column: string, ddl: string) => {
+    const exists = db
+      .prepare(`SELECT 1 FROM pragma_table_info(?) WHERE name = ?`)
+      .get(table, column);
+    if (!exists) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+    }
+  };
+
+  ensureColumn("sales_scripts", "checklist_json", "TEXT");
+  ensureColumn("transcripts", "dialogue_json", "TEXT");
+  ensureColumn("analyses", "client_name", "TEXT");
+  ensureColumn("analyses", "checklist_scores_json", "TEXT");
+  ensureColumn("calls", "deal_context_json", "TEXT");
 }
 
 const SCHEMA_SQL = `
@@ -155,15 +178,39 @@ export interface AnalysisRow {
   raw_json: string | null;
   model: string | null;
   created_at: string;
+  client_name: string | null;
+  checklist_scores_json: string | null;
 }
 
 export interface TranscriptRow {
   call_id: number;
   text: string;
   segments_json: string | null;
+  dialogue_json: string | null;
   language: string | null;
   model: string | null;
   created_at: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  title: string;
+  weight: number;        // 1..5
+  description?: string;
+}
+
+export interface ChecklistItemScore {
+  id: string;
+  title: string;
+  score: number;         // 0..1
+  notes: string;
+}
+
+export interface DialogueTurn {
+  speaker: "manager" | "client" | "unknown";
+  text: string;
+  start?: number;
+  end?: number;
 }
 
 export function setCallStatus(callId: number, status: CallStatus, error?: string) {
