@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { guard } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  await requireUser();
+  const g = await guard(); if (g) return g;
   const db = getDb();
 
   const totals = db

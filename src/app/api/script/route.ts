@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { guard } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  await requireUser();
+  const g = await guard(); if (g) return g;
   const { name, content, checklist } = (await req.json()) as {
     name?: string;
     content?: string;

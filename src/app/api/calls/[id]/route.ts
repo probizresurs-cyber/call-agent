@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { guard } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const g = await guard(); if (g) return g;
   const { id: idStr } = await ctx.params;
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id)) {

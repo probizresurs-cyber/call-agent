@@ -59,8 +59,26 @@ export async function logout() {
   c.delete(COOKIE_NAME);
 }
 
-export async function requireUser(): Promise<SessionUser> {
+/**
+ * Используется в route handlers и Server Actions.
+ * Возвращает либо пользователя, либо null (а не throw),
+ * потому что throw Response не всегда корректно ловится Next.js в App Router.
+ */
+export async function requireUser(): Promise<SessionUser | null> {
+  return await getSessionUser();
+}
+
+/**
+ * Хелпер для route handlers: либо сразу отдаёт NextResponse 401,
+ * либо возвращает null если можно идти дальше.
+ */
+export async function guard(): Promise<Response | null> {
   const u = await getSessionUser();
-  if (!u) throw new Response("Unauthorized", { status: 401 });
-  return u;
+  if (!u) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return null;
 }

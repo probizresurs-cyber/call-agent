@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { guard } from "@/lib/auth";
 import { processCall } from "@/lib/pipeline";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const g = await guard(); if (g) return g;
   const { id: idStr } = await ctx.params;
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id)) {
