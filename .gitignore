@@ -1,0 +1,13 @@
+node_modules
+.next
+.next/dev
+.env
+.env.local
+*.log
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+storage/recordings/*
+!storage/recordings/.gitkeep
+.DS_Store

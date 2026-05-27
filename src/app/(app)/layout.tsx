@@ -1,0 +1,59 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { getSessionUser, logout } from "@/lib/auth";
+
+export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  async function doLogout() {
+    "use server";
+    await logout();
+    redirect("/login");
+  }
+
+  return (
+    <div className="shell">
+      <aside className="shell-sidebar">
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 12px" }}>
+          <div
+            style={{
+              width: 32, height: 32, borderRadius: 8,
+              background: "linear-gradient(135deg,#7c70e0,#5b4fc7)",
+              display: "grid", placeItems: "center",
+              color: "#fff", fontWeight: 700,
+            }}
+          >CA</div>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>Call-Agent</div>
+            <div style={{ fontSize: 11, color: "var(--sidebar-muted)" }}>Bitrix24 calls</div>
+          </div>
+        </div>
+
+        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <Link className="nav-link" href="/dashboard">📊 Дашборд</Link>
+          <Link className="nav-link" href="/calls">📞 Звонки</Link>
+          <Link className="nav-link" href="/settings">⚙ Настройки</Link>
+        </nav>
+
+        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div style={{ fontSize: 12, color: "var(--sidebar-muted)" }}>
+            Вы вошли как <b style={{ color: "var(--sidebar-fg)" }}>{user.user}</b>
+          </div>
+          <form action={doLogout}>
+            <button type="submit" className="ds-btn ds-btn-secondary" style={{
+              width: "100%",
+              background: "rgba(255,255,255,0.06)",
+              borderColor: "rgba(255,255,255,0.12)",
+              color: "var(--sidebar-fg)",
+            }}>
+              Выйти
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <main className="shell-main">{children}</main>
+    </div>
+  );
+}

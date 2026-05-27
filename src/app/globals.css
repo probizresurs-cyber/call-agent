@@ -1,0 +1,196 @@
+/* =====================================================================
+   Call-Agent — design tokens (упрощённая версия MarketRadar)
+   ===================================================================== */
+
+:root {
+  --background: #f7f7f8;
+  --foreground: #14171f;
+  --card: #ffffff;
+  --card-foreground: #14171f;
+  --muted: #f1f1f4;
+  --muted-foreground: #5a6172;
+  --border: #e3e5eb;
+  --input: #e3e5eb;
+  --input-bg: #ffffff;
+  --primary: #5b4fc7;
+  --primary-foreground: #ffffff;
+  --accent: #eef0ff;
+  --success: #1f9d55;
+  --warning: #d97706;
+  --destructive: #d44343;
+
+  --sidebar-bg: #161826;
+  --sidebar-fg: #e7e9f3;
+  --sidebar-muted: #8b8fa3;
+  --sidebar-hover: #1f2237;
+  --sidebar-active: #232745;
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-xl: 12px;
+
+  --shadow: 0 1px 2px rgba(20,23,31,0.04), 0 4px 16px rgba(91,79,199,0.06);
+  --shadow-lg: 0 4px 6px rgba(20,23,31,0.05), 0 10px 40px rgba(91,79,199,0.10);
+}
+
+.dark {
+  --background: #15171f;
+  --foreground: #e9ebf0;
+  --card: #1d2030;
+  --card-foreground: #e9ebf0;
+  --muted: #232636;
+  --muted-foreground: #9aa0b5;
+  --border: #2c3045;
+  --input: #2c3045;
+  --input-bg: #1a1d2a;
+  --primary: #7c70e0;
+  --accent: #232746;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+::selection { background: rgba(91,79,199,0.30); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* ----- Typography ----- */
+.ds-h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+.ds-h2 { font-size: 20px; font-weight: 600; margin: 0; }
+.ds-h3 { font-size: 16px; font-weight: 600; margin: 0; }
+.ds-body { font-size: 14px; line-height: 1.55; }
+.ds-body-sm { font-size: 13px; line-height: 1.5; }
+.ds-caption { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; color: var(--muted-foreground); text-transform: uppercase; }
+
+/* ----- Card ----- */
+.ds-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+/* ----- Buttons ----- */
+.ds-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 16px;
+  border-radius: var(--radius);
+  font: inherit; font-size: 14px; font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background-color 150ms, border-color 150ms, color 150ms, opacity 150ms;
+}
+.ds-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ds-btn-primary { background: var(--primary); color: var(--primary-foreground); }
+.ds-btn-primary:hover:not(:disabled) { filter: brightness(0.93); }
+.ds-btn-secondary { background: transparent; color: var(--foreground); border-color: var(--border); }
+.ds-btn-secondary:hover:not(:disabled) { background: var(--accent); }
+.ds-btn-ghost { background: transparent; color: var(--muted-foreground); }
+.ds-btn-ghost:hover:not(:disabled) { background: var(--accent); color: var(--foreground); }
+
+/* ----- Input ----- */
+.ds-input, .ds-textarea {
+  width: 100%; height: 40px; padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--input);
+  background: var(--input-bg);
+  color: var(--foreground);
+  font: inherit; font-size: 14px;
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.ds-textarea { height: auto; padding: 10px 14px; min-height: 90px; resize: vertical; line-height: 1.5; }
+.ds-input:focus, .ds-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(91,79,199,0.15); }
+
+/* ----- Badge ----- */
+.ds-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 11px; font-weight: 600;
+}
+.ds-badge-success { background: rgba(31,157,85,0.15); color: var(--success); }
+.ds-badge-warning { background: rgba(217,119,6,0.15); color: var(--warning); }
+.ds-badge-danger { background: rgba(212,67,67,0.15); color: var(--destructive); }
+.ds-badge-info { background: var(--accent); color: var(--primary); }
+
+/* ----- Table ----- */
+.ds-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 13px;
+}
+.ds-table th {
+  text-align: left;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.ds-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ds-table tr:last-child td { border-bottom: none; }
+.ds-table tr:hover td { background: var(--accent); }
+
+/* ----- Layout shell ----- */
+.shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+.shell-sidebar {
+  background: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  padding: 20px 14px;
+  display: flex; flex-direction: column; gap: 16px;
+  position: sticky; top: 0;
+  height: 100vh;
+}
+.shell-main { padding: 28px 32px; max-width: 1280px; }
+
+.nav-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-fg);
+  text-decoration: none;
+  font-size: 14px;
+}
+.nav-link:hover { background: var(--sidebar-hover); }
+.nav-link.active { background: var(--sidebar-active); }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: 1fr; }
+  .shell-sidebar { position: relative; height: auto; flex-direction: row; flex-wrap: wrap; }
+  .shell-main { padding: 18px; }
+}
+
+/* ----- Helpers ----- */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
