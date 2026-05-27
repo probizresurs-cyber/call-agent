@@ -7,13 +7,13 @@ module.exports = {
     {
       name: "call-agent",
       script: "node_modules/next/dist/bin/next",
-      args: "start -p 3002",
+      args: "start -p 3030",
       cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
       env: {
         NODE_ENV: "production",
-        PORT: "3002",
+        PORT: "3030",
       },
       max_memory_restart: "600M",
       out_file: "./logs/web-out.log",

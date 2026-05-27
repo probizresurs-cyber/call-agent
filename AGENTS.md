@@ -5,7 +5,7 @@
 ## Контекст
 
 - **Цель:** транскрипция и AI-анализ звонков из Битрикс24, обратная запись в CRM, дашборд.
-- **Размещение:** `~/call-agent` на VPS `maria@72.56.241.159`, порт `3002`, basePath `/call-agent`.
+- **Размещение:** `~/call-agent` на VPS `maria@72.56.241.159`, порт `3030`, basePath `/call-agent`.
 - **Домен:** `https://staging.marketradar24.ru/call-agent` (path-based, nginx делит трафик с MarketRadar на 3000).
 - **Деплой:** PM2 (2 процесса: `call-agent` web + `call-agent-worker`), `git pull && npm i && npm run build && pm2 restart`.
 
