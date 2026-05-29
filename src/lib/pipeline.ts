@@ -94,8 +94,7 @@ export async function processCall(callId: number): Promise<void> {
     t.model
   );
 
-  db.prepare(`DELETE FROM transcripts_fts WHERE call_id = ?`).run(callId);
-  db.prepare(`INSERT INTO transcripts_fts (call_id, text) VALUES (?, ?)`).run(callId, t.text);
+  // FTS5 индекс отключён — поиск идёт через LIKE по transcripts.text
 
   // 6. Сохраняем анализ
   db.prepare(

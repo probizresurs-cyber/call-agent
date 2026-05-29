@@ -29,8 +29,8 @@ export default async function CallsListPage(props: {
   if (sp.status) { where.push("c.status = ?"); params.push(sp.status); }
   if (sp.sentiment) { where.push("a.sentiment = ?"); params.push(sp.sentiment); }
   if (sp.q) {
-    where.push(`c.id IN (SELECT call_id FROM transcripts_fts WHERE transcripts_fts MATCH ?)`);
-    params.push(sp.q);
+    where.push(`c.id IN (SELECT call_id FROM transcripts WHERE text LIKE ?)`);
+    params.push(`%${sp.q}%`);
   }
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 

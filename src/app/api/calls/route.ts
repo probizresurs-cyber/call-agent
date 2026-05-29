@@ -20,8 +20,8 @@ export async function GET(req: NextRequest) {
   if (status) { where.push("c.status = ?"); params.push(status); }
   if (sentiment) { where.push("a.sentiment = ?"); params.push(sentiment); }
   if (q) {
-    where.push(`c.id IN (SELECT call_id FROM transcripts_fts WHERE transcripts_fts MATCH ?)`);
-    params.push(q);
+    where.push(`c.id IN (SELECT call_id FROM transcripts WHERE text LIKE ?)`);
+    params.push(`%${q}%`);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";

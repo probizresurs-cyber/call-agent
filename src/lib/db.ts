@@ -12,7 +12,13 @@ export function getDb(): Database.Database {
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 
   const db = new Database(DB_PATH);
+  // WAL — позволяет параллельные чтения + сериализованные записи.
   db.pragma("journal_mode = WAL");
+  // synchronous=NORMAL — компромисс скорости и надёжности
+  // (FULL надёжнее но в разы медленнее, OFF быстрее но риск порчи при креше).
+  db.pragma("synchronous = NORMAL");
+  // busy_timeout — если другая транзакция держит лок, ждём вместо ошибки.
+  db.pragma("busy_timeout = 5000");
   db.pragma("foreign_keys = ON");
 
   // Миграции выполняются на старте процесса (idempotent CREATE IF NOT EXISTS)
@@ -81,12 +87,10 @@ CREATE TABLE IF NOT EXISTS transcripts (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (call_id) REFERENCES calls(id) ON DELETE CASCADE
 );
-CREATE VIRTUAL TABLE IF NOT EXISTS transcripts_fts USING fts5(
-  call_id UNINDEXED,
-  text,
-  content='transcripts',
-  content_rowid='call_id'
-);
+-- FTS5 виртуальная таблица — отключена.
+-- В multi-process WAL-режиме FTS5 склонна к corruption при конкурентных записях.
+-- Поиск по тексту делаем простым LIKE — для < 100k звонков работает быстро.
+-- Если/когда вернём FTS5 — нужно либо одиночный writer-процесс, либо отдельная БД для индекса.
 
 CREATE TABLE IF NOT EXISTS analyses (
   call_id INTEGER PRIMARY KEY,
