@@ -62,6 +62,61 @@ export async function voxGetStatistic(callId: string): Promise<VoxStatistic | nu
   return result?.[0] ?? null;
 }
 
+/**
+ * Постраничный листинг истории звонков из Voximplant.
+ * Возвращает страницу записей + следующий offset для пагинации.
+ * Bitrix отдаёт максимум 50 записей за один запрос.
+ *
+ * Чтобы вытащить всё за период — итерируем пока `next` не вернёт null.
+ */
+export async function voxListStatistics(opts: {
+  fromDate?: string;             // YYYY-MM-DD
+  toDate?: string;               // YYYY-MM-DD
+  managerIds?: string[];         // PORTAL_USER_ID (только эти менеджеры)
+  hasRecordOnly?: boolean;       // фильтровать только звонки с записью
+  start?: number;                // offset для пагинации
+}): Promise<{ items: VoxStatistic[]; next: number | null; total: number }> {
+  const filter: Record<string, unknown> = {};
+  if (opts.fromDate) filter[">=CALL_START_DATE"] = opts.fromDate;
+  if (opts.toDate) filter["<=CALL_START_DATE"] = opts.toDate + " 23:59:59";
+  if (opts.managerIds && opts.managerIds.length > 0) filter["PORTAL_USER_ID"] = opts.managerIds;
+  if (opts.hasRecordOnly) filter[">CALL_DURATION"] = "0";
+
+  // Bitrix REST: пагинация через top-level `start`, не в FILTER
+  const params: Record<string, unknown> = {
+    FILTER: filter,
+    SORT: "CALL_START_DATE",
+    ORDER: "DESC",
+  };
+  if (opts.start) params.start = opts.start;
+
+  const url = baseUrl() + "voximplant.statistic.get.json";
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = (await res.json()) as {
+    result?: VoxStatistic[];
+    total?: number;
+    next?: number;
+    error?: string;
+    error_description?: string;
+  };
+  if (!res.ok || data.error) {
+    throw new BitrixError(
+      `voximplant.statistic.get: ${data.error || res.statusText} — ${data.error_description ?? ""}`,
+      "voximplant.statistic.get",
+      data
+    );
+  }
+  return {
+    items: data.result ?? [],
+    next: typeof data.next === "number" ? data.next : null,
+    total: data.total ?? data.result?.length ?? 0,
+  };
+}
+
 // ──────────────────────────────────────────────────────────────
 // CRM Activity — для классической схемы с произвольной телефонией.
 // Когда внешняя АТС закрывает звонок через telephony.externalcall.finish,
