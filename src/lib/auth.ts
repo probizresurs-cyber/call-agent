@@ -81,7 +81,9 @@ export async function login(loginRaw: string, password: string): Promise<boolean
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    path: "/call-agent",
+    // path "/" чтобы cookie корректно передавалась независимо от basePath.
+    // Next.js + nginx иногда теряли cookie с path="/call-agent" → циклический redirect.
+    path: "/",
     expires,
   });
   return true;
@@ -93,7 +95,8 @@ export async function logout() {
   if (token) {
     getDb().prepare(`DELETE FROM sessions WHERE id = ?`).run(token);
   }
-  c.delete(COOKIE_NAME);
+  // delete должен использовать тот же path что и set
+  c.set(COOKIE_NAME, "", { path: "/", expires: new Date(0) });
 }
 
 /**
