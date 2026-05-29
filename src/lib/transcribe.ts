@@ -15,7 +15,10 @@ export async function transcribeFile(filePath: string): Promise<TranscribeResult
   if (!apiKey) throw new Error("OPENAI_API_KEY не задан");
   if (!fs.existsSync(filePath)) throw new Error(`Файл записи не найден: ${filePath}`);
 
-  const client = new OpenAI({ apiKey });
+  // OPENAI_BASE_URL — для прокси (Cloudflare Worker) обхода гео-блока РФ.
+  // По умолчанию SDK использует https://api.openai.com/v1
+  const baseURL = process.env.OPENAI_BASE_URL?.trim() || undefined;
+  const client = new OpenAI({ apiKey, baseURL });
 
   // OpenAI Node SDK принимает поток / file
   const res = await client.audio.transcriptions.create({
