@@ -2,8 +2,20 @@
  * Простой воркер: каждые 5 сек берёт следующий pending звонок и обрабатывает.
  * Запускать отдельным PM2-процессом.
  */
+import path from "path";
+import { loadEnv } from "../src/lib/loadEnv";
+// Загружаем .env ДО любых импортов которые читают process.env
+loadEnv(path.join(__dirname, ".."));
+
 import { getDb } from "../src/lib/db";
 import { processCall } from "../src/lib/pipeline";
+
+// Сразу логируем доступность ключевых ENV — поможет диагностике
+console.log("[worker] env check:",
+  "BITRIX_WEBHOOK_URL=" + (process.env.BITRIX_WEBHOOK_URL ? "set" : "MISSING"),
+  "OPENAI_API_KEY=" + (process.env.OPENAI_API_KEY ? "set" : "MISSING"),
+  "ANTHROPIC_API_KEY=" + (process.env.ANTHROPIC_API_KEY ? "set" : "MISSING")
+);
 
 const POLL_INTERVAL_MS = 5000;
 const MAX_ATTEMPTS = 3;

@@ -31,13 +31,18 @@ export async function processCall(callId: number): Promise<void> {
     // для внешних АТС (Телфин и т.п.) в voximplant.statistic.get URL=null,
     // а файл лежит в crm.activity.FILES[0].url
     let recordingUrl = row.recording_url;
-    if (!recordingUrl && row.bitrix_activity_id) {
+    if (!recordingUrl && row.bitrix_activity_id && row.bitrix_activity_id !== "0") {
       recordingUrl = await resolveRecordingFromActivity(row.bitrix_activity_id);
       if (recordingUrl) {
         db.prepare(`UPDATE calls SET recording_url = ? WHERE id = ?`).run(recordingUrl, callId);
       }
     }
-    if (!recordingUrl) throw new Error(`У звонка ${callId} нет recording_url и не нашли через activity`);
+    if (!recordingUrl) {
+      const reason = !row.bitrix_activity_id || row.bitrix_activity_id === "0"
+        ? "звонок не привязан к Activity"
+        : "не нашли FILES в Activity (запись отсутствует)";
+      throw new Error(`Нет recording_url: ${reason}`);
+    }
 
     recordingPath = await downloadRecording(
       recordingUrl,
