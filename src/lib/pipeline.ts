@@ -107,15 +107,28 @@ export async function processCall(callId: number): Promise<void> {
     JSON.stringify(analysis.checklist_scores ?? [])
   );
 
-  // 7. Sync back в Bitrix
+  // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL
   setCallStatus(callId, "syncing");
-  try {
-    await syncBackToBitrix(row, analysis);
-  } catch (e) {
+  const dryRun = process.env.BITRIX_DRY_RUN === "true";
+  const hasWebhook = !!process.env.BITRIX_WEBHOOK_URL?.trim();
+  if (dryRun || !hasWebhook) {
+    const reason = dryRun ? "BITRIX_DRY_RUN=true" : "BITRIX_WEBHOOK_URL не задан";
     db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
-      `sync warning: ${(e as Error).message}`,
+      `sync skipped: ${reason}`,
       callId
     );
+    console.log(`[pipeline] call #${callId}: sync to Bitrix SKIPPED (${reason})`);
+  } else {
+    try {
+      await syncBackToBitrix(row, analysis);
+      // успех — очищаем поле error (если там был warning из прошлого прогона)
+      db.prepare(`UPDATE calls SET error = NULL WHERE id = ?`).run(callId);
+    } catch (e) {
+      db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
+        `sync warning: ${(e as Error).message}`,
+        callId
+      );
+    }
   }
 
   setCallStatus(callId, "done");
