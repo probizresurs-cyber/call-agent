@@ -167,7 +167,25 @@ export interface CrmActivity {
 export async function crmActivityGet(id: string): Promise<CrmActivity | null> {
   try {
     return await call<CrmActivity>("crm.activity.get", { id });
-  } catch {
+  } catch (e) {
+    console.warn(`[bitrix] crm.activity.get(${id}) failed:`, (e as Error).message);
+    return null;
+  }
+}
+
+/**
+ * Получить активность через `crm.activity.list` — этот метод (в отличие от .get)
+ * стабильно возвращает поле FILES со ссылкой на запись для внешних АТС.
+ */
+export async function crmActivityListById(id: string): Promise<CrmActivity | null> {
+  try {
+    const list = await call<CrmActivity[]>("crm.activity.list", {
+      filter: { ID: id },
+      select: ["*", "FILES"],
+    });
+    return list?.[0] ?? null;
+  } catch (e) {
+    console.warn(`[bitrix] crm.activity.list(ID=${id}) failed:`, (e as Error).message);
     return null;
   }
 }
@@ -226,12 +244,21 @@ export async function downloadRecording(url: string, outDir: string, callId: str
  * Резолв ссылки на запись по CRM_ACTIVITY_ID — для внешних телефоний
  * (Телфин, Mango, UIS и т.п.) где voximplant.statistic.get отдаёт
  * CALL_RECORD_URL=null, а файл лежит в crm.activity.FILES.
+ *
+ * Использует crm.activity.list (НЕ .get), потому что в текущих версиях
+ * Битрикса .get не возвращает поле FILES.
  */
 export async function resolveRecordingFromActivity(activityId: string): Promise<string | null> {
-  const a = await crmActivityGet(activityId);
-  if (!a) return null;
+  const a = await crmActivityListById(activityId);
+  if (!a) {
+    console.warn(`[bitrix] resolveRecording: activity ${activityId} не найдена`);
+    return null;
+  }
   const file = a.FILES?.[0];
   const url = file?.urlMachine || file?.url;
+  if (!url) {
+    console.warn(`[bitrix] resolveRecording: activity ${activityId} без FILES (запись отсутствует)`);
+  }
   return url || null;
 }
 
