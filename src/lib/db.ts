@@ -12,13 +12,15 @@ export function getDb(): Database.Database {
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 
   const db = new Database(DB_PATH);
-  // WAL — позволяет параллельные чтения + сериализованные записи.
-  db.pragma("journal_mode = WAL");
-  // synchronous=NORMAL — компромисс скорости и надёжности
-  // (FULL надёжнее но в разы медленнее, OFF быстрее но риск порчи при креше).
-  db.pragma("synchronous = NORMAL");
-  // busy_timeout — если другая транзакция держит лок, ждём вместо ошибки.
-  db.pragma("busy_timeout = 5000");
+  // DELETE journal вместо WAL.
+  // WAL даёт лучшую конкурентность, но при multi-process записи (web + worker)
+  // на этом VPS он стабильно вызывал "database disk image is malformed".
+  // DELETE использует exclusive lock на запись — медленнее, но надёжно.
+  db.pragma("journal_mode = DELETE");
+  // synchronous=FULL — гарантирует что WAL/journal записан на диск перед commit
+  db.pragma("synchronous = FULL");
+  // busy_timeout — если другая транзакция держит lock, ждём до 10 сек
+  db.pragma("busy_timeout = 10000");
   db.pragma("foreign_keys = ON");
 
   // Миграции выполняются на старте процесса (idempotent CREATE IF NOT EXISTS)
