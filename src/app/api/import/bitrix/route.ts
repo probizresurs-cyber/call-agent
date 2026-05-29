@@ -70,8 +70,11 @@ export async function POST(req: NextRequest) {
 
       for (const stat of page.items) {
         totalFetched += 1;
-        const recordingUrl = stat.CALL_RECORD_URL || stat.CALL_WEBDAV_URL;
-        if (!recordingUrl) { skipped += 1; continue; }
+        // Если recording_url пусто, но есть CRM_ACTIVITY_ID — всё равно вставляем.
+        // Pipeline сам резолвит ссылку через crm.activity.get перед скачиванием
+        // (актуально для Телфин/Mango/UIS — записи лежат в FILES активности).
+        const recordingUrl = stat.CALL_RECORD_URL || stat.CALL_WEBDAV_URL || null;
+        if (!recordingUrl && !stat.CRM_ACTIVITY_ID) { skipped += 1; continue; }
 
         const entityType = entityTypeStringToId(stat.CRM_ENTITY_TYPE);
         const r = insertStmt.run(

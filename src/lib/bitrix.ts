@@ -14,6 +14,35 @@ function baseUrl(): string {
   return url.endsWith("/") ? url : url + "/";
 }
 
+/**
+ * Из URL вида `https://portal.bitrix24.ru/rest/<userId>/<token>/`
+ * достаём <token> — он нужен для подстановки в `auth=` параметр
+ * прямых ссылок на скачивание файлов из Битрикс-диска.
+ */
+function extractWebhookToken(): string | null {
+  const url = process.env.BITRIX_WEBHOOK_URL?.trim();
+  if (!url) return null;
+  // /rest/123/abcDEF1234.../ — нам нужен сегмент после userId
+  const m = url.match(/\/rest\/\d+\/([^/]+)\/?/);
+  return m?.[1] ?? null;
+}
+
+/**
+ * Битрикс часто возвращает ссылки на скачивание с пустым параметром
+ * `auth=` — нужно подставить токен из webhook URL, иначе будет 401.
+ * Также корректно обрабатывает URL без параметра auth вообще.
+ */
+export function appendAuthToFileUrl(url: string): string {
+  const token = extractWebhookToken();
+  if (!token) return url;
+  // Если уже есть auth=<что-то>, перезаписываем; иначе добавляем
+  if (/[?&]auth=/.test(url)) {
+    return url.replace(/(\?|&)auth=[^&]*/, `$1auth=${token}`);
+  }
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}auth=${token}`;
+}
+
 export class BitrixError extends Error {
   constructor(message: string, public method: string, public payload?: unknown) {
     super(message);
@@ -174,13 +203,36 @@ export async function crmActivityUpdate(id: string, fields: Record<string, unkno
 
 export async function downloadRecording(url: string, outDir: string, callId: string): Promise<string> {
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  const res = await fetch(url);
+  // Для ссылок типа /bitrix/tools/crm_show_file.php?... подставляем auth-токен
+  const fetchUrl = /\/bitrix\/tools\/.+\.php\?/i.test(url) || /[?&]auth=/.test(url)
+    ? appendAuthToFileUrl(url)
+    : url;
+  const res = await fetch(fetchUrl, { redirect: "follow" });
   if (!res.ok) throw new Error(`Не удалось скачать запись ${url}: ${res.status}`);
+  const ct = res.headers.get("content-type") || "";
+  // Защита: если Битрикс вернул JSON/HTML вместо аудио — это auth ошибка
+  if (ct.includes("text/html") || ct.includes("application/json")) {
+    const preview = (await res.text()).slice(0, 200);
+    throw new Error(`Битрикс вернул ${ct} вместо аудио (вероятно auth): ${preview}`);
+  }
   const buf = Buffer.from(await res.arrayBuffer());
-  const ext = inferExt(url, res.headers.get("content-type"));
+  const ext = inferExt(url, ct);
   const filePath = path.join(outDir, `${callId}${ext}`);
   fs.writeFileSync(filePath, buf);
   return filePath;
+}
+
+/**
+ * Резолв ссылки на запись по CRM_ACTIVITY_ID — для внешних телефоний
+ * (Телфин, Mango, UIS и т.п.) где voximplant.statistic.get отдаёт
+ * CALL_RECORD_URL=null, а файл лежит в crm.activity.FILES.
+ */
+export async function resolveRecordingFromActivity(activityId: string): Promise<string | null> {
+  const a = await crmActivityGet(activityId);
+  if (!a) return null;
+  const file = a.FILES?.[0];
+  const url = file?.urlMachine || file?.url;
+  return url || null;
 }
 
 function inferExt(url: string, contentType: string | null): string {

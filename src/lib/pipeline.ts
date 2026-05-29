@@ -5,6 +5,7 @@ import {
   crmTimelineCommentAdd,
   entityTypeStringToId,
   buildCallContext,
+  resolveRecordingFromActivity,
   type DealContext,
 } from "./bitrix";
 import { transcribeFile } from "./transcribe";
@@ -24,10 +25,22 @@ export async function processCall(callId: number): Promise<void> {
   // 1. Скачать запись
   let recordingPath = row.recording_path;
   if (!recordingPath) {
-    if (!row.recording_url) throw new Error(`У звонка ${callId} нет recording_url`);
     setCallStatus(callId, "downloading");
+
+    // Резолвим recording_url если пуст:
+    // для внешних АТС (Телфин и т.п.) в voximplant.statistic.get URL=null,
+    // а файл лежит в crm.activity.FILES[0].url
+    let recordingUrl = row.recording_url;
+    if (!recordingUrl && row.bitrix_activity_id) {
+      recordingUrl = await resolveRecordingFromActivity(row.bitrix_activity_id);
+      if (recordingUrl) {
+        db.prepare(`UPDATE calls SET recording_url = ? WHERE id = ?`).run(recordingUrl, callId);
+      }
+    }
+    if (!recordingUrl) throw new Error(`У звонка ${callId} нет recording_url и не нашли через activity`);
+
     recordingPath = await downloadRecording(
-      row.recording_url,
+      recordingUrl,
       RECORDINGS_DIR,
       String(row.bitrix_call_id ?? callId)
     );
