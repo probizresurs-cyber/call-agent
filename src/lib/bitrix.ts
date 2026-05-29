@@ -221,17 +221,14 @@ export async function crmActivityUpdate(id: string, fields: Record<string, unkno
 
 export async function downloadRecording(url: string, outDir: string, callId: string): Promise<string> {
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  // Для ссылок типа /bitrix/tools/crm_show_file.php?... подставляем auth-токен
-  const fetchUrl = /\/bitrix\/tools\/.+\.php\?/i.test(url) || /[?&]auth=/.test(url)
-    ? appendAuthToFileUrl(url)
-    : url;
-  const res = await fetch(fetchUrl, { redirect: "follow" });
+  const res = await fetch(url, { redirect: "follow" });
   if (!res.ok) throw new Error(`Не удалось скачать запись ${url}: ${res.status}`);
   const ct = res.headers.get("content-type") || "";
-  // Защита: если Битрикс вернул JSON/HTML вместо аудио — это auth ошибка
-  if (ct.includes("text/html") || ct.includes("application/json")) {
+  // Защита: если Битрикс вернул HTML вместо аудио — это auth ошибка
+  // (URL вида /bitrix/tools/crm_show_file.php требует session-auth, не webhook)
+  if (ct.includes("text/html")) {
     const preview = (await res.text()).slice(0, 200);
-    throw new Error(`Битрикс вернул ${ct} вместо аудио (вероятно auth): ${preview}`);
+    throw new Error(`Битрикс вернул HTML вместо аудио (нужен disk.file.get DOWNLOAD_URL): ${preview}`);
   }
   const buf = Buffer.from(await res.arrayBuffer());
   const ext = inferExt(url, ct);
@@ -241,12 +238,35 @@ export async function downloadRecording(url: string, outDir: string, callId: str
 }
 
 /**
+ * Получить машинную DOWNLOAD_URL по ID файла из b_file (Bitrix Disk).
+ * Эта ссылка содержит собственный одноразовый токен и работает напрямую
+ * через fetch — auth подставлять не нужно.
+ */
+export async function diskFileGetDownloadUrl(fileId: string | number): Promise<string | null> {
+  try {
+    const file = await call<{
+      ID: string;
+      NAME?: string;
+      DOWNLOAD_URL?: string;
+    }>("disk.file.get", { id: fileId });
+    return file?.DOWNLOAD_URL ?? null;
+  } catch (e) {
+    console.warn(`[bitrix] disk.file.get(${fileId}) failed:`, (e as Error).message);
+    return null;
+  }
+}
+
+/**
  * Резолв ссылки на запись по CRM_ACTIVITY_ID — для внешних телефоний
  * (Телфин, Mango, UIS и т.п.) где voximplant.statistic.get отдаёт
  * CALL_RECORD_URL=null, а файл лежит в crm.activity.FILES.
  *
- * Использует crm.activity.list (НЕ .get), потому что в текущих версиях
- * Битрикса .get не возвращает поле FILES.
+ * Алгоритм:
+ *  1. crm.activity.list(filter=ID) → берём FILES[0].id (это b_file.ID)
+ *  2. disk.file.get(id) → берём DOWNLOAD_URL (машинная ссылка с токеном)
+ *
+ * Использует list а не .get, потому что .get НЕ возвращает FILES
+ * в текущих версиях Битрикса.
  */
 export async function resolveRecordingFromActivity(activityId: string): Promise<string | null> {
   const a = await crmActivityListById(activityId);
@@ -255,11 +275,25 @@ export async function resolveRecordingFromActivity(activityId: string): Promise<
     return null;
   }
   const file = a.FILES?.[0];
-  const url = file?.urlMachine || file?.url;
-  if (!url) {
+  if (!file) {
     console.warn(`[bitrix] resolveRecording: activity ${activityId} без FILES (запись отсутствует)`);
+    return null;
   }
-  return url || null;
+
+  // Если в FILES уже есть готовая машинная ссылка — используем её
+  if (file.urlMachine) return file.urlMachine;
+
+  // Иначе резолвим через disk.file.get
+  const fileId = (file as { id?: number | string }).id;
+  if (!fileId) {
+    console.warn(`[bitrix] resolveRecording: activity ${activityId} FILES[0] без id`);
+    return null;
+  }
+  const dl = await diskFileGetDownloadUrl(fileId);
+  if (!dl) {
+    console.warn(`[bitrix] resolveRecording: disk.file.get(${fileId}) вернул null`);
+  }
+  return dl;
 }
 
 function inferExt(url: string, contentType: string | null): string {
