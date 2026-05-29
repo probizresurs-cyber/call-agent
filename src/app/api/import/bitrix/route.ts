@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { voxListStatistics, entityTypeStringToId } from "@/lib/bitrix";
+import { backfillManagerNames } from "@/lib/managers";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -104,12 +105,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Подтягиваем имена менеджеров для новых звонков (не блокирует ответ при ошибке)
+  let managers: { uniqueIds: number; fetched: number; updatedCalls: number } | null = null;
+  try {
+    managers = await backfillManagerNames();
+  } catch (e) {
+    console.warn("[import] backfillManagerNames failed:", (e as Error).message);
+  }
+
   return NextResponse.json({
     ok: true,
     totalFetched,
     inserted,
     skipped,
     pages,
+    managers,
     durationMs: Date.now() - t0,
     note: pages >= MAX_PAGES
       ? `Достигнут лимит ${MAX_PAGES * 50} звонков за импорт. Запустите ещё раз с более узким периодом если нужно больше.`

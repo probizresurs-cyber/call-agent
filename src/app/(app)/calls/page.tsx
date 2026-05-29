@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { SentimentBadge, StatusBadge } from "@/app/_components/Badges";
+import { CallsFilters } from "./CallsFilters";
 
 export const dynamic = "force-dynamic";
 
@@ -21,17 +22,20 @@ type Row = {
 };
 
 export default async function CallsListPage(props: {
-  searchParams: Promise<{ status?: string; sentiment?: string; q?: string }>;
+  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string }>;
 }) {
   const sp = await props.searchParams;
   const where: string[] = [];
   const params: unknown[] = [];
+
   if (sp.status) { where.push("c.status = ?"); params.push(sp.status); }
   if (sp.sentiment) { where.push("a.sentiment = ?"); params.push(sp.sentiment); }
   if (sp.q) {
     where.push(`c.id IN (SELECT call_id FROM transcripts WHERE text LIKE ?)`);
     params.push(`%${sp.q}%`);
   }
+  if (sp.from) { where.push("substr(c.started_at,1,10) >= ?"); params.push(sp.from); }
+  if (sp.to)   { where.push("substr(c.started_at,1,10) <= ?"); params.push(sp.to); }
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
   const rows = getDb()
@@ -41,42 +45,29 @@ export default async function CallsListPage(props: {
               a.summary, a.sentiment, a.manager_score
        FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
        ${whereSql}
-       ORDER BY c.id DESC LIMIT 100`
+       ORDER BY c.id DESC LIMIT 200`
     )
     .all(...params) as Row[];
 
+  const totalCount = getDb()
+    .prepare(`SELECT COUNT(*) AS n FROM calls c LEFT JOIN analyses a ON a.call_id = c.id ${whereSql}`)
+    .get(...params) as { n: number };
+
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <h1 className="ds-h1">Звонки</h1>
-        <form method="get" style={{ display: "flex", gap: 8 }}>
-          <input
-            className="ds-input"
-            name="q"
-            placeholder="Поиск по транскрипту…"
-            defaultValue={sp.q || ""}
-            style={{ width: 280 }}
-          />
-          <select className="ds-input" name="sentiment" defaultValue={sp.sentiment || ""} style={{ width: 160 }}>
-            <option value="">Все настроения</option>
-            <option value="positive">Позитив</option>
-            <option value="neutral">Нейтрально</option>
-            <option value="negative">Негатив</option>
-          </select>
-          <select className="ds-input" name="status" defaultValue={sp.status || ""} style={{ width: 160 }}>
-            <option value="">Все статусы</option>
-            <option value="done">Готово</option>
-            <option value="pending">В очереди</option>
-            <option value="failed">Ошибка</option>
-          </select>
-          <button className="ds-btn ds-btn-primary" type="submit">Применить</button>
-        </form>
+        <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+          Найдено: <b>{totalCount.n}</b>{rows.length < totalCount.n ? ` (показано первые ${rows.length})` : ""}
+        </div>
       </div>
+
+      <CallsFilters />
 
       {rows.length === 0 ? (
         <div className="ds-card" style={{ textAlign: "center", padding: 40 }}>
           <div className="ds-body" style={{ color: "var(--muted-foreground)" }}>
-            Пока нет звонков. Импортируйте звонки из истории →
+            Нет звонков под текущие фильтры. Попробуйте сбросить фильтры или импортировать ещё →
             <Link href="/settings" style={{ color: "var(--primary)", marginLeft: 4 }}>Настройки</Link>
           </div>
         </div>
@@ -94,7 +85,7 @@ export default async function CallsListPage(props: {
                 <tr key={r.id}>
                   <td><Link href={`/calls/${r.id}`} style={{ color: "var(--primary)" }}>#{r.id}</Link></td>
                   <td style={{ whiteSpace: "nowrap" }}>{formatDate(r.started_at)}</td>
-                  <td>{r.manager_name || (r.manager_id ? `ID ${r.manager_id}` : "—")}</td>
+                  <td>{r.manager_name || (r.manager_id ? <span style={{ color: "var(--muted-foreground)" }}>ID {r.manager_id}</span> : "—")}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                       {r.direction === "in"

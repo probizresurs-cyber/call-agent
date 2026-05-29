@@ -52,22 +52,36 @@ export default async function DashboardPage() {
   for (const s of sentiments) sentMap[(s.sentiment as SentimentBucket) || "unknown"] = s.n;
   const sentTotal = sentMap.positive + sentMap.neutral + sentMap.negative;
 
-  // ───────────── Топ менеджеров ─────────────
-  const topManagers = db
+  // ───────────── Все менеджеры с детальной статистикой ─────────────
+  // Контакт состоялся = длительность >= 30 сек (есть какой-то разговор)
+  // Не дозвонились = длительность < 10 сек (автоответчик / повесили)
+  const allManagers = db
     .prepare(
-      `SELECT c.manager_id, c.manager_name,
+      `SELECT c.manager_id,
+              COALESCE(MAX(c.manager_name), m.name, '') AS manager_name,
               COUNT(*) AS calls,
+              SUM(CASE WHEN c.duration_sec >= 30 THEN 1 ELSE 0 END) AS connected,
+              SUM(CASE WHEN c.duration_sec < 10 THEN 1 ELSE 0 END) AS missed,
+              SUM(CASE WHEN c.direction='in' THEN 1 ELSE 0 END) AS incoming,
+              SUM(CASE WHEN c.direction='out' THEN 1 ELSE 0 END) AS outgoing,
               AVG(a.manager_score) AS avg_score,
               AVG(a.script_compliance) AS avg_compliance,
-              SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS negatives
-       FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
-       WHERE c.manager_id IS NOT NULL
+              SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS pos,
+              SUM(CASE WHEN a.sentiment='neutral'  THEN 1 ELSE 0 END) AS neu,
+              SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS neg
+       FROM calls c
+       LEFT JOIN analyses a ON a.call_id = c.id
+       LEFT JOIN managers m ON m.id = c.manager_id
+       WHERE c.manager_id IS NOT NULL AND c.manager_id != ''
        GROUP BY c.manager_id
-       ORDER BY calls DESC LIMIT 10`
+       ORDER BY calls DESC`
     )
     .all() as Array<{
-      manager_id: string; manager_name: string | null;
-      calls: number; avg_score: number | null; avg_compliance: number | null; negatives: number;
+      manager_id: string; manager_name: string;
+      calls: number; connected: number; missed: number;
+      incoming: number; outgoing: number;
+      avg_score: number | null; avg_compliance: number | null;
+      pos: number; neu: number; neg: number;
     }>;
 
   // ───────────── Динамика по дням (последние 14) ─────────────
@@ -315,27 +329,57 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* ───── Топ менеджеров ───── */}
+      {/* ───── Менеджеры — расширенная статистика ───── */}
       <div className="ds-card">
-        <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-          <Users size={16} strokeWidth={2} /> Менеджеры
-        </h2>
-        {topManagers.length === 0 ? <Empty /> : (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Users size={16} strokeWidth={2} /> Менеджеры — детальная статистика
+          </h2>
+          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+            всего: {allManagers.length}
+          </span>
+        </div>
+        {allManagers.length === 0 ? <Empty /> : (
+          <div style={{ overflowX: "auto" }}>
           <table className="ds-table">
             <thead>
               <tr>
-                <th>Менеджер</th>
-                <th style={{ width: 90 }}>Звонков</th>
+                <th>ФИО / ID</th>
+                <th style={{ width: 80, textAlign: "center" }}>Всего</th>
+                <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
+                <th style={{ width: 130, textAlign: "center" }}>Не дозвонился**</th>
+                <th style={{ width: 110, textAlign: "center" }}>Входящ.</th>
+                <th style={{ width: 110, textAlign: "center" }}>Исходящ.</th>
                 <th style={{ width: 110 }}>Ср. оценка</th>
                 <th style={{ width: 110 }}>Чек-лист</th>
-                <th style={{ width: 110 }}>Негативных</th>
+                <th style={{ width: 180 }}>Настроение</th>
               </tr>
             </thead>
             <tbody>
-              {topManagers.map((m) => (
+              {allManagers.map((m) => {
+                const sentTotal = m.pos + m.neu + m.neg;
+                return (
                 <tr key={m.manager_id}>
-                  <td>{m.manager_name || `ID ${m.manager_id}`}</td>
-                  <td>{m.calls}</td>
+                  <td>
+                    {m.manager_name || <span style={{ color: "var(--muted-foreground)" }}>ID {m.manager_id}</span>}
+                  </td>
+                  <td style={{ textAlign: "center", fontWeight: 600 }}>{m.calls}</td>
+                  <td style={{ textAlign: "center" }}>
+                    <span style={{ color: "var(--success)", fontWeight: 600 }}>{m.connected}</span>
+                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
+                      ({m.calls > 0 ? Math.round((m.connected / m.calls) * 100) : 0}%)
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    <span style={{ color: m.missed > 0 ? "var(--destructive)" : "var(--muted-foreground)", fontWeight: 600 }}>
+                      {m.missed}
+                    </span>
+                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
+                      ({m.calls > 0 ? Math.round((m.missed / m.calls) * 100) : 0}%)
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center" }}>{m.incoming}</td>
+                  <td style={{ textAlign: "center" }}>{m.outgoing}</td>
                   <td>
                     {m.avg_score != null ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -346,19 +390,42 @@ export default async function DashboardPage() {
                   </td>
                   <td>{m.avg_compliance != null ? `${Math.round(m.avg_compliance * 100)}%` : "—"}</td>
                   <td>
-                    {m.negatives > 0 ? (
-                      <span className="ds-badge ds-badge-danger">{m.negatives}</span>
+                    {sentTotal === 0 ? (
+                      <span style={{ color: "var(--muted-foreground)" }}>—</span>
                     ) : (
-                      <span style={{ color: "var(--muted-foreground)" }}>0</span>
+                      <SentimentMini pos={m.pos} neu={m.neu} neg={m.neg} />
                     )}
                   </td>
-                </tr>
-              ))}
+                </tr>);
+              })}
             </tbody>
           </table>
+          </div>
         )}
+        <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
+          * <b>Контактов</b> — звонки длительностью ≥ 30 сек (разговор состоялся)<br/>
+          ** <b>Не дозвонился</b> — звонки короче 10 сек (автоответчик / повесили / занято)
+        </div>
       </div>
     </>
+  );
+}
+
+function SentimentMini({ pos, neu, neg }: { pos: number; neu: number; neg: number }) {
+  const total = pos + neu + neg || 1;
+  return (
+    <div>
+      <div style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", background: "var(--muted)" }}>
+        <div style={{ width: `${(pos / total) * 100}%`, background: "var(--success)" }} />
+        <div style={{ width: `${(neu / total) * 100}%`, background: "#a0a0a0" }} />
+        <div style={{ width: `${(neg / total) * 100}%`, background: "var(--destructive)" }} />
+      </div>
+      <div style={{ display: "flex", gap: 8, fontSize: 11, marginTop: 4, color: "var(--muted-foreground)" }}>
+        <span style={{ color: "var(--success)" }}>+{pos}</span>
+        <span>={neu}</span>
+        <span style={{ color: "var(--destructive)" }}>-{neg}</span>
+      </div>
+    </div>
   );
 }
 

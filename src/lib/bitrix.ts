@@ -496,4 +496,51 @@ function stripBitrixHtml(s: string): string {
     .trim();
 }
 
+// ──────────────────────────────────────────────────────────────
+// Пользователи (менеджеры)
+
+export interface BitrixUser {
+  ID: string;
+  NAME?: string;
+  LAST_NAME?: string;
+  SECOND_NAME?: string;
+  EMAIL?: string;
+  ACTIVE?: boolean;
+}
+
+/** Получить одного пользователя по ID */
+export async function userGet(id: string | number): Promise<BitrixUser | null> {
+  try {
+    const r = await call<BitrixUser[]>("user.get", { ID: id });
+    return r?.[0] ?? null;
+  } catch (e) {
+    console.warn(`[bitrix] user.get(${id}) failed:`, (e as Error).message);
+    return null;
+  }
+}
+
+/** Получить пачку пользователей по списку ID (Bitrix лимит 50 за раз) */
+export async function usersGetBatch(ids: Array<string | number>): Promise<Map<string, BitrixUser>> {
+  const out = new Map<string, BitrixUser>();
+  const unique = [...new Set(ids.map(String))].filter(Boolean);
+
+  for (let i = 0; i < unique.length; i += 50) {
+    const chunk = unique.slice(i, i + 50);
+    try {
+      const r = await call<BitrixUser[]>("user.get", { FILTER: { ID: chunk } });
+      for (const u of r ?? []) out.set(u.ID, u);
+    } catch (e) {
+      console.warn(`[bitrix] usersGetBatch chunk failed:`, (e as Error).message);
+    }
+  }
+  return out;
+}
+
+/** Сложить ФИО в формат "Фамилия Имя" (или Имя если фамилии нет) */
+export function formatUserName(u: BitrixUser): string {
+  const last = u.LAST_NAME?.trim();
+  const name = u.NAME?.trim();
+  return [last, name].filter(Boolean).join(" ") || u.EMAIL || `ID ${u.ID}`;
+}
+
 export { call as bitrixCall };
