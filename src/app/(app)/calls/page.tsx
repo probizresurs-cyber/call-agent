@@ -76,7 +76,7 @@ export default async function CallsListPage(props: {
       {rows.length === 0 ? (
         <div className="ds-card" style={{ textAlign: "center", padding: 40 }}>
           <div className="ds-body" style={{ color: "var(--muted-foreground)" }}>
-            Пока нет звонков. Настройте исходящий webhook в Битриксе →
+            Пока нет звонков. Импортируйте звонки из истории →
             <Link href="/settings" style={{ color: "var(--primary)", marginLeft: 4 }}>Настройки</Link>
           </div>
         </div>
