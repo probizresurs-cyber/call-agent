@@ -1,8 +1,9 @@
-import { Cloud, Download, ListChecks, RefreshCw, Users } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
 import { ScriptsManager } from "./ScriptsManager";
+import { DashboardSettingsCard } from "./DashboardSettingsCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,14 @@ export default async function SettingsPage() {
           <Users size={16} strokeWidth={2} /> Менеджеры — отображение
         </h2>
         <ManagersCard />
+      </div>
+
+      {/* ───────── Параметры дашборда ───────── */}
+      <div className="ds-card" style={{ marginBottom: 16 }}>
+        <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <SettingsIcon size={16} strokeWidth={2} /> Параметры дашборда
+        </h2>
+        <DashboardSettingsCard />
       </div>
 
       {/* ───────── Скрипты продаж и чек-листы ───────── */}

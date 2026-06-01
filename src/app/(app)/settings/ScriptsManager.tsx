@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Pencil, Trash2, Save, X, ArrowDownLeft, ArrowUpRight, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Save, X, ArrowDownLeft, ArrowUpRight, Loader2, Upload, FileText, ListChecks } from "lucide-react";
 
 interface ChecklistItem {
   id: string;
@@ -172,6 +172,35 @@ function ScriptEditor({ initial, onSave, onCancel }: {
     return DEFAULT_CHECKLIST;
   });
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function uploadDocx(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch("/call-agent/api/scripts/upload-docx", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await r.json();
+      if (data.ok) {
+        // вставляем в конец content (а не заменяем)
+        const prefix = content.trim() ? content + "\n\n" : "";
+        setContent(prefix + `=== Из файла ${data.fileName} ===\n${data.text}`);
+        if (!name.trim()) {
+          // если имя пусто — подставляем из имени файла
+          setName(file.name.replace(/\.docx$/i, ""));
+        }
+      } else {
+        alert("Ошибка загрузки: " + data.error);
+      }
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   function updateItem(i: number, patch: Partial<ChecklistItem>) {
     setChecklist((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
@@ -246,16 +275,69 @@ function ScriptEditor({ initial, onSave, onCancel }: {
         <b style={{ marginLeft: 6 }}>Направление</b> — для каких звонков применять.
       </p>
 
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-          <div className="ds-caption">Чек-лист QC</div>
+      {/* ────── СЕКЦИЯ 1: ТЕКСТ СКРИПТА ────── */}
+      <div style={{
+        marginBottom: 18, padding: 14,
+        border: "1px solid var(--border)", borderRadius: 8,
+        background: "color-mix(in oklch, var(--primary) 4%, var(--card))",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <FileText size={16} strokeWidth={2} color="var(--primary)" />
+            <b style={{ fontSize: 14 }}>Скрипт продаж</b>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".docx"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadDocx(f);
+              }}
+            />
+            <button type="button" className="ds-btn ds-btn-secondary"
+              onClick={() => fileInput.current?.click()}
+              disabled={uploading}>
+              {uploading ? <Loader2 size={14} className="mr-spin" /> : <Upload size={14} />}
+              Загрузить .docx
+            </button>
+          </div>
+        </div>
+        <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 10 }}>
+          Полный текст скрипта разговора. AI использует его как контекст при оценке —
+          понимает специфику продукта, стоп-фразы, ожидаемые формулировки.
+          Можно загрузить .docx файл (Word), его содержимое вставится сюда.
+        </p>
+        <textarea className="ds-textarea" rows={10}
+          value={content} onChange={(e) => setContent(e.target.value)}
+          placeholder="Скопируйте или загрузите текст скрипта продаж..."
+        />
+      </div>
+
+      {/* ────── СЕКЦИЯ 2: ЧЕК-ЛИСТ QC ────── */}
+      <div style={{
+        marginBottom: 14, padding: 14,
+        border: "1px solid var(--border)", borderRadius: 8,
+        background: "color-mix(in oklch, var(--success) 4%, var(--card))",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <ListChecks size={16} strokeWidth={2} color="var(--success)" />
+            <b style={{ fontSize: 14 }}>Чек-лист контроля качества</b>
+          </div>
           <button type="button" className="ds-btn ds-btn-ghost" onClick={addItem}>
             <Plus size={12} /> Добавить пункт
           </button>
         </div>
+        <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 10 }}>
+          Структурированные пункты по которым AI оценит каждый звонок. Каждый пункт —
+          оценка 0-1, итог = взвешенное среднее.
+        </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {checklist.map((item, i) => (
-            <div key={item.id} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 10, background: "var(--card)" }}>
+            <div key={item.id} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: 10, background: "var(--card)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 32px", gap: 8 }}>
                 <input className="ds-input" placeholder="Название пункта"
                   value={item.title} onChange={(e) => updateItem(i, { title: e.target.value })} />
@@ -276,14 +358,6 @@ function ScriptEditor({ initial, onSave, onCancel }: {
           ))}
         </div>
       </div>
-
-      <label className="ds-caption" style={{ display: "block", marginBottom: 4 }}>
-        Дополнительные инструкции (Markdown, опционально)
-      </label>
-      <textarea className="ds-textarea" rows={6}
-        value={content} onChange={(e) => setContent(e.target.value)}
-        placeholder="Скопируйте текст вашего скрипта здесь — AI учтёт это при оценке. Можно сюда же добавить специфику продукта, стоп-фразы, ToV."
-      />
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
         <button type="button" className="ds-btn ds-btn-primary" onClick={save} disabled={busy}>

@@ -3,8 +3,10 @@ import {
   Star, ClipboardList, MessageSquare, Tag, Timer, ArrowDownLeft, ArrowUpRight,
   TrendingUp, AlertOctagon, Users, FileX, type LucideIcon,
 } from "lucide-react";
-import { getDb } from "@/lib/db";
+import { getDb, getSetting } from "@/lib/db";
 import { DashboardFilters } from "./DashboardFilters";
+
+const DEFAULT_CONTACT_THRESHOLD = 15; // секунд
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,11 @@ export default async function DashboardPage(props: {
 }) {
   const sp = await props.searchParams;
   const db = getDb();
+
+  // Порог "разговор состоялся" — настраивается в settings (по умолчанию 15 сек)
+  const contactThreshold = parseInt(getSetting("contact_threshold_seconds") || String(DEFAULT_CONTACT_THRESHOLD), 10);
+  // "Не дозвон" — звонки длительностью < contactThreshold / 1.5 (т.е. порядка трети порога)
+  const missedThreshold = Math.max(5, Math.floor(contactThreshold / 1.5));
 
   // Базовый WHERE для всех запросов с фильтром по дате
   // (substr(c.started_at,1,10) даёт YYYY-MM-DD)
@@ -91,9 +98,9 @@ export default async function DashboardPage(props: {
       `SELECT c.manager_id,
               COALESCE(MAX(c.manager_name), m.name, '') AS manager_name,
               COUNT(*) AS calls,
-              SUM(CASE WHEN c.duration_sec >= 30 THEN 1 ELSE 0 END) AS connected,
+              SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
               COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
-              SUM(CASE WHEN c.duration_sec < 10 THEN 1 ELSE 0 END) AS missed,
+              SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
               SUM(CASE WHEN c.direction='in' THEN 1 ELSE 0 END) AS incoming,
               SUM(CASE WHEN c.direction='out' THEN 1 ELSE 0 END) AS outgoing,
               AVG(a.manager_score) AS avg_score,
@@ -274,7 +281,7 @@ export default async function DashboardPage(props: {
                 <th style={{ width: 80, textAlign: "center" }}>Всего</th>
                 <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
                 <th style={{ width: 110, textAlign: "center" }}>Минут</th>
-                <th style={{ width: 130, textAlign: "center" }}>Не дозвонился**</th>
+                <th style={{ width: 100, textAlign: "center" }}>Не дозвон**</th>
                 <th style={{ width: 100, textAlign: "center" }}>Входящ.</th>
                 <th style={{ width: 100, textAlign: "center" }}>Исходящ.</th>
                 <th style={{ width: 110 }}>Ср. оценка</th>
@@ -333,8 +340,8 @@ export default async function DashboardPage(props: {
           </div>
         )}
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
-          * <b>Контактов</b> — звонки длительностью ≥ 30 сек (разговор состоялся)<br/>
-          ** <b>Не дозвонился</b> — звонки короче 10 сек (автоответчик / повесили / занято)
+          * <b>Контактов</b> — звонки длительностью ≥ {contactThreshold} сек (разговор состоялся). Настраивается в <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках</a>.<br/>
+          ** <b>Не дозвон</b> — звонки короче {missedThreshold} сек (автоответчик / повесили / занято)
         </div>
       </div>
 
