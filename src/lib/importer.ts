@@ -70,7 +70,9 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
         fromDate: opts.fromDate,
         toDate: opts.toDate,
         managerIds: opts.managerIds,
-        hasRecordOnly: true,
+        // Не фильтруем по CALL_DURATION > 0 — иначе пропускаем все «не дозвонились»
+        // (incoming calls с duration=0), а они важны для статистики менеджеров
+        hasRecordOnly: false,
         start,
       });
 
