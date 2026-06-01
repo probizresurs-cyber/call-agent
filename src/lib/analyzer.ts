@@ -10,13 +10,13 @@ export interface CallAnalysis {
   sentiment: "positive" | "neutral" | "negative";
   client_intent: string;
   objections: string[];
-  manager_score: number;             // 0..10 (агрегированная)
+  manager_score: number;             // 0..10
   manager_score_reason: string;
-  checklist_compliance: number;      // 0..1 (взвешенное среднее checklist_scores)
+  checklist_compliance: number;      // 0..1
   checklist_scores: ChecklistItemScore[];
   next_action: string;
   topics: string[];
-  dialogue: DialogueTurn[];          // псевдо-диаризация по тексту
+  dialogue: DialogueTurn[];
 }
 
 const SYSTEM_PROMPT = `Ты — эксперт по B2B-продажам и контролю качества call-центра.
@@ -24,10 +24,95 @@ const SYSTEM_PROMPT = `Ты — эксперт по B2B-продажам и ко
 Если дан чек-лист QC — оцениваешь каждый его пункт независимо (0..1).
 Если дан контекст сделки/лида — используешь его как фон для оценки.
 Также делаешь псевдо-диаризацию: размечаешь, кто говорит каждую реплику
-(manager / client / unknown) по косвенным признакам (приветствие, кто
-задаёт вопросы о продукте, кто называет цены и условия — это менеджер;
-кто спрашивает о цене, сроках, гарантии — это клиент).
-Возвращай СТРОГО JSON без преамбулы и без markdown-обёртки.`;
+(manager / client / unknown) по косвенным признакам.
+Используй инструмент save_analysis для возврата результата.`;
+
+// JSON Schema для tool_use — Anthropic SDK сам валидирует структуру
+const SAVE_ANALYSIS_TOOL: Anthropic.Tool = {
+  name: "save_analysis",
+  description: "Сохранить структурированный анализ звонка",
+  input_schema: {
+    type: "object",
+    properties: {
+      client_name: {
+        type: ["string", "null"] as unknown as "string",  // SDK type quirk
+        description: "Имя клиента если упомянуто в разговоре, иначе null",
+      },
+      summary: {
+        type: "string",
+        description: "3-5 предложений по сути разговора",
+      },
+      sentiment: {
+        type: "string",
+        enum: ["positive", "neutral", "negative"],
+      },
+      client_intent: {
+        type: "string",
+        description: "Что хочет клиент одной фразой",
+      },
+      objections: {
+        type: "array",
+        items: { type: "string" },
+        description: "Возражения клиента",
+      },
+      manager_score: {
+        type: "number",
+        minimum: 0,
+        maximum: 10,
+        description: "Оценка работы менеджера от 0 до 10",
+      },
+      manager_score_reason: {
+        type: "string",
+        description: "Короткое обоснование оценки",
+      },
+      checklist_compliance: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        description: "Взвешенное среднее по чек-листу (0..1)",
+      },
+      checklist_scores: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            title: { type: "string" },
+            score: { type: "number", minimum: 0, maximum: 1 },
+            notes: { type: "string" },
+          },
+          required: ["id", "title", "score", "notes"],
+        },
+      },
+      next_action: {
+        type: "string",
+        description: "Рекомендованный следующий шаг для менеджера",
+      },
+      topics: {
+        type: "array",
+        items: { type: "string" },
+        description: "Темы разговора",
+      },
+      dialogue: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            speaker: { type: "string", enum: ["manager", "client", "unknown"] },
+            text: { type: "string" },
+          },
+          required: ["speaker", "text"],
+        },
+      },
+    },
+    required: [
+      "summary", "sentiment", "client_intent", "objections",
+      "manager_score", "manager_score_reason",
+      "checklist_compliance", "checklist_scores",
+      "next_action", "topics", "dialogue",
+    ],
+  } as Anthropic.Tool["input_schema"],
+};
 
 function userPrompt(args: {
   transcript: string;
@@ -40,7 +125,7 @@ function userPrompt(args: {
     checklist && checklist.length > 0
       ? `Чек-лист QC (оцени каждый пункт от 0 до 1; 1 = выполнено полностью, 0 = не выполнено вообще, weight — важность от 1 до 5):
 ${JSON.stringify(checklist, null, 2)}`
-      : `Чек-листа нет — оцени стандартные пункты: приветствие, выявление потребности, презентация выгод, отработка возражений, договорённость о следующем шаге. Сформируй checklist_scores из этих 5 пунктов.`;
+      : `Чек-листа нет — оцени стандартные пункты: приветствие, выявление потребности, презентация выгод, отработка возражений, договорённость о следующем шаге. Сформируй checklist_scores из этих 5 пунктов (id: greeting, needs, pitch, objections, next_step).`;
 
   const contextBlock = context
     ? `Контекст ${context.kind === "deal" ? "сделки" : "лида"}:
@@ -52,7 +137,7 @@ ${JSON.stringify(checklist, null, 2)}`
 ${context.recentComments.map((c) => `  • ${c.createdAt}: ${c.text.slice(0, 300)}`).join("\n") || "  —"}
 - Прошлые активности (звонки/встречи): ${context.priorActivities.length}
 `
-    : "Контекст сделки/лида не получен (звонок не привязан к CRM или внешний вебхук ещё не подключён).";
+    : "Контекст сделки/лида не получен.";
 
   return `${contextBlock}
 
@@ -63,25 +148,9 @@ ${checklistBlock}
 ${transcript}
 """
 
-Верни JSON:
-{
-  "client_name": "Иван" | null,
-  "summary": "3-5 предложений по сути разговора",
-  "sentiment": "positive" | "neutral" | "negative",
-  "client_intent": "что хочет клиент одной фразой",
-  "objections": ["возражение1", "возражение2"],
-  "manager_score": 0..10,
-  "manager_score_reason": "короткое обоснование",
-  "checklist_compliance": 0..1,
-  "checklist_scores": [
-    {"id":"<id_пункта>","title":"<копия title>","score":0..1,"notes":"что сделано/упущено"}
-  ],
-  "next_action": "рекомендованный следующий шаг для менеджера",
-  "topics": ["цена","сроки","гарантия", ...],
-  "dialogue": [
-    {"speaker":"manager"|"client"|"unknown","text":"реплика дословно или близко к тексту"}
-  ]
-}`;
+Вызови инструмент save_analysis со всеми обязательными полями.
+Для dialogue — псевдо-диаризация: размети каждую реплику по косвенным признакам
+(приветствие, вопросы о продукте, цене, сроках — это менеджер; вопросы о цене, гарантии — это клиент).`;
 }
 
 export async function analyzeCall(args: {
@@ -101,30 +170,32 @@ export async function analyzeCall(args: {
     model: CLAUDE_MODEL,
     max_tokens: 4000,
     system: SYSTEM_PROMPT,
+    tools: [SAVE_ANALYSIS_TOOL],
+    tool_choice: { type: "tool", name: "save_analysis" },
     messages: [{ role: "user", content: userPrompt(args) }],
   });
 
-  const text = msg.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
+  // Извлекаем tool_use блок — он содержит уже распарсенный JSON
+  const toolUse = msg.content.find(
+    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "save_analysis"
+  );
 
-  const json = extractJson(text);
-  const parsed = JSON.parse(json) as CallAnalysis;
+  if (!toolUse) {
+    throw new Error("Claude не вызвал save_analysis tool — модель отказала или вернула только текст");
+  }
 
-  // Нормализация на случай если Claude ушёл от схемы
+  const parsed = toolUse.input as CallAnalysis;
+
+  // Нормализация — на случай если модель не дала какое-то опциональное поле
+  parsed.client_name = parsed.client_name ?? null;
   parsed.dialogue ||= [];
   parsed.checklist_scores ||= [];
   parsed.objections ||= [];
   parsed.topics ||= [];
 
-  return { analysis: parsed, raw: text, model: CLAUDE_MODEL };
-}
-
-function extractJson(s: string): string {
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("В ответе модели не найден JSON");
-  return s.slice(start, end + 1);
+  return {
+    analysis: parsed,
+    raw: JSON.stringify(parsed),  // для логов / debugging
+    model: CLAUDE_MODEL,
+  };
 }
