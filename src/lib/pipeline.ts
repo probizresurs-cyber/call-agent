@@ -23,9 +23,15 @@ export async function processCall(callId: number): Promise<void> {
 
   db.prepare(`UPDATE calls SET attempts = attempts + 1 WHERE id = ?`).run(callId);
 
-  // 1. Скачать запись
+  // 0. Если транскрипт уже есть — переанализ, не платим Whisper заново.
+  //    Полезно когда меняли скрипты / чек-листы и хотим переоценить старые звонки.
+  const existingTranscript = db
+    .prepare(`SELECT text, segments_json, language, model FROM transcripts WHERE call_id = ?`)
+    .get(callId) as { text: string; segments_json: string | null; language: string | null; model: string | null } | undefined;
+
+  // 1. Скачать запись — пропускаем если транскрипт уже есть
   let recordingPath = row.recording_path;
-  if (!recordingPath) {
+  if (!recordingPath && !existingTranscript) {
     setCallStatus(callId, "downloading");
 
     // Резолвим recording_url если пуст:
@@ -54,9 +60,23 @@ export async function processCall(callId: number): Promise<void> {
     db.prepare(`UPDATE calls SET recording_path = ? WHERE id = ?`).run(recordingPath, callId);
   }
 
-  // 2. Транскрипция
-  setCallStatus(callId, "transcribing");
-  const t = await transcribeFile(recordingPath);
+  // 2. Транскрипция — либо берём существующую, либо запускаем Whisper
+  let t: { text: string; language: string | null; segments: Array<{start:number;end:number;text:string}>; model: string };
+  if (existingTranscript) {
+    let segments: Array<{start:number;end:number;text:string}> = [];
+    try { segments = JSON.parse(existingTranscript.segments_json || "[]"); } catch {}
+    t = {
+      text: existingTranscript.text,
+      language: existingTranscript.language,
+      segments,
+      model: existingTranscript.model || "cached",
+    };
+    console.log(`[pipeline] call #${callId}: используем кэшированный транскрипт (${t.text.length} симв.), Whisper пропускаем`);
+  } else {
+    setCallStatus(callId, "transcribing");
+    if (!recordingPath) throw new Error(`recordingPath не найден на этапе транскрипции`);
+    t = await transcribeFile(recordingPath);
+  }
 
   // 3. Контекст сделки — параллельно с шагом 4 не получится, потому что Claude его использует
   setCallStatus(callId, "analyzing");

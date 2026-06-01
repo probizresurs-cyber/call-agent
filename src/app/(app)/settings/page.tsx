@@ -1,9 +1,10 @@
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
 import { ScriptsManager } from "./ScriptsManager";
 import { DashboardSettingsCard } from "./DashboardSettingsCard";
+import { ReanalyzeCard } from "./ReanalyzeCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 
 export const dynamic = "force-dynamic";
@@ -93,11 +94,19 @@ export default async function SettingsPage() {
       </div>
 
       {/* ───────── Скрипты продаж и чек-листы ───────── */}
-      <div className="ds-card">
+      <div className="ds-card" style={{ marginBottom: 16 }}>
         <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
           <ListChecks size={16} strokeWidth={2} /> Скрипты продаж и чек-листы
         </h2>
         <ScriptsManager />
+      </div>
+
+      {/* ───────── Переанализ старых звонков ───────── */}
+      <div className="ds-card">
+        <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <RotateCcw size={16} strokeWidth={2} /> Переанализ старых звонков
+        </h2>
+        <ReanalyzeCard />
       </div>
     </>
   );
