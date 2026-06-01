@@ -161,18 +161,76 @@ export async function processCall(callId: number): Promise<void> {
   setCallStatus(callId, "done");
 }
 
-function loadActiveChecklist(): ChecklistItem[] | null {
-  const db = getDb();
-  const row = db
-    .prepare(`SELECT checklist_json FROM sales_scripts WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 1`)
-    .get() as { checklist_json: string | null } | undefined;
-  if (!row?.checklist_json) return null;
-  try {
-    const parsed = JSON.parse(row.checklist_json) as ChecklistItem[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
-  } catch {
-    return null;
+interface ResolvedScript {
+  id: number;
+  name: string;
+  product: string | null;
+  direction: string;
+  checklist: ChecklistItem[] | null;
+}
+
+function loadActiveScripts(): ResolvedScript[] {
+  const rows = getDb()
+    .prepare(`SELECT id, name, product, direction, checklist_json FROM sales_scripts WHERE is_active = 1`)
+    .all() as Array<{ id: number; name: string; product: string | null; direction: string | null; checklist_json: string | null }>;
+  return rows.map((r) => {
+    let checklist: ChecklistItem[] | null = null;
+    if (r.checklist_json) {
+      try {
+        const parsed = JSON.parse(r.checklist_json) as ChecklistItem[];
+        if (Array.isArray(parsed) && parsed.length > 0) checklist = parsed;
+      } catch {}
+    }
+    return {
+      id: r.id,
+      name: r.name,
+      product: r.product,
+      direction: r.direction || "all",
+      checklist,
+    };
+  });
+}
+
+/**
+ * Определяет продукт по транскрипту и выбирает подходящий скрипт.
+ * Приоритет:
+ *  1. Точное совпадение product + direction
+ *  2. Общий (без product) + direction
+ *  3. Любой общий
+ *  4. Любой активный (fallback)
+ */
+async function pickScriptForCall(
+  transcript: string,
+  callDirection: "in" | "out" | null
+): Promise<{ product: string | null; script: ResolvedScript | null }> {
+  const scripts = loadActiveScripts();
+  if (scripts.length === 0) return { product: null, script: null };
+
+  const productCodes = [...new Set(scripts.map((s) => s.product).filter((p): p is string => !!p))];
+  const candidates: ProductCandidate[] = productCodes.map((code) => ({
+    code, name: code, keywords: [],
+  }));
+
+  let product: string | null = null;
+  if (candidates.length > 1) {
+    try { product = await detectProduct(transcript, candidates); }
+    catch (e) { console.warn("[pipeline] detectProduct failed:", (e as Error).message); }
+  } else if (candidates.length === 1) {
+    product = candidates[0].code;
   }
+
+  const directionMatches = (s: ResolvedScript) =>
+    s.direction === "all" || s.direction === callDirection;
+
+  if (product) {
+    const exact = scripts.find((s) => s.product === product && directionMatches(s));
+    if (exact) return { product, script: exact };
+  }
+  const generalWithDir = scripts.find((s) => !s.product && directionMatches(s));
+  if (generalWithDir) return { product, script: generalWithDir };
+  const anyGeneral = scripts.find((s) => !s.product);
+  if (anyGeneral) return { product, script: anyGeneral };
+  return { product, script: scripts[0] };
 }
 
 async function syncBackToBitrix(row: CallRow, analysis: CallAnalysis) {
