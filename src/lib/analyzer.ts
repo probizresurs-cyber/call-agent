@@ -80,6 +80,7 @@ const SAVE_ANALYSIS_TOOL: Anthropic.Tool = {
             title: { type: "string" },
             score: { type: "number", minimum: 0, maximum: 1 },
             notes: { type: "string" },
+            block: { type: "string" },
           },
           required: ["id", "title", "score", "notes"],
         },

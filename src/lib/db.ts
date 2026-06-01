@@ -225,6 +225,7 @@ export interface ChecklistItem {
   title: string;
   weight: number;        // 1..5
   description?: string;
+  block?: string;        // блок-категория (например «Установление контакта», «Презентация продукта»)
 }
 
 export interface ChecklistItemScore {

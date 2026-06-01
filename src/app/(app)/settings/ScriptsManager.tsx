@@ -9,6 +9,7 @@ interface ChecklistItem {
   title: string;
   weight: number;
   description: string;
+  block?: string;
 }
 
 interface Script {
@@ -145,10 +146,26 @@ export function ScriptsManager() {
         </div>
       )}
 
-      <button type="button" className="ds-btn ds-btn-primary"
-        onClick={() => setEditing("new")}>
-        <Plus size={14} /> Добавить скрипт
-      </button>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button type="button" className="ds-btn ds-btn-primary"
+          onClick={() => setEditing("new")}>
+          <Plus size={14} /> Добавить скрипт
+        </button>
+        <button type="button" className="ds-btn ds-btn-secondary"
+          onClick={async () => {
+            if (!confirm("Создать готовый шаблон скрипта для металлопроката (МП)? Внутри — 20 пунктов чек-листа из таблицы Орлинк, разбитые на 7 блоков. Можно потом редактировать.")) return;
+            const r = await fetch("/call-agent/api/scripts/template?key=mp", { method: "POST" });
+            const data = await r.json();
+            if (data.ok) {
+              void refresh();
+              startTransition(() => router.refresh());
+            } else {
+              alert("Ошибка: " + data.error);
+            }
+          }}>
+          <FileText size={14} /> Создать шаблон МП (20 пунктов)
+        </button>
+      </div>
     </>
   );
 }
@@ -205,8 +222,11 @@ function ScriptEditor({ initial, onSave, onCancel }: {
   function updateItem(i: number, patch: Partial<ChecklistItem>) {
     setChecklist((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
   }
-  function addItem() {
-    setChecklist((prev) => [...prev, { id: `item_${Date.now()}`, title: "", weight: 3, description: "" }]);
+  function addItem(block?: string) {
+    setChecklist((prev) => [...prev, {
+      id: `item_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+      title: "", weight: 1, description: "", block: block || ""
+    }]);
   }
   function removeItem(i: number) {
     setChecklist((prev) => prev.filter((_, idx) => idx !== i));
@@ -327,36 +347,70 @@ function ScriptEditor({ initial, onSave, onCancel }: {
             <ListChecks size={16} strokeWidth={2} color="var(--success)" />
             <b style={{ fontSize: 14 }}>Чек-лист контроля качества</b>
           </div>
-          <button type="button" className="ds-btn ds-btn-ghost" onClick={addItem}>
+          <button type="button" className="ds-btn ds-btn-ghost" onClick={() => addItem()}>
             <Plus size={12} /> Добавить пункт
           </button>
         </div>
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 10 }}>
-          Структурированные пункты по которым AI оценит каждый звонок. Каждый пункт —
-          оценка 0-1, итог = взвешенное среднее.
+          Сгруппируйте пункты по блокам (Установление контакта, Презентация, Закрытие и т.п.).
+          AI оценит каждый пункт от 0 до 1, итог = взвешенное среднее. Вес ×1-×5 — важность.
         </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {checklist.map((item, i) => (
-            <div key={item.id} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: 10, background: "var(--card)" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 32px", gap: 8 }}>
-                <input className="ds-input" placeholder="Название пункта"
-                  value={item.title} onChange={(e) => updateItem(i, { title: e.target.value })} />
-                <select className="ds-input" value={item.weight}
-                  onChange={(e) => updateItem(i, { weight: Number(e.target.value) })} title="Вес 1-5">
-                  {[1, 2, 3, 4, 5].map((w) => <option key={w} value={w}>×{w}</option>)}
-                </select>
+
+        {/* Группируем по блокам, сохраняя порядок появления */}
+        {(() => {
+          const blocks: { name: string; indexes: number[] }[] = [];
+          checklist.forEach((it, i) => {
+            const b = (it.block || "").trim() || "Без блока";
+            let blk = blocks.find((x) => x.name === b);
+            if (!blk) { blk = { name: b, indexes: [] }; blocks.push(blk); }
+            blk.indexes.push(i);
+          });
+
+          return blocks.map((blk) => (
+            <div key={blk.name} style={{ marginBottom: 14 }}>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "6px 10px", marginBottom: 6,
+                background: "var(--accent)", borderRadius: 4,
+                fontWeight: 600, fontSize: 13,
+              }}>
+                <span>{blk.name}</span>
                 <button type="button" className="ds-btn ds-btn-ghost"
-                  onClick={() => removeItem(i)}
-                  style={{ color: "var(--destructive)" }}>×</button>
+                  onClick={() => addItem(blk.name === "Без блока" ? "" : blk.name)}
+                  style={{ height: 24, padding: "0 8px", fontSize: 12 }}>
+                  <Plus size={11} /> в блок
+                </button>
               </div>
-              <input className="ds-input"
-                placeholder="Описание для AI: что считается выполнением"
-                value={item.description}
-                onChange={(e) => updateItem(i, { description: e.target.value })}
-                style={{ marginTop: 8 }} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {blk.indexes.map((i) => {
+                  const item = checklist[i];
+                  return (
+                    <div key={item.id} style={{ border: "1px solid var(--border)", borderRadius: 6, padding: 10, background: "var(--card)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 150px 80px 32px", gap: 8 }}>
+                        <input className="ds-input" placeholder="Название критерия"
+                          value={item.title} onChange={(e) => updateItem(i, { title: e.target.value })} />
+                        <input className="ds-input" placeholder="Блок (категория)"
+                          value={item.block || ""} onChange={(e) => updateItem(i, { block: e.target.value })} />
+                        <select className="ds-input" value={item.weight}
+                          onChange={(e) => updateItem(i, { weight: Number(e.target.value) })} title="Вес 1-5">
+                          {[1, 2, 3, 4, 5].map((w) => <option key={w} value={w}>×{w}</option>)}
+                        </select>
+                        <button type="button" className="ds-btn ds-btn-ghost"
+                          onClick={() => removeItem(i)}
+                          style={{ color: "var(--destructive)" }}>×</button>
+                      </div>
+                      <textarea className="ds-textarea" rows={2}
+                        placeholder="Расшифровка для AI: что именно считается выполнением пункта"
+                        value={item.description}
+                        onChange={(e) => updateItem(i, { description: e.target.value })}
+                        style={{ marginTop: 8, fontSize: 13 }} />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          ))}
-        </div>
+          ));
+        })()}
       </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>

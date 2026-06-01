@@ -47,7 +47,7 @@ type Analysis = {
 };
 
 type Dialogue = Array<{ speaker: "manager" | "client" | "unknown"; text: string }>;
-type ChecklistScore = { id: string; title: string; score: number; notes: string };
+type ChecklistScore = { id: string; title: string; score: number; notes: string; block?: string };
 
 export default async function CallDetailPage(props: { params: Promise<{ id: string }> }) {
   const { id: idStr } = await props.params;
@@ -203,22 +203,54 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <ClipboardList size={16} strokeWidth={2} /> Чек-лист (по пунктам)
           </h2>
-          <table className="ds-table">
-            <thead><tr><th>Пункт</th><th style={{ width: 120 }}>Оценка</th><th>Комментарий AI</th></tr></thead>
-            <tbody>
-              {checklistScores.map((c) => (
-                <tr key={c.id}>
-                  <td>{c.title}</td>
-                  <td>
-                    <ScoreBar value={c.score} />
-                  </td>
-                  <td className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-                    {c.notes || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {(() => {
+            // Группируем по блокам с сохранением порядка
+            const blocks: { name: string; items: ChecklistScore[] }[] = [];
+            for (const c of checklistScores) {
+              const blockName = (c.block || "").trim() || "Без блока";
+              let blk = blocks.find((b) => b.name === blockName);
+              if (!blk) { blk = { name: blockName, items: [] }; blocks.push(blk); }
+              blk.items.push(c);
+            }
+            return blocks.map((blk) => {
+              const avgScore = blk.items.reduce((s, x) => s + (x.score || 0), 0) / blk.items.length;
+              const pct = Math.round(avgScore * 100);
+              const blockColor = pct >= 80 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--destructive)";
+              return (
+                <div key={blk.name} style={{ marginBottom: 14 }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "8px 12px", marginBottom: 6,
+                    background: "var(--muted)", borderRadius: 6,
+                    fontWeight: 600, fontSize: 14,
+                  }}>
+                    <span>{blk.name}</span>
+                    <span style={{ color: blockColor, fontSize: 13 }}>{pct}%</span>
+                  </div>
+                  <table className="ds-table" style={{ marginBottom: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Критерий</th>
+                        <th style={{ width: 130 }}>Оценка</th>
+                        <th>Комментарий AI</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {blk.items.map((c) => (
+                        <tr key={c.id}>
+                          <td>{c.title}</td>
+                          <td><ScoreBar value={c.score} /></td>
+                          <td className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+                            {c.notes || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 
