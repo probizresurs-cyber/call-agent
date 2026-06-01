@@ -51,6 +51,14 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("analyses", "client_name", "TEXT");
   ensureColumn("analyses", "checklist_scores_json", "TEXT");
   ensureColumn("calls", "deal_context_json", "TEXT");
+
+  // Мульти-скрипты: product (МП/МК/др.) и direction (in/out/all)
+  ensureColumn("sales_scripts", "product", "TEXT");
+  ensureColumn("sales_scripts", "direction", "TEXT DEFAULT 'all'");
+  // В calls — какой product определил AI (для статистики)
+  ensureColumn("calls", "detected_product", "TEXT");
+  ensureColumn("analyses", "detected_product", "TEXT");
+  // Сам product можно фильтровать в дашборде
 }
 
 const SCHEMA_SQL = `

@@ -10,6 +10,7 @@ import {
 } from "./bitrix";
 import { transcribeFile } from "./transcribe";
 import { analyzeCall, type CallAnalysis } from "./analyzer";
+import { detectProduct, type ProductCandidate } from "./product-detector";
 
 const RECORDINGS_DIR = process.env.RECORDINGS_DIR
   ? path.resolve(process.env.RECORDINGS_DIR)
@@ -70,8 +71,14 @@ export async function processCall(callId: number): Promise<void> {
     );
   }
 
-  // 4. Анализ
-  const checklist = loadActiveChecklist();
+  // 4. Определяем продукт + выбираем подходящий скрипт
+  const { product, script } = await pickScriptForCall(t.text, row.direction);
+  if (product) {
+    db.prepare(`UPDATE calls SET detected_product = ? WHERE id = ?`).run(product, callId);
+  }
+  const checklist = script?.checklist || null;
+
+  // 5. Анализ с выбранным чек-листом
   const { analysis, raw, model } = await analyzeCall({
     transcript: t.text,
     checklist,
@@ -101,14 +108,15 @@ export async function processCall(callId: number): Promise<void> {
   db.prepare(
     `INSERT INTO analyses (call_id, summary, sentiment, manager_score, script_compliance,
        next_action, objections_json, topics_json, raw_json, model,
-       client_name, checklist_scores_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       client_name, checklist_scores_json, detected_product)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(call_id) DO UPDATE SET
        summary=excluded.summary, sentiment=excluded.sentiment,
        manager_score=excluded.manager_score, script_compliance=excluded.script_compliance,
        next_action=excluded.next_action, objections_json=excluded.objections_json,
        topics_json=excluded.topics_json, raw_json=excluded.raw_json, model=excluded.model,
        client_name=excluded.client_name, checklist_scores_json=excluded.checklist_scores_json,
+       detected_product=excluded.detected_product,
        created_at=datetime('now')`
   ).run(
     callId,
@@ -122,7 +130,8 @@ export async function processCall(callId: number): Promise<void> {
     raw,
     model,
     analysis.client_name ?? null,
-    JSON.stringify(analysis.checklist_scores ?? [])
+    JSON.stringify(analysis.checklist_scores ?? []),
+    product ?? null
   );
 
   // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL

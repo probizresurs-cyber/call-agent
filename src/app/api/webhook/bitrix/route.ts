@@ -89,7 +89,7 @@ async function ingestVoxCall(callId: string) {
     stat.CRM_ACTIVITY_ID ?? null,
     stat.PORTAL_USER_ID ?? null,
     stat.PHONE_NUMBER ?? null,
-    stat.CALL_TYPE === "1" ? "in" : "out",
+    (stat.CALL_TYPE === "1" || stat.CALL_TYPE === "3") ? "in" : "out",
     stat.CALL_START_DATE ?? null,
     Number(stat.CALL_DURATION || 0),
     recordingUrl

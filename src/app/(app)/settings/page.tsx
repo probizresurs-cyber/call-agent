@@ -1,25 +1,13 @@
 import { Cloud, Download, ListChecks, RefreshCw, Users } from "lucide-react";
-import { getDb } from "@/lib/db";
-import { SettingsForm } from "./SettingsForm";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
+import { ScriptsManager } from "./ScriptsManager";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const db = getDb();
-  const script = db
-    .prepare(
-      `SELECT id, name, content_md, checklist_json, is_active, updated_at
-       FROM sales_scripts WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 1`
-    )
-    .get() as {
-      id: number; name: string; content_md: string;
-      checklist_json: string | null; is_active: number; updated_at: string;
-    } | undefined;
-
   const webhookSet = !!process.env.BITRIX_WEBHOOK_URL?.trim();
   const dryRun = process.env.BITRIX_DRY_RUN !== "false";
 
@@ -95,16 +83,12 @@ export default async function SettingsPage() {
         <ManagersCard />
       </div>
 
-      {/* ───────── Чек-лист QC ───────── */}
+      {/* ───────── Скрипты продаж и чек-листы ───────── */}
       <div className="ds-card">
         <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-          <ListChecks size={16} strokeWidth={2} /> Чек-лист контроля качества
+          <ListChecks size={16} strokeWidth={2} /> Скрипты продаж и чек-листы
         </h2>
-        <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 12 }}>
-          AI оценит каждый пункт от 0 до 1 после каждого звонка.
-          Взвешенное среднее = итоговый процент соблюдения скрипта.
-        </p>
-        <SettingsForm initial={script ?? null} />
+        <ScriptsManager />
       </div>
     </>
   );
