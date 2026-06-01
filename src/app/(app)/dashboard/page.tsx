@@ -1,7 +1,7 @@
 import {
   Phone, CheckCircle2, XCircle, CircleDot, Clock, AlertTriangle,
   Star, ClipboardList, MessageSquare, Tag, Timer, ArrowDownLeft, ArrowUpRight,
-  TrendingUp, AlertOctagon, Users, FileX, type LucideIcon,
+  TrendingUp, AlertOctagon, Users, FileX, Package, type LucideIcon,
 } from "lucide-react";
 import { getDb, getSetting } from "@/lib/db";
 import { DashboardFilters } from "./DashboardFilters";
@@ -191,6 +191,36 @@ export default async function DashboardPage(props: {
   const topTopics = [...topicCount.entries()]
     .sort((a, b) => b[1] - a[1]).slice(0, 10)
     .map(([title, count]) => ({ title, count }));
+
+  // ───────────── Распределение по продуктам ─────────────
+  const productStats = db
+    .prepare(
+      `SELECT
+         COALESCE(NULLIF(c.detected_product, ''), NULLIF(a.detected_product, '')) AS product,
+         COUNT(*) AS calls,
+         SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
+         SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
+         COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
+         AVG(a.manager_score) AS avg_score,
+         AVG(a.script_compliance) AS avg_compliance,
+         SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS pos,
+         SUM(CASE WHEN a.sentiment='neutral'  THEN 1 ELSE 0 END) AS neu,
+         SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS neg
+       FROM calls c
+       LEFT JOIN analyses a ON a.call_id = c.id
+       LEFT JOIN managers m ON m.id = c.manager_id
+       WHERE (m.is_active IS NULL OR m.is_active = 1)
+         ${dateAndSql}
+       GROUP BY product
+       ORDER BY calls DESC`
+    )
+    .all(...dateParams) as Array<{
+      product: string | null;
+      calls: number; connected: number; missed: number;
+      total_seconds: number;
+      avg_score: number | null; avg_compliance: number | null;
+      pos: number; neu: number; neg: number;
+    }>;
 
   // ───────────── Слабые пункты чек-листа ─────────────
   const rawChecklist = db
@@ -471,7 +501,138 @@ export default async function DashboardPage(props: {
         </div>
       </div>
 
+      {/* ───── Распределение по продуктам ───── */}
+      <div className="ds-card" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Package size={16} strokeWidth={2} /> Распределение по продуктам
+          </h2>
+          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+            AI определяет продукт по содержанию разговора
+          </span>
+        </div>
+        {productStats.length === 0 || (productStats.length === 1 && !productStats[0].product) ? (
+          <Empty hint="Скрипты с привязкой к продуктам ещё не настроены или нет проанализированных звонков. Создайте шаблоны МП и МК в настройках, затем переанализируйте звонки." />
+        ) : (
+          <>
+            {/* Горизонтальный bar — визуально показывает соотношение */}
+            <ProductBar items={productStats} />
+            <table className="ds-table" style={{ marginTop: 14 }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 180 }}>Продукт</th>
+                  <th style={{ width: 90, textAlign: "center" }}>Звонков</th>
+                  <th style={{ width: 110, textAlign: "center" }}>Контактов</th>
+                  <th style={{ width: 110, textAlign: "center" }}>Минут</th>
+                  <th style={{ width: 110 }}>Ср. оценка</th>
+                  <th style={{ width: 110 }}>Чек-лист</th>
+                  <th style={{ width: 160 }}>Настроение</th>
+                </tr>
+              </thead>
+              <tbody>
+                {productStats.map((p) => {
+                  const sentTotal = p.pos + p.neu + p.neg;
+                  const productColor = !p.product ? "var(--muted-foreground)" : "var(--foreground)";
+                  return (
+                    <tr key={p.product || "unknown"}>
+                      <td>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span style={{
+                            width: 10, height: 10, borderRadius: 3,
+                            background: getProductColor(p.product),
+                            display: "inline-block",
+                          }} />
+                          <span style={{ color: productColor, fontWeight: p.product ? 600 : 400 }}>
+                            {p.product || "Не определён"}
+                          </span>
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "center", fontWeight: 600 }}>{p.calls}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <span style={{ color: "var(--success)", fontWeight: 600 }}>{p.connected}</span>
+                        <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
+                          ({p.calls > 0 ? Math.round((p.connected / p.calls) * 100) : 0}%)
+                        </span>
+                      </td>
+                      <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                        <span style={{ fontWeight: 600 }}>{formatTotalMinutes(p.total_seconds)}</span>
+                      </td>
+                      <td>
+                        {p.avg_score != null ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <Star size={12} color="var(--warning)" />
+                            {p.avg_score.toFixed(1)}
+                          </span>
+                        ) : "—"}
+                      </td>
+                      <td>{p.avg_compliance != null ? `${Math.round(p.avg_compliance * 100)}%` : "—"}</td>
+                      <td>
+                        {sentTotal === 0 ? (
+                          <span style={{ color: "var(--muted-foreground)" }}>—</span>
+                        ) : (
+                          <SentimentMini pos={p.pos} neu={p.neu} neg={p.neg} />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+
     </>
+  );
+}
+
+/** Цвет для отображения продукта на дашборде */
+function getProductColor(product: string | null): string {
+  if (!product) return "var(--muted-foreground)";
+  const code = product.toUpperCase();
+  // Палитра по коду продукта — стабильная (одинаковая для одного продукта между загрузками)
+  const colors: Record<string, string> = {
+    "МП": "var(--primary)",
+    "МК": "var(--success)",
+  };
+  if (colors[code]) return colors[code];
+  // Hash-based fallback для других кодов
+  let h = 0;
+  for (let i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) % 360;
+  return `hsl(${h}, 65%, 50%)`;
+}
+
+function ProductBar({ items }: { items: Array<{ product: string | null; calls: number }> }) {
+  const total = items.reduce((a, b) => a + b.calls, 0) || 1;
+  return (
+    <div>
+      <div style={{
+        display: "flex", height: 14, borderRadius: 7,
+        overflow: "hidden", background: "var(--muted)",
+      }}>
+        {items.map((p) => (
+          <div key={p.product || "unknown"}
+            title={`${p.product || "Не определён"}: ${p.calls} (${Math.round((p.calls / total) * 100)}%)`}
+            style={{
+              width: `${(p.calls / total) * 100}%`,
+              background: getProductColor(p.product),
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap", fontSize: 12 }}>
+        {items.map((p) => (
+          <span key={p.product || "unknown"} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: getProductColor(p.product), display: "inline-block" }} />
+            <span style={{ color: "var(--muted-foreground)" }}>{p.product || "Не определён"}</span>
+            <b>{p.calls}</b>
+            <span style={{ color: "var(--muted-foreground)" }}>
+              ({Math.round((p.calls / total) * 100)}%)
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
