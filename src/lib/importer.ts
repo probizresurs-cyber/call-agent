@@ -63,20 +63,6 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
      ON CONFLICT(bitrix_call_id) DO NOTHING`
   );
 
-  // Сначала забираем CRM-активности за период — нужны RESPONSIBLE_ID
-  // чтобы атрибутировать звонок на того кто реально работает с клиентом
-  // (а не на диспетчера который первым взял трубку).
-  let activityResponsible: Map<string, string> = new Map();
-  try {
-    activityResponsible = await crmCallActivitiesByPeriod({
-      fromDate: opts.fromDate,
-      toDate: opts.toDate,
-    });
-    console.log(`[importer] загружено ${activityResponsible.size} CRM-активностей с RESPONSIBLE_ID`);
-  } catch (e) {
-    console.warn("[importer] не удалось загрузить активности — атрибуция по PORTAL_USER_ID:", (e as Error).message);
-  }
-
   try {
     while (pages < maxPages) {
       pages += 1;
@@ -105,22 +91,13 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
         const initialAttempts = isServiceCall ? 99 : 0;  // 99 = не повторять
 
         const entityType = entityTypeStringToId(stat.CRM_ENTITY_TYPE);
-
-        // Атрибуция менеджера: приоритет RESPONSIBLE_ID активности
-        // (так Битрикс UI считает в отчётах), fallback на PORTAL_USER_ID
-        let managerId = stat.PORTAL_USER_ID ?? null;
-        if (stat.CRM_ACTIVITY_ID && stat.CRM_ACTIVITY_ID !== "0") {
-          const responsible = activityResponsible.get(stat.CRM_ACTIVITY_ID);
-          if (responsible) managerId = responsible;
-        }
-
         const r = insertStmt.run(
           stat.ID,
           entityType === 2 ? stat.CRM_ENTITY_ID ?? null : null,
           entityType === 1 ? stat.CRM_ENTITY_ID ?? null : null,
           entityType === 3 ? stat.CRM_ENTITY_ID ?? null : null,
           stat.CRM_ACTIVITY_ID ?? null,
-          managerId,
+          stat.PORTAL_USER_ID ?? null,
           stat.PHONE_NUMBER ?? null,
           // CALL_TYPE по docs Bitrix: "1"=исходящий, "2"=входящий, "3"=входящий с переадресацией, "4"=callback
           (stat.CALL_TYPE === "2" || stat.CALL_TYPE === "3") ? "in" : "out",
