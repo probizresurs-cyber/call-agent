@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
     fromDate?: string;
     toDate?: string;
     managerIds?: string[];
+    includeServiceCalls?: boolean;
   };
 
   if (!body.fromDate) {
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     fromDate: body.fromDate,
     toDate: body.toDate,
     managerIds: body.managerIds,
+    includeServiceCalls: body.includeServiceCalls,
   });
 
   return NextResponse.json(result, { status: result.ok ? 200 : 500 });

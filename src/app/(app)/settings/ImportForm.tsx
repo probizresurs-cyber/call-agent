@@ -28,6 +28,7 @@ type Result =
 export function ImportForm() {
   const [fromDate, setFromDate] = useState<string>(isoDaysAgo(7));
   const [toDate, setToDate] = useState<string>(today());
+  const [includeServiceCalls, setIncludeServiceCalls] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
   const [, startTransition] = useTransition();
@@ -45,7 +46,7 @@ export function ImportForm() {
       const res = await fetch("/call-agent/api/import/bitrix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromDate, toDate }),
+        body: JSON.stringify({ fromDate, toDate, includeServiceCalls }),
       });
       const data = (await res.json()) as Result;
       setResult(data);
@@ -110,6 +111,30 @@ export function ImportForm() {
         Звонки добавляются в очередь со статусом <code>pending</code>.
         Воркер начинает обрабатывать сразу. Лимит — до 1000 звонков за один запуск.
       </p>
+
+      <label style={{
+        display: "flex", alignItems: "flex-start", gap: 10,
+        marginTop: 14, padding: 10, background: "var(--muted)",
+        borderRadius: 6, cursor: "pointer",
+      }}>
+        <input
+          type="checkbox"
+          checked={includeServiceCalls}
+          onChange={(e) => setIncludeServiceCalls(e.target.checked)}
+          style={{ marginTop: 2 }}
+        />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+            Включить «служебные» звонки
+          </div>
+          <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12 }}>
+            Звонки без записи и без связи с CRM — обычно внутренние между сотрудниками,
+            переключения, IVR, конференц-режимы. Будут добавлены сразу со статусом{" "}
+            <b>«Без записи»</b> — для общей статистики. Pipeline их не обрабатывает,
+            API-расходов нет.
+          </div>
+        </div>
+      </label>
 
       {result && (
         <div

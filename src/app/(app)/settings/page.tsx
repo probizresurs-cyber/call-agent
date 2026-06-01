@@ -1,8 +1,9 @@
-import { Cloud, Download, ListChecks, RefreshCw } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { SettingsForm } from "./SettingsForm";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
+import { ManagersCard } from "./ManagersCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 
 export const dynamic = "force-dynamic";
@@ -84,6 +85,14 @@ export default async function SettingsPage() {
         ) : (
           <ImportForm />
         )}
+      </div>
+
+      {/* ───────── Менеджеры — видимость ───────── */}
+      <div className="ds-card" style={{ marginBottom: 16 }}>
+        <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+          <Users size={16} strokeWidth={2} /> Менеджеры — отображение
+        </h2>
+        <ManagersCard />
       </div>
 
       {/* ───────── Чек-лист QC ───────── */}

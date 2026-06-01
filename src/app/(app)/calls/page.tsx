@@ -36,6 +36,8 @@ export default async function CallsListPage(props: {
   }
   if (sp.from) { where.push("substr(c.started_at,1,10) >= ?"); params.push(sp.from); }
   if (sp.to)   { where.push("substr(c.started_at,1,10) <= ?"); params.push(sp.to); }
+  // Скрытые менеджеры не показываются (фильтр настраивается в /settings)
+  where.push("(c.manager_id IS NULL OR c.manager_id NOT IN (SELECT id FROM managers WHERE is_active = 0))");
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
   const rows = getDb()

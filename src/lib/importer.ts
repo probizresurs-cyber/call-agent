@@ -30,6 +30,13 @@ export interface ImportOpts {
   toDate?: string;        // YYYY-MM-DD
   managerIds?: string[];
   maxPages?: number;      // override
+  /**
+   * Если true — импортируем все звонки, включая «служебные»
+   * (без recording_url и без CRM_ACTIVITY_ID — обычно внутренние
+   * между сотрудниками, IVR, конференц-режимы и т.п.).
+   * Такие звонки сразу получают статус 'no_recording' — pipeline их не трогает.
+   */
+  includeServiceCalls?: boolean;
 }
 
 export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportResult | ImportError> {
@@ -46,12 +53,13 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
   let pages = 0;
   const maxPages = opts.maxPages ?? MAX_PAGES;
 
+  // Статус задаётся параметром — служебные звонки сразу no_recording
   const insertStmt = db.prepare(
     `INSERT INTO calls
       (bitrix_call_id, bitrix_deal_id, bitrix_lead_id, bitrix_contact_id,
        bitrix_activity_id, manager_id, client_phone, direction,
-       started_at, duration_sec, recording_url, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+       started_at, duration_sec, recording_url, status, attempts)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(bitrix_call_id) DO NOTHING`
   );
 
@@ -70,7 +78,15 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
         totalFetched += 1;
         const recordingUrl = stat.CALL_RECORD_URL || stat.CALL_WEBDAV_URL || null;
         const hasActivity = stat.CRM_ACTIVITY_ID && stat.CRM_ACTIVITY_ID !== "0";
-        if (!recordingUrl && !hasActivity) { skipped += 1; continue; }
+        const isServiceCall = !recordingUrl && !hasActivity;
+
+        if (isServiceCall && !opts.includeServiceCalls) {
+          skipped += 1; continue;
+        }
+
+        // Служебные сразу no_recording (не тратим попытки на их обработку)
+        const initialStatus = isServiceCall ? "no_recording" : "pending";
+        const initialAttempts = isServiceCall ? 99 : 0;  // 99 = не повторять
 
         const entityType = entityTypeStringToId(stat.CRM_ENTITY_TYPE);
         const r = insertStmt.run(
@@ -84,7 +100,9 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
           stat.CALL_TYPE === "1" ? "in" : "out",
           stat.CALL_START_DATE ?? null,
           Number(stat.CALL_DURATION || 0),
-          recordingUrl
+          recordingUrl,
+          initialStatus,
+          initialAttempts
         );
         if (r.changes > 0) inserted += 1; else skipped += 1;
       }

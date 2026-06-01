@@ -57,6 +57,7 @@ export default async function DashboardPage() {
   // ───────────── Все менеджеры с детальной статистикой ─────────────
   // Контакт состоялся = длительность >= 30 сек (есть какой-то разговор)
   // Не дозвонились = длительность < 10 сек (автоответчик / повесили)
+  // Скрытые менеджеры (m.is_active=0) — не показываем
   const allManagers = db
     .prepare(
       `SELECT c.manager_id,
@@ -75,6 +76,7 @@ export default async function DashboardPage() {
        LEFT JOIN analyses a ON a.call_id = c.id
        LEFT JOIN managers m ON m.id = c.manager_id
        WHERE c.manager_id IS NOT NULL AND c.manager_id != ''
+         AND (m.is_active IS NULL OR m.is_active = 1)
        GROUP BY c.manager_id
        ORDER BY calls DESC`
     )
@@ -206,6 +208,85 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {/* ───── Менеджеры — расширенная статистика (переехала вверх) ───── */}
+      <div className="ds-card" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Users size={16} strokeWidth={2} /> Менеджеры — детальная статистика
+          </h2>
+          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+            всего: {allManagers.length}
+          </span>
+        </div>
+        {allManagers.length === 0 ? <Empty /> : (
+          <div style={{ overflowX: "auto" }}>
+          <table className="ds-table">
+            <thead>
+              <tr>
+                <th>ФИО / ID</th>
+                <th style={{ width: 80, textAlign: "center" }}>Всего</th>
+                <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
+                <th style={{ width: 130, textAlign: "center" }}>Не дозвонился**</th>
+                <th style={{ width: 110, textAlign: "center" }}>Входящ.</th>
+                <th style={{ width: 110, textAlign: "center" }}>Исходящ.</th>
+                <th style={{ width: 110 }}>Ср. оценка</th>
+                <th style={{ width: 110 }}>Чек-лист</th>
+                <th style={{ width: 180 }}>Настроение</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allManagers.map((m) => {
+                const sentTotal = m.pos + m.neu + m.neg;
+                return (
+                <tr key={m.manager_id}>
+                  <td>
+                    {m.manager_name || <span style={{ color: "var(--muted-foreground)" }}>ID {m.manager_id}</span>}
+                  </td>
+                  <td style={{ textAlign: "center", fontWeight: 600 }}>{m.calls}</td>
+                  <td style={{ textAlign: "center" }}>
+                    <span style={{ color: "var(--success)", fontWeight: 600 }}>{m.connected}</span>
+                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
+                      ({m.calls > 0 ? Math.round((m.connected / m.calls) * 100) : 0}%)
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    <span style={{ color: m.missed > 0 ? "var(--destructive)" : "var(--muted-foreground)", fontWeight: 600 }}>
+                      {m.missed}
+                    </span>
+                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
+                      ({m.calls > 0 ? Math.round((m.missed / m.calls) * 100) : 0}%)
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center" }}>{m.incoming}</td>
+                  <td style={{ textAlign: "center" }}>{m.outgoing}</td>
+                  <td>
+                    {m.avg_score != null ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <Star size={12} color="var(--warning)" />
+                        {m.avg_score.toFixed(1)}
+                      </span>
+                    ) : "—"}
+                  </td>
+                  <td>{m.avg_compliance != null ? `${Math.round(m.avg_compliance * 100)}%` : "—"}</td>
+                  <td>
+                    {sentTotal === 0 ? (
+                      <span style={{ color: "var(--muted-foreground)" }}>—</span>
+                    ) : (
+                      <SentimentMini pos={m.pos} neu={m.neu} neg={m.neg} />
+                    )}
+                  </td>
+                </tr>);
+              })}
+            </tbody>
+          </table>
+          </div>
+        )}
+        <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
+          * <b>Контактов</b> — звонки длительностью ≥ 30 сек (разговор состоялся)<br/>
+          ** <b>Не дозвонился</b> — звонки короче 10 сек (автоответчик / повесили / занято)
+        </div>
+      </div>
+
       {/* ───── Динамика по дням ───── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>
         <h2 className="ds-h3" style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
@@ -332,84 +413,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* ───── Менеджеры — расширенная статистика ───── */}
-      <div className="ds-card">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Users size={16} strokeWidth={2} /> Менеджеры — детальная статистика
-          </h2>
-          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-            всего: {allManagers.length}
-          </span>
-        </div>
-        {allManagers.length === 0 ? <Empty /> : (
-          <div style={{ overflowX: "auto" }}>
-          <table className="ds-table">
-            <thead>
-              <tr>
-                <th>ФИО / ID</th>
-                <th style={{ width: 80, textAlign: "center" }}>Всего</th>
-                <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
-                <th style={{ width: 130, textAlign: "center" }}>Не дозвонился**</th>
-                <th style={{ width: 110, textAlign: "center" }}>Входящ.</th>
-                <th style={{ width: 110, textAlign: "center" }}>Исходящ.</th>
-                <th style={{ width: 110 }}>Ср. оценка</th>
-                <th style={{ width: 110 }}>Чек-лист</th>
-                <th style={{ width: 180 }}>Настроение</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allManagers.map((m) => {
-                const sentTotal = m.pos + m.neu + m.neg;
-                return (
-                <tr key={m.manager_id}>
-                  <td>
-                    {m.manager_name || <span style={{ color: "var(--muted-foreground)" }}>ID {m.manager_id}</span>}
-                  </td>
-                  <td style={{ textAlign: "center", fontWeight: 600 }}>{m.calls}</td>
-                  <td style={{ textAlign: "center" }}>
-                    <span style={{ color: "var(--success)", fontWeight: 600 }}>{m.connected}</span>
-                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
-                      ({m.calls > 0 ? Math.round((m.connected / m.calls) * 100) : 0}%)
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "center" }}>
-                    <span style={{ color: m.missed > 0 ? "var(--destructive)" : "var(--muted-foreground)", fontWeight: 600 }}>
-                      {m.missed}
-                    </span>
-                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
-                      ({m.calls > 0 ? Math.round((m.missed / m.calls) * 100) : 0}%)
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "center" }}>{m.incoming}</td>
-                  <td style={{ textAlign: "center" }}>{m.outgoing}</td>
-                  <td>
-                    {m.avg_score != null ? (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                        <Star size={12} color="var(--warning)" />
-                        {m.avg_score.toFixed(1)}
-                      </span>
-                    ) : "—"}
-                  </td>
-                  <td>{m.avg_compliance != null ? `${Math.round(m.avg_compliance * 100)}%` : "—"}</td>
-                  <td>
-                    {sentTotal === 0 ? (
-                      <span style={{ color: "var(--muted-foreground)" }}>—</span>
-                    ) : (
-                      <SentimentMini pos={m.pos} neu={m.neu} neg={m.neg} />
-                    )}
-                  </td>
-                </tr>);
-              })}
-            </tbody>
-          </table>
-          </div>
-        )}
-        <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
-          * <b>Контактов</b> — звонки длительностью ≥ 30 сек (разговор состоялся)<br/>
-          ** <b>Не дозвонился</b> — звонки короче 10 сек (автоответчик / повесили / занято)
-        </div>
-      </div>
     </>
   );
 }
