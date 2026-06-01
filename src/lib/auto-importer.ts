@@ -73,7 +73,12 @@ export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<Impor
   const toIso = toDateStr(new Date());
 
   console.log(`[auto-import] running ${fromIso} .. ${toIso}${opts.manual ? " (manual)" : ""}`);
-  const result = await importCallsFromBitrix({ fromDate: fromIso, toDate: toIso });
+  // Тянем включая служебные — иначе общая статистика не сходится с Битриксом
+  const result = await importCallsFromBitrix({
+    fromDate: fromIso,
+    toDate: toIso,
+    includeServiceCalls: true,
+  });
 
   // Сохраняем timestamp текущего запуска как last (даже если result.ok=false, но не disabled —
   // лучше двигать вперёд чем застрять навсегда)
