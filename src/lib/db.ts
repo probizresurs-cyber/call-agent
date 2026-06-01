@@ -148,7 +148,21 @@ export type CallStatus =
   | "analyzing"
   | "syncing"
   | "done"
-  | "failed";
+  | "failed"
+  | "no_recording";  // запись звонка отсутствует в Битриксе (не наша ошибка)
+
+/**
+ * Кастомная ошибка для случаев когда у звонка нет файла записи.
+ * Воркер ловит её отдельно и помечает звонок как no_recording (не failed),
+ * чтобы такие звонки не считались техническими сбоями и периодически
+ * перепроверялись (запись может подгрузиться с задержкой).
+ */
+export class NoRecordingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NoRecordingError";
+  }
+}
 
 export interface CallRow {
   id: number;

@@ -8,6 +8,7 @@ import {
   CircleDot,
   Clock,
   AlertTriangle,
+  FileX,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,13 @@ export function StatusBadge({ value }: { value: string }) {
       <span className="ds-badge ds-badge-danger" style={{ paddingLeft: 6 }}>
         <AlertTriangle size={12} strokeWidth={2.5} />
         Ошибка
+      </span>
+    );
+  if (value === "no_recording")
+    return (
+      <span className="ds-badge ds-badge-warning" style={{ paddingLeft: 6 }}>
+        <FileX size={12} strokeWidth={2.5} />
+        Без записи
       </span>
     );
   return (

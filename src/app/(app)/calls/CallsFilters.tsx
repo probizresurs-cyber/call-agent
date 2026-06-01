@@ -138,6 +138,7 @@ export function CallsFilters() {
           <option value="">Все статусы</option>
           <option value="done">Готово</option>
           <option value="pending">В очереди</option>
+          <option value="no_recording">Без записи</option>
           <option value="failed">Ошибка</option>
         </select>
         <button type="button" className="ds-btn ds-btn-primary" onClick={apply} disabled={pending}>

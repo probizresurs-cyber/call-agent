@@ -10,7 +10,10 @@ const AUTO_ENABLED_KEY = "auto_import_enabled";
 const OVERLAP_MIN = 10;
 
 // При самом первом запуске — за сколько дней назад начать
-const INITIAL_LOOKBACK_DAYS = 1;
+const INITIAL_LOOKBACK_DAYS = 7;
+
+// При ручном "Запустить сейчас" — игнорируем last_import_at и берём 1 день
+const MANUAL_LOOKBACK_DAYS = 1;
 
 export function isAutoImportEnabled(): boolean {
   const v = getSetting(AUTO_ENABLED_KEY);
@@ -35,21 +38,33 @@ function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function runAutoImport(): Promise<ImportResult | ImportError | { ok: false; error: "disabled" }> {
-  if (!isAutoImportEnabled()) {
+export interface RunAutoImportOpts {
+  /** Принудительный режим: игнорировать last_import_at и взять последние N дней */
+  manual?: boolean;
+  /** Если manual=true, можно переопределить число дней (по умолчанию 1) */
+  lookbackDays?: number;
+}
+
+export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<ImportResult | ImportError | { ok: false; error: "disabled" }> {
+  if (!opts.manual && !isAutoImportEnabled()) {
     return { ok: false, error: "disabled" };
   }
 
   const lastAt = getSetting(LAST_IMPORT_KEY);
   let fromIso: string;
 
-  if (lastAt) {
-    // Возвращаемся на OVERLAP_MIN минут назад от последнего успешного запуска
+  if (opts.manual) {
+    // Ручной запуск — всегда фиксированный lookback, игнорируем last_at
+    const d = new Date();
+    d.setDate(d.getDate() - (opts.lookbackDays ?? MANUAL_LOOKBACK_DAYS));
+    fromIso = toDateStr(d);
+  } else if (lastAt) {
+    // Регулярный цикл — от last_import - OVERLAP минут
     const lastDate = new Date(lastAt);
     lastDate.setMinutes(lastDate.getMinutes() - OVERLAP_MIN);
     fromIso = toDateStr(lastDate);
   } else {
-    // Первый запуск — берём INITIAL_LOOKBACK_DAYS дней назад
+    // Самый первый запуск воркера — INITIAL_LOOKBACK_DAYS дней назад
     const d = new Date();
     d.setDate(d.getDate() - INITIAL_LOOKBACK_DAYS);
     fromIso = toDateStr(d);
@@ -57,7 +72,7 @@ export async function runAutoImport(): Promise<ImportResult | ImportError | { ok
 
   const toIso = toDateStr(new Date());
 
-  console.log(`[auto-import] running ${fromIso} .. ${toIso}`);
+  console.log(`[auto-import] running ${fromIso} .. ${toIso}${opts.manual ? " (manual)" : ""}`);
   const result = await importCallsFromBitrix({ fromDate: fromIso, toDate: toIso });
 
   // Сохраняем timestamp текущего запуска как last (даже если result.ok=false, но не disabled —

@@ -22,30 +22,57 @@ console.log("[worker] env check:",
 
 const POLL_INTERVAL_MS = 5_000;        // 5 сек — обработка очереди
 const AUTO_IMPORT_INTERVAL_MS = 300_000; // 5 минут — проверка новых звонков
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 3;                   // для pending/failed
+const MAX_NO_RECORDING_ATTEMPTS = 6;      // для no_recording — попыток в течение 6 часов
+const NO_RECORDING_RETRY_HOURS = 1;       // повтор раз в час
 
 // ─────────────── Обработка очереди ───────────────
 async function processQueueTick() {
   const db = getDb();
+
+  // Берём:
+  //  - pending (без ограничений)
+  //  - failed с попытками < MAX_ATTEMPTS
+  //  - no_recording с попытками < MAX_NO_RECORDING_ATTEMPTS И последнее обновление больше часа назад
+  // Приоритет: pending → failed → no_recording, потом по id ASC
   const row = db
     .prepare(
-      `SELECT id FROM calls
-       WHERE status IN ('pending','failed') AND attempts < ?
-       ORDER BY id ASC LIMIT 1`
+      `SELECT id, status FROM calls
+       WHERE
+         (status = 'pending')
+         OR (status = 'failed' AND attempts < ?)
+         OR (status = 'no_recording'
+             AND attempts < ?
+             AND datetime(updated_at) <= datetime('now', ?))
+       ORDER BY
+         CASE status WHEN 'pending' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,
+         id ASC
+       LIMIT 1`
     )
-    .get(MAX_ATTEMPTS) as { id: number } | undefined;
+    .get(MAX_ATTEMPTS, MAX_NO_RECORDING_ATTEMPTS, `-${NO_RECORDING_RETRY_HOURS} hour`) as
+      { id: number; status: string } | undefined;
   if (!row) return;
 
-  console.log(`[worker] picking call #${row.id}`);
+  const fromStatus = row.status === "no_recording" ? " (retry)" : "";
+  console.log(`[worker] picking call #${row.id}${fromStatus}`);
   try {
     await processCall(row.id);
     console.log(`[worker] ✓ #${row.id} done`);
   } catch (e) {
-    const msg = (e as Error).message;
-    console.error(`[worker] ✗ #${row.id} failed:`, msg);
-    getDb().prepare(
-      `UPDATE calls SET status='failed', error=?, updated_at=datetime('now') WHERE id=?`
-    ).run(msg, row.id);
+    const err = e as Error;
+    const msg = err.message;
+    // Различаем "нет записи" (не наша вина) и реальную техническую ошибку
+    if (err.name === "NoRecordingError") {
+      console.warn(`[worker] ⊘ #${row.id} no recording:`, msg);
+      getDb().prepare(
+        `UPDATE calls SET status='no_recording', error=?, updated_at=datetime('now') WHERE id=?`
+      ).run(msg, row.id);
+    } else {
+      console.error(`[worker] ✗ #${row.id} failed:`, msg);
+      getDb().prepare(
+        `UPDATE calls SET status='failed', error=?, updated_at=datetime('now') WHERE id=?`
+      ).run(msg, row.id);
+    }
   }
 }
 

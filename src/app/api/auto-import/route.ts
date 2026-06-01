@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
   }
   let runResult = null;
   if (body.runNow) {
-    runResult = await runAutoImport();
+    // Ручной запуск из UI всегда тянет последние 24 часа,
+    // не зависит от того когда был предыдущий цикл
+    runResult = await runAutoImport({ manual: true });
   }
   return NextResponse.json({
     ok: true,

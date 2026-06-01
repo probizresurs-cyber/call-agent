@@ -1,7 +1,7 @@
 import {
   Phone, CheckCircle2, XCircle, CircleDot, Clock, AlertTriangle,
   Star, ClipboardList, MessageSquare, Tag, Timer, ArrowDownLeft, ArrowUpRight,
-  TrendingUp, AlertOctagon, Users, type LucideIcon,
+  TrendingUp, AlertOctagon, Users, FileX, type LucideIcon,
 } from "lucide-react";
 import { getDb } from "@/lib/db";
 
@@ -28,6 +28,7 @@ export default async function DashboardPage() {
          SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) AS done,
          SUM(CASE WHEN status IN ('pending','downloading','transcribing','analyzing','syncing') THEN 1 ELSE 0 END) AS in_progress,
          SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed,
+         SUM(CASE WHEN status='no_recording' THEN 1 ELSE 0 END) AS no_recording,
          SUM(CASE WHEN direction='in' THEN 1 ELSE 0 END) AS incoming,
          SUM(CASE WHEN direction='out' THEN 1 ELSE 0 END) AS outgoing,
          COALESCE(AVG(duration_sec), 0) AS avg_duration,
@@ -36,6 +37,7 @@ export default async function DashboardPage() {
     )
     .get() as {
       total: number; done: number; in_progress: number; failed: number;
+      no_recording: number;
       incoming: number; outgoing: number;
       avg_duration: number; total_duration: number;
     };
@@ -171,10 +173,11 @@ export default async function DashboardPage() {
       <h1 className="ds-h1" style={{ marginBottom: 24 }}>Дашборд</h1>
 
       {/* ───── KPI ───── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 16 }}>
         <Kpi icon={Phone} label="Всего звонков" value={String(totals.total)} />
         <Kpi icon={CheckCircle2} label="Проанализировано" value={String(totals.done)} color="var(--success)" />
         <Kpi icon={Clock} label="В обработке" value={String(totals.in_progress)} color="var(--primary)" />
+        <Kpi icon={FileX} label="Без записи" value={String(totals.no_recording)} color="var(--warning)" />
         <Kpi icon={AlertTriangle} label="Ошибки" value={String(totals.failed)} color="var(--destructive)" />
       </div>
 

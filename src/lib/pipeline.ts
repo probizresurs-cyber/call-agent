@@ -1,5 +1,5 @@
 import path from "path";
-import { getDb, setCallStatus, type CallRow, type ChecklistItem } from "./db";
+import { getDb, setCallStatus, NoRecordingError, type CallRow, type ChecklistItem } from "./db";
 import {
   downloadRecording,
   crmTimelineCommentAdd,
@@ -41,7 +41,8 @@ export async function processCall(callId: number): Promise<void> {
       const reason = !row.bitrix_activity_id || row.bitrix_activity_id === "0"
         ? "звонок не привязан к Activity"
         : "не нашли FILES в Activity (запись отсутствует)";
-      throw new Error(`Нет recording_url: ${reason}`);
+      // Это не техническая ошибка — запись могла не сохраниться или ещё не подгрузилась
+      throw new NoRecordingError(`Нет recording_url: ${reason}`);
     }
 
     recordingPath = await downloadRecording(
