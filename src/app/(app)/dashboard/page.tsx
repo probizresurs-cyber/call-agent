@@ -105,8 +105,10 @@ export default async function DashboardPage(props: {
               COUNT(*) AS calls,
               SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
               COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
-              SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
-              SUM(CASE WHEN c.direction='in' THEN 1 ELSE 0 END) AS incoming,
+              -- "Пропущенные" — как у Bitrix: входящие где не взяли трубку (duration=0)
+              SUM(CASE WHEN c.direction='in' AND c.duration_sec = 0 THEN 1 ELSE 0 END) AS missed,
+              -- "Входящие" = вх где ответили (duration > 0). Совпадает с Bitrix UI.
+              SUM(CASE WHEN c.direction='in' AND c.duration_sec > 0 THEN 1 ELSE 0 END) AS incoming,
               SUM(CASE WHEN c.direction='out' THEN 1 ELSE 0 END) AS outgoing,
               AVG(a.manager_score) AS avg_score,
               AVG(a.script_compliance) AS avg_compliance,
@@ -337,9 +339,9 @@ export default async function DashboardPage(props: {
                 <th style={{ width: 80, textAlign: "center" }}>Всего</th>
                 <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
                 <th style={{ width: 110, textAlign: "center" }}>Минут</th>
-                <th style={{ width: 90, textAlign: "center" }}>Не дозв.**</th>
                 <th style={{ width: 100, textAlign: "center" }}>Входящ.</th>
                 <th style={{ width: 100, textAlign: "center" }}>Исходящ.</th>
+                <th style={{ width: 110, textAlign: "center" }}>Пропущ.**</th>
                 <th style={{ width: 110 }}>Ср. оценка</th>
                 <th style={{ width: 100 }}>Чек-лист</th>
                 <th style={{ width: 160 }}>Настроение</th>
@@ -363,16 +365,13 @@ export default async function DashboardPage(props: {
                   <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
                     <span style={{ fontWeight: 600 }}>{formatTotalMinutes(m.total_seconds)}</span>
                   </td>
+                  <td style={{ textAlign: "center" }}>{m.incoming}</td>
+                  <td style={{ textAlign: "center" }}>{m.outgoing}</td>
                   <td style={{ textAlign: "center" }}>
                     <span style={{ color: m.missed > 0 ? "var(--destructive)" : "var(--muted-foreground)", fontWeight: 600 }}>
                       {m.missed}
                     </span>
-                    <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
-                      ({m.calls > 0 ? Math.round((m.missed / m.calls) * 100) : 0}%)
-                    </span>
                   </td>
-                  <td style={{ textAlign: "center" }}>{m.incoming}</td>
-                  <td style={{ textAlign: "center" }}>{m.outgoing}</td>
                   <td>
                     {m.avg_score != null ? (
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -397,7 +396,8 @@ export default async function DashboardPage(props: {
         )}
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
           * <b>Контактов</b> — звонки длительностью ≥ {contactThreshold} сек (разговор состоялся). Настраивается в <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках</a>.<br/>
-          ** <b>Не дозв.</b> — звонки короче {missedThreshold} сек (автоответчик / повесили / занято)
+          ** <b>Пропущ.</b> — входящие звонки на которые не ответили (длительность 0 сек). Совпадает с колонкой «Пропущенные» в Битрикс.<br/>
+          <b>Входящ.</b> — входящие звонки на которые ответили. <b>Исходящ.</b> — все исходящие.
         </div>
       </div>
 
