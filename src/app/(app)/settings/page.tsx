@@ -1,7 +1,9 @@
-import { Cloud, Download, ListChecks } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw } from "lucide-react";
 import { getDb } from "@/lib/db";
 import { SettingsForm } from "./SettingsForm";
 import { ImportForm } from "./ImportForm";
+import { AutoImportCard } from "./AutoImportCard";
+import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +55,18 @@ export default async function SettingsPage() {
         </p>
       </div>
 
+      {/* ───────── Автоматический импорт ───────── */}
+      <div className="ds-card" style={{ marginBottom: 16 }}>
+        <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+          <RefreshCw size={16} strokeWidth={2} /> Автоматический импорт новых звонков
+        </h2>
+        <AutoImportCard initial={{ enabled: isAutoImportEnabled(), last: getLastAutoImport() }} />
+      </div>
+
       {/* ───────── Импорт исторических звонков ───────── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>
         <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-          <Download size={16} strokeWidth={2} /> Импорт звонков из истории
+          <Download size={16} strokeWidth={2} /> Ручной импорт из истории
         </h2>
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 14 }}>
           Подтянуть существующие звонки из Битрикса за выбранный период.
