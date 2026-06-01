@@ -92,6 +92,7 @@ export default async function DashboardPage(props: {
               COALESCE(MAX(c.manager_name), m.name, '') AS manager_name,
               COUNT(*) AS calls,
               SUM(CASE WHEN c.duration_sec >= 30 THEN 1 ELSE 0 END) AS connected,
+              COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
               SUM(CASE WHEN c.duration_sec < 10 THEN 1 ELSE 0 END) AS missed,
               SUM(CASE WHEN c.direction='in' THEN 1 ELSE 0 END) AS incoming,
               SUM(CASE WHEN c.direction='out' THEN 1 ELSE 0 END) AS outgoing,
@@ -112,6 +113,7 @@ export default async function DashboardPage(props: {
     .all(...dateParams) as Array<{
       manager_id: string; manager_name: string;
       calls: number; connected: number; missed: number;
+      total_seconds: number;
       incoming: number; outgoing: number;
       avg_score: number | null; avg_compliance: number | null;
       pos: number; neu: number; neg: number;
@@ -271,12 +273,13 @@ export default async function DashboardPage(props: {
                 <th>ФИО / ID</th>
                 <th style={{ width: 80, textAlign: "center" }}>Всего</th>
                 <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
+                <th style={{ width: 110, textAlign: "center" }}>Минут</th>
                 <th style={{ width: 130, textAlign: "center" }}>Не дозвонился**</th>
-                <th style={{ width: 110, textAlign: "center" }}>Входящ.</th>
-                <th style={{ width: 110, textAlign: "center" }}>Исходящ.</th>
+                <th style={{ width: 100, textAlign: "center" }}>Входящ.</th>
+                <th style={{ width: 100, textAlign: "center" }}>Исходящ.</th>
                 <th style={{ width: 110 }}>Ср. оценка</th>
-                <th style={{ width: 110 }}>Чек-лист</th>
-                <th style={{ width: 180 }}>Настроение</th>
+                <th style={{ width: 100 }}>Чек-лист</th>
+                <th style={{ width: 160 }}>Настроение</th>
               </tr>
             </thead>
             <tbody>
@@ -293,6 +296,9 @@ export default async function DashboardPage(props: {
                     <span style={{ color: "var(--muted-foreground)", fontSize: 11, marginLeft: 4 }}>
                       ({m.calls > 0 ? Math.round((m.connected / m.calls) * 100) : 0}%)
                     </span>
+                  </td>
+                  <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                    <span style={{ fontWeight: 600 }}>{formatTotalMinutes(m.total_seconds)}</span>
                   </td>
                   <td style={{ textAlign: "center" }}>
                     <span style={{ color: m.missed > 0 ? "var(--destructive)" : "var(--muted-foreground)", fontWeight: 600 }}>
@@ -575,6 +581,17 @@ function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.round(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Суммарное время разговоров: "47 мин", "2 ч 15 мин", "—" */
+function formatTotalMinutes(sec: number): string {
+  if (!sec) return "—";
+  const totalMin = Math.round(sec / 60);
+  if (totalMin === 0) return "<1 мин";
+  if (totalMin < 60) return `${totalMin} мин`;
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  return mins ? `${hours} ч ${mins} мин` : `${hours} ч`;
 }
 
 function capitalize(s: string): string {
