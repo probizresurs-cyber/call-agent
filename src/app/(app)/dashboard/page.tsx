@@ -193,10 +193,19 @@ export default async function DashboardPage(props: {
     .map(([title, count]) => ({ title, count }));
 
   // ───────────── Распределение по продуктам ─────────────
+  // Разделяем «не определён» на 2 категории:
+  //   1) Без транскрипта — звонки без записи (служебные / 0-сек) — AI не мог слушать
+  //   2) AI не определил — есть транскрипт, но Claude не понял о чём
   const productStats = db
     .prepare(
       `SELECT
-         COALESCE(NULLIF(c.detected_product, ''), NULLIF(a.detected_product, '')) AS product,
+         CASE
+           WHEN COALESCE(NULLIF(c.detected_product,''), NULLIF(a.detected_product,'')) IS NOT NULL
+             THEN COALESCE(NULLIF(c.detected_product,''), NULLIF(a.detected_product,''))
+           WHEN c.id IN (SELECT call_id FROM transcripts WHERE text IS NOT NULL AND text != '')
+             THEN '__no_match__'
+           ELSE '__no_transcript__'
+         END AS product,
          COUNT(*) AS calls,
          SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
          SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
@@ -212,7 +221,13 @@ export default async function DashboardPage(props: {
        WHERE (m.is_active IS NULL OR m.is_active = 1)
          ${dateAndSql}
        GROUP BY product
-       ORDER BY calls DESC`
+       ORDER BY
+         CASE
+           WHEN product = '__no_transcript__' THEN 2
+           WHEN product = '__no_match__' THEN 1
+           ELSE 0
+         END,
+         calls DESC`
     )
     .all(...dateParams) as Array<{
       product: string | null;
@@ -221,6 +236,12 @@ export default async function DashboardPage(props: {
       avg_score: number | null; avg_compliance: number | null;
       pos: number; neu: number; neg: number;
     }>;
+
+  function productLabel(p: string | null): string {
+    if (p === "__no_transcript__") return "Без транскрипта";
+    if (p === "__no_match__") return "AI не определил";
+    return p || "Не определён";
+  }
 
   // ───────────── Слабые пункты чек-листа ─────────────
   const rawChecklist = db
@@ -542,8 +563,8 @@ export default async function DashboardPage(props: {
                             background: getProductColor(p.product),
                             display: "inline-block",
                           }} />
-                          <span style={{ color: productColor, fontWeight: p.product ? 600 : 400 }}>
-                            {p.product || "Не определён"}
+                          <span style={{ color: productColor, fontWeight: p.product && !p.product.startsWith("__") ? 600 : 400 }}>
+                            {productLabel(p.product)}
                           </span>
                         </span>
                       </td>
@@ -621,16 +642,21 @@ function ProductBar({ items }: { items: Array<{ product: string | null; calls: n
         ))}
       </div>
       <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap", fontSize: 12 }}>
-        {items.map((p) => (
-          <span key={p.product || "unknown"} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 3, background: getProductColor(p.product), display: "inline-block" }} />
-            <span style={{ color: "var(--muted-foreground)" }}>{p.product || "Не определён"}</span>
-            <b>{p.calls}</b>
-            <span style={{ color: "var(--muted-foreground)" }}>
-              ({Math.round((p.calls / total) * 100)}%)
+        {items.map((p) => {
+          const label = p.product === "__no_transcript__" ? "Без транскрипта"
+            : p.product === "__no_match__" ? "AI не определил"
+            : p.product || "Не определён";
+          return (
+            <span key={p.product || "unknown"} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: getProductColor(p.product), display: "inline-block" }} />
+              <span style={{ color: "var(--muted-foreground)" }}>{label}</span>
+              <b>{p.calls}</b>
+              <span style={{ color: "var(--muted-foreground)" }}>
+                ({Math.round((p.calls / total) * 100)}%)
+              </span>
             </span>
-          </span>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
