@@ -311,7 +311,7 @@ export default async function DashboardPage(props: {
                 <th style={{ width: 80, textAlign: "center" }}>Всего</th>
                 <th style={{ width: 110, textAlign: "center" }}>Контактов*</th>
                 <th style={{ width: 110, textAlign: "center" }}>Минут</th>
-                <th style={{ width: 100, textAlign: "center" }}>Не дозвон**</th>
+                <th style={{ width: 90, textAlign: "center" }}>Не дозв.**</th>
                 <th style={{ width: 100, textAlign: "center" }}>Входящ.</th>
                 <th style={{ width: 100, textAlign: "center" }}>Исходящ.</th>
                 <th style={{ width: 110 }}>Ср. оценка</th>
@@ -371,7 +371,7 @@ export default async function DashboardPage(props: {
         )}
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
           * <b>Контактов</b> — звонки длительностью ≥ {contactThreshold} сек (разговор состоялся). Настраивается в <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках</a>.<br/>
-          ** <b>Не дозвон</b> — звонки короче {missedThreshold} сек (автоответчик / повесили / занято)
+          ** <b>Не дозв.</b> — звонки короче {missedThreshold} сек (автоответчик / повесили / занято)
         </div>
       </div>
 

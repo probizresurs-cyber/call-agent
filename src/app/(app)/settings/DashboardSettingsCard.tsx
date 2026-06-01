@@ -63,7 +63,7 @@ export function DashboardSettingsCard() {
           </label>
           <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 6 }}>
             Звонки длительностью ≥ этого значения считаются состоявшимися контактами.
-            «Не дозвон» = звонки короче <b>{missedThreshold} сек</b> (треть порога).
+            «Не дозв.» = звонки короче <b>{missedThreshold} сек</b> (треть порога).
           </p>
         </div>
         <input
