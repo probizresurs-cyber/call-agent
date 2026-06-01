@@ -90,15 +90,22 @@ export function DashboardFilters() {
 
   const fromParam = search.get("from") || "";
   const toParam = search.get("to") || "";
+  const withCrm = search.get("with_crm") === "true";
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
 
-  function navigate(next: { from: string; to: string }) {
+  function navigate(next: { from: string; to: string; withCrm?: boolean }) {
     setFrom(next.from); setTo(next.to);
     const params = new URLSearchParams();
     if (next.from) params.set("from", next.from);
     if (next.to)   params.set("to",   next.to);
+    const crm = next.withCrm !== undefined ? next.withCrm : withCrm;
+    if (crm) params.set("with_crm", "true");
     startTransition(() => router.push("/dashboard" + (params.toString() ? `?${params}` : "")));
+  }
+
+  function toggleCrm() {
+    navigate({ from, to, withCrm: !withCrm });
   }
 
   function applyPreset(p: Preset) {
@@ -134,6 +141,33 @@ export function DashboardFilters() {
       marginBottom: 20, padding: 12, background: "var(--card)",
       border: "1px solid var(--border)", borderRadius: 8,
     }}>
+      {/* Тогл "Только с CRM" */}
+      <button
+        type="button"
+        onClick={toggleCrm}
+        disabled={pending}
+        title={withCrm
+          ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
+          : "Показываются все звонки, включая холодные без CRM-привязки"}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "0 12px", height: 30, fontSize: 13,
+          borderRadius: 4,
+          border: "1px solid var(--border)",
+          background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
+          color: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+          cursor: pending ? "wait" : "pointer",
+          fontWeight: withCrm ? 600 : 400,
+        }}
+      >
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+          display: "inline-block",
+        }} />
+        Только с CRM
+      </button>
+
       {/* Левая часть: пресеты */}
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: "1 1 auto" }}>
         {PRESETS.map((p) => (

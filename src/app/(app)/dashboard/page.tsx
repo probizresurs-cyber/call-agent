@@ -21,22 +21,27 @@ interface DailyRow {
 }
 
 export default async function DashboardPage(props: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; with_crm?: string }>;
 }) {
   const sp = await props.searchParams;
   const db = getDb();
+  const withCrmOnly = sp.with_crm === "true";
 
   // Порог "разговор состоялся" — настраивается в settings (по умолчанию 15 сек)
   const contactThreshold = parseInt(getSetting("contact_threshold_seconds") || String(DEFAULT_CONTACT_THRESHOLD), 10);
   // "Не дозвон" — звонки длительностью < contactThreshold / 1.5 (т.е. порядка трети порога)
   const missedThreshold = Math.max(5, Math.floor(contactThreshold / 1.5));
 
-  // Базовый WHERE для всех запросов с фильтром по дате
-  // (substr(c.started_at,1,10) даёт YYYY-MM-DD)
+  // Базовый WHERE: фильтр по дате + опционально только звонки с CRM-привязкой
   const dateWhere: string[] = [];
   const dateParams: unknown[] = [];
   if (sp.from) { dateWhere.push("substr(c.started_at,1,10) >= ?"); dateParams.push(sp.from); }
   if (sp.to)   { dateWhere.push("substr(c.started_at,1,10) <= ?"); dateParams.push(sp.to); }
+  if (withCrmOnly) {
+    dateWhere.push(
+      "(c.bitrix_deal_id IS NOT NULL OR c.bitrix_lead_id IS NOT NULL OR c.bitrix_contact_id IS NOT NULL OR (c.bitrix_activity_id IS NOT NULL AND c.bitrix_activity_id != '0'))"
+    );
+  }
   const datePeriodSql = dateWhere.length ? "WHERE " + dateWhere.join(" AND ") : "";
   const dateAndSql = dateWhere.length ? "AND " + dateWhere.join(" AND ") : "";
 
