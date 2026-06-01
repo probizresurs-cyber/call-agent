@@ -239,7 +239,7 @@ export default async function DashboardPage(props: {
 
   function productLabel(p: string | null): string {
     if (p === "__no_transcript__") return "Без транскрипта";
-    if (p === "__no_match__") return "AI не определил";
+    if (p === "__no_match__") return "Без темы";
     return p || "Не определён";
   }
 
@@ -644,7 +644,7 @@ function ProductBar({ items }: { items: Array<{ product: string | null; calls: n
       <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap", fontSize: 12 }}>
         {items.map((p) => {
           const label = p.product === "__no_transcript__" ? "Без транскрипта"
-            : p.product === "__no_match__" ? "AI не определил"
+            : p.product === "__no_match__" ? "Без темы"
             : p.product || "Не определён";
           return (
             <span key={p.product || "unknown"} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
