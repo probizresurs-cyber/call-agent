@@ -4,6 +4,7 @@ import {
   TrendingUp, AlertOctagon, Users, FileX, type LucideIcon,
 } from "lucide-react";
 import { getDb } from "@/lib/db";
+import { DashboardFilters } from "./DashboardFilters";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,25 @@ interface DailyRow {
   neutral: number;
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage(props: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const sp = await props.searchParams;
   const db = getDb();
+
+  // Базовый WHERE для всех запросов с фильтром по дате
+  // (substr(c.started_at,1,10) даёт YYYY-MM-DD)
+  const dateWhere: string[] = [];
+  const dateParams: unknown[] = [];
+  if (sp.from) { dateWhere.push("substr(c.started_at,1,10) >= ?"); dateParams.push(sp.from); }
+  if (sp.to)   { dateWhere.push("substr(c.started_at,1,10) <= ?"); dateParams.push(sp.to); }
+  const datePeriodSql = dateWhere.length ? "WHERE " + dateWhere.join(" AND ") : "";
+  const dateAndSql = dateWhere.length ? "AND " + dateWhere.join(" AND ") : "";
+
+  // Период в подписи (если фильтр активен)
+  const periodLabel = (sp.from || sp.to)
+    ? `${sp.from ? formatDate(sp.from) : "..."} — ${sp.to ? formatDate(sp.to) : "..."}`
+    : "за всё время";
 
   // ───────────── KPI карточки ─────────────
   const totals = db
@@ -33,9 +51,10 @@ export default async function DashboardPage() {
          SUM(CASE WHEN direction='out' THEN 1 ELSE 0 END) AS outgoing,
          COALESCE(AVG(duration_sec), 0) AS avg_duration,
          COALESCE(SUM(duration_sec), 0) AS total_duration
-       FROM calls`
+       FROM calls c
+       ${datePeriodSql}`
     )
-    .get() as {
+    .get(...dateParams) as {
       total: number; done: number; in_progress: number; failed: number;
       no_recording: number;
       incoming: number; outgoing: number;
@@ -43,13 +62,22 @@ export default async function DashboardPage() {
     };
 
   const aggs = db
-    .prepare(`SELECT AVG(manager_score) AS avg_score, AVG(script_compliance) AS avg_compliance FROM analyses`)
-    .get() as { avg_score: number | null; avg_compliance: number | null };
+    .prepare(
+      `SELECT AVG(a.manager_score) AS avg_score, AVG(a.script_compliance) AS avg_compliance
+       FROM analyses a JOIN calls c ON c.id = a.call_id
+       ${datePeriodSql}`
+    )
+    .get(...dateParams) as { avg_score: number | null; avg_compliance: number | null };
 
   // ───────────── Sentiment ─────────────
   const sentiments = db
-    .prepare(`SELECT sentiment, COUNT(*) AS n FROM analyses GROUP BY sentiment`)
-    .all() as Array<{ sentiment: string; n: number }>;
+    .prepare(
+      `SELECT a.sentiment, COUNT(*) AS n
+       FROM analyses a JOIN calls c ON c.id = a.call_id
+       ${datePeriodSql}
+       GROUP BY a.sentiment`
+    )
+    .all(...dateParams) as Array<{ sentiment: string; n: number }>;
   const sentMap: Record<SentimentBucket, number> = { positive: 0, neutral: 0, negative: 0, unknown: 0 };
   for (const s of sentiments) sentMap[(s.sentiment as SentimentBucket) || "unknown"] = s.n;
   const sentTotal = sentMap.positive + sentMap.neutral + sentMap.negative;
@@ -77,10 +105,11 @@ export default async function DashboardPage() {
        LEFT JOIN managers m ON m.id = c.manager_id
        WHERE c.manager_id IS NOT NULL AND c.manager_id != ''
          AND (m.is_active IS NULL OR m.is_active = 1)
+         ${dateAndSql}
        GROUP BY c.manager_id
        ORDER BY calls DESC`
     )
-    .all() as Array<{
+    .all(...dateParams) as Array<{
       manager_id: string; manager_name: string;
       calls: number; connected: number; missed: number;
       incoming: number; outgoing: number;
@@ -116,7 +145,10 @@ export default async function DashboardPage() {
   const maxDaily = Math.max(1, ...series.map((s) => s.total));
 
   // ───────────── Топ возражений + темы ─────────────
-  const rawObj = db.prepare(`SELECT objections_json FROM analyses WHERE objections_json IS NOT NULL`).all() as Array<{ objections_json: string }>;
+  const rawObj = db.prepare(
+    `SELECT a.objections_json FROM analyses a JOIN calls c ON c.id = a.call_id
+     WHERE a.objections_json IS NOT NULL ${dateAndSql}`
+  ).all(...dateParams) as Array<{ objections_json: string }>;
   const objCount = new Map<string, number>();
   for (const r of rawObj) {
     try {
@@ -132,7 +164,10 @@ export default async function DashboardPage() {
     .sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([title, count]) => ({ title, count }));
 
-  const rawTopics = db.prepare(`SELECT topics_json FROM analyses WHERE topics_json IS NOT NULL`).all() as Array<{ topics_json: string }>;
+  const rawTopics = db.prepare(
+    `SELECT a.topics_json FROM analyses a JOIN calls c ON c.id = a.call_id
+     WHERE a.topics_json IS NOT NULL ${dateAndSql}`
+  ).all(...dateParams) as Array<{ topics_json: string }>;
   const topicCount = new Map<string, number>();
   for (const r of rawTopics) {
     try {
@@ -150,8 +185,11 @@ export default async function DashboardPage() {
 
   // ───────────── Слабые пункты чек-листа ─────────────
   const rawChecklist = db
-    .prepare(`SELECT checklist_scores_json FROM analyses WHERE checklist_scores_json IS NOT NULL`)
-    .all() as Array<{ checklist_scores_json: string }>;
+    .prepare(
+      `SELECT a.checklist_scores_json FROM analyses a JOIN calls c ON c.id = a.call_id
+       WHERE a.checklist_scores_json IS NOT NULL ${dateAndSql}`
+    )
+    .all(...dateParams) as Array<{ checklist_scores_json: string }>;
   const itemStats = new Map<string, { title: string; sum: number; n: number }>();
   for (const r of rawChecklist) {
     try {
@@ -172,7 +210,14 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <h1 className="ds-h1" style={{ marginBottom: 24 }}>Дашборд</h1>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <h1 className="ds-h1">Дашборд</h1>
+        <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+          Период: <b style={{ color: "var(--foreground)" }}>{periodLabel}</b>
+        </span>
+      </div>
+
+      <DashboardFilters />
 
       {/* ───── KPI ───── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 16 }}>
@@ -415,6 +460,12 @@ export default async function DashboardPage() {
 
     </>
   );
+}
+
+function formatDate(s: string): string {
+  // ISO YYYY-MM-DD → DD.MM.YYYY
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  return `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}`;
 }
 
 function SentimentMini({ pos, neu, neg }: { pos: number; neu: number; neg: number }) {
