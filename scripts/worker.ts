@@ -25,6 +25,7 @@ const AUTO_IMPORT_INTERVAL_MS = 300_000; // 5 минут — проверка н
 const MAX_ATTEMPTS = 3;                   // для pending/failed
 const MAX_NO_RECORDING_ATTEMPTS = 6;      // для no_recording — попыток в течение 6 часов
 const NO_RECORDING_RETRY_HOURS = 1;       // повтор раз в час
+const STALE_MINUTES = 10;                 // звонок в processing-статусе дольше этого — считается застрявшим
 
 // ─────────────── Обработка очереди ───────────────
 async function processQueueTick() {
@@ -34,7 +35,8 @@ async function processQueueTick() {
   //  - pending (без ограничений)
   //  - failed с попытками < MAX_ATTEMPTS
   //  - no_recording с попытками < MAX_NO_RECORDING_ATTEMPTS И последнее обновление больше часа назад
-  // Приоритет: pending → failed → no_recording, потом по id ASC
+  //  - "stale" — застрявшие в processing-статусах больше STALE_MINUTES минут
+  //    (это значит воркер крашнулся в их обработке; берём на повтор)
   const row = db
     .prepare(
       `SELECT id, status FROM calls
@@ -44,16 +46,31 @@ async function processQueueTick() {
          OR (status = 'no_recording'
              AND attempts < ?
              AND datetime(updated_at) <= datetime('now', ?))
+         OR (status IN ('downloading','transcribing','analyzing','syncing')
+             AND datetime(updated_at) <= datetime('now', ?))
        ORDER BY
-         CASE status WHEN 'pending' THEN 0 WHEN 'failed' THEN 1 ELSE 2 END,
+         CASE status
+           WHEN 'pending' THEN 0
+           WHEN 'failed' THEN 1
+           WHEN 'no_recording' THEN 3
+           ELSE 2
+         END,
          id ASC
        LIMIT 1`
     )
-    .get(MAX_ATTEMPTS, MAX_NO_RECORDING_ATTEMPTS, `-${NO_RECORDING_RETRY_HOURS} hour`) as
-      { id: number; status: string } | undefined;
+    .get(
+      MAX_ATTEMPTS,
+      MAX_NO_RECORDING_ATTEMPTS,
+      `-${NO_RECORDING_RETRY_HOURS} hour`,
+      `-${STALE_MINUTES} minute`
+    ) as { id: number; status: string } | undefined;
   if (!row) return;
 
-  const fromStatus = row.status === "no_recording" ? " (retry)" : "";
+  const fromStatus =
+    row.status === "no_recording" ? " (retry no_recording)"
+    : ["downloading","transcribing","analyzing","syncing"].includes(row.status)
+    ? ` (recovering stale ${row.status})`
+    : "";
   console.log(`[worker] picking call #${row.id}${fromStatus}`);
   try {
     await processCall(row.id);
