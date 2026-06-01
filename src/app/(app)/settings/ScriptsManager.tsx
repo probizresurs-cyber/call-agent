@@ -153,7 +153,7 @@ export function ScriptsManager() {
         </button>
         <button type="button" className="ds-btn ds-btn-secondary"
           onClick={async () => {
-            if (!confirm("Создать готовый шаблон скрипта для металлопроката (МП)? Внутри — 20 пунктов чек-листа из таблицы Орлинк, разбитые на 7 блоков. Можно потом редактировать.")) return;
+            if (!confirm("Создать готовый шаблон Металлопрокат (МП)? Внутри полный текст скрипта обработки входящей заявки с записью на КЭВ + 20 пунктов чек-листа в 7 блоках. Можно потом редактировать.")) return;
             const r = await fetch("/call-agent/api/scripts/template?key=mp", { method: "POST" });
             const data = await r.json();
             if (data.ok) {
@@ -163,7 +163,21 @@ export function ScriptsManager() {
               alert("Ошибка: " + data.error);
             }
           }}>
-          <FileText size={14} /> Создать шаблон МП (20 пунктов)
+            <FileText size={14} /> Шаблон МП (металлопрокат)
+        </button>
+        <button type="button" className="ds-btn ds-btn-secondary"
+          onClick={async () => {
+            if (!confirm("Создать готовый шаблон Металлоконструкции (МК)? Внутри полный текст скрипта обработки входящей заявки на строительство под ключ + 20 пунктов чек-листа.")) return;
+            const r = await fetch("/call-agent/api/scripts/template?key=mk", { method: "POST" });
+            const data = await r.json();
+            if (data.ok) {
+              void refresh();
+              startTransition(() => router.refresh());
+            } else {
+              alert("Ошибка: " + data.error);
+            }
+          }}>
+          <FileText size={14} /> Шаблон МК (металлоконструкции)
         </button>
       </div>
     </>
