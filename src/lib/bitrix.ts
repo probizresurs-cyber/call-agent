@@ -389,6 +389,55 @@ export async function crmTimelineComments(
   }
 }
 
+/**
+ * Получить пачку RESPONSIBLE_ID для активностей CALL за период.
+ * Используется чтобы атрибутировать звонки на правильного менеджера
+ * (того кто фактически работает с CRM-карточкой, а не того кто
+ * первым взял трубку — это бывает диспетчер).
+ *
+ * Битрикс ограничивает 50 на страницу — пагинируем.
+ */
+export async function crmCallActivitiesByPeriod(opts: {
+  fromDate: string;
+  toDate?: string;
+}): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let start = 0;
+  for (let page = 0; page < 50; page++) {
+    try {
+      const params: Record<string, unknown> = {
+        filter: {
+          PROVIDER_TYPE_ID: "CALL",
+          ">=CREATED": opts.fromDate,
+          "<=CREATED": (opts.toDate || opts.fromDate) + " 23:59:59",
+        },
+        select: ["ID", "RESPONSIBLE_ID"],
+        order: { ID: "ASC" },
+      };
+      if (start) params.start = start;
+      const url = baseUrl() + "crm.activity.list.json";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      const data = (await res.json()) as {
+        result?: Array<{ ID: string; RESPONSIBLE_ID: string }>;
+        next?: number;
+      };
+      for (const a of data.result || []) {
+        if (a.ID && a.RESPONSIBLE_ID) map.set(String(a.ID), String(a.RESPONSIBLE_ID));
+      }
+      if (data.next == null) break;
+      start = data.next;
+    } catch (e) {
+      console.warn("[bitrix] crmCallActivitiesByPeriod page error:", (e as Error).message);
+      break;
+    }
+  }
+  return map;
+}
+
 /** Прошлые звонки по этой же сущности (по нашей БД? нет — по Битриксу) */
 export async function crmPriorActivities(
   ownerType: "deal" | "lead",
