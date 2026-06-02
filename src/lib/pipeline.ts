@@ -11,6 +11,7 @@ import {
 } from "./bitrix";
 import { transcribeFile } from "./transcribe";
 import { analyzeCall, type CallAnalysis } from "./analyzer";
+import { createReminderFromAnalysis } from "./reminders";
 import { detectProduct, type ProductCandidate } from "./product-detector";
 
 const RECORDINGS_DIR = process.env.RECORDINGS_DIR
@@ -179,6 +180,21 @@ export async function processCall(callId: number): Promise<void> {
     product ?? null,
     JSON.stringify(analysis.coaching_tips ?? [])
   );
+
+  // 6.5. §5.3 MASTER-TZ: создаём reminder из next_action если есть распознаваемый срок.
+  //      Тихо игнорируем если парсер не распознал — это нормально, не все next_action имеют дату.
+  try {
+    await createReminderFromAnalysis({
+      tenantId: row.tenant_id ?? 1,
+      callId,
+      bitrixManagerId: row.manager_id,
+      nextAction: analysis.next_action || "",
+      clientName: analysis.client_name,
+      clientPhone: row.client_phone,
+    });
+  } catch (e) {
+    console.warn(`[reminders] auto-create failed for call #${callId}:`, (e as Error).message);
+  }
 
   // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL
   await setCallStatus(callId, "syncing");

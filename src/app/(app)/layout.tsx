@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon, Activity, Upload, FilePlus2, Users } from "lucide-react";
+import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon, Activity, Upload, FilePlus2, Users, Trophy, Bell } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -53,6 +53,16 @@ export default async function AuthedLayout({ children }: { children: React.React
           <Link className="nav-link" href="/clients">
             <Users size={16} strokeWidth={2} /> Клиенты
           </Link>
+          {user.role === "manager" && (
+            <Link className="nav-link" href="/my">
+              <Bell size={16} strokeWidth={2} /> Мой кабинет
+            </Link>
+          )}
+          {user.role !== "manager" && (
+            <Link className="nav-link" href="/leaderboard">
+              <Trophy size={16} strokeWidth={2} /> Лидерборд
+            </Link>
+          )}
           {showSettings && (
             <Link className="nav-link" href="/interactions/upload">
               <FilePlus2 size={16} strokeWidth={2} /> Загрузить
