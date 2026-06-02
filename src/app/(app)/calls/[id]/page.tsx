@@ -114,7 +114,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
             <Info size={16} strokeWidth={2} /> Информация
           </h2>
           <Row label="Bitrix call ID" value={call.bitrix_call_id || "—"} />
-          <Row label="Дата" value={call.started_at || "—"} />
+          <Row label="Дата" value={formatDate(call.started_at)} />
           <Row label="Менеджер" value={call.manager_name || call.manager_id || "—"} />
           <Row label="Клиент" value={call.client_phone || "—"} />
           <Row label="Имя клиента (из разговора)" value={analysis?.client_name || "—"} />
@@ -322,6 +322,15 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
       </div>
     </>
   );
+}
+
+function formatDate(s: string | null): string {
+  if (!s) return "—";
+  // SQLite: "2026-06-02 12:34:56"; PG: "2026-06-02 12:34:56+00" — нормализуем для JS Date.
+  const iso = s.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

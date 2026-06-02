@@ -129,8 +129,12 @@ export default async function CallsListPage(props: {
 
 function formatDate(s: string | null): string {
   if (!s) return "—";
-  try { return new Date(s.replace(" ", "T")).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" }); }
-  catch { return s; }
+  // SQLite даёт "2026-06-02 12:34:56", PG — "2026-06-02 12:34:56+00" или с миллисекундами.
+  // JS Date не парсит "+00" без двоеточия — нормализуем в "+00:00".
+  const iso = s.replace(" ", "T").replace(/([+-]\d{2})$/, "$1:00");
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return s;
+  return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
 }
 function formatDuration(sec: number): string {
   if (!sec) return "0:00";
