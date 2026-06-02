@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft, Star, ClipboardList, User, FileAudio, Info,
   CheckCircle2, XCircle, CircleDot, MessageSquare, Tag,
   Phone, ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
 import { getDb } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
 import { ReprocessButton } from "./ReprocessButton";
 
 export const dynamic = "force-dynamic";
@@ -50,11 +51,22 @@ type Dialogue = Array<{ speaker: "manager" | "client" | "unknown"; text: string 
 type ChecklistScore = { id: string; title: string; score: number; notes: string; block?: string };
 
 export default async function CallDetailPage(props: { params: Promise<{ id: string }> }) {
+  const me = await getSessionUser();
+  if (!me) redirect("/login");
   const { id: idStr } = await props.params;
   const id = parseInt(idStr, 10);
   const db = getDb();
-  const call = db.prepare(`SELECT * FROM calls WHERE id = ?`).get(id) as Call | undefined;
+  const call = db.prepare(
+    `SELECT * FROM calls WHERE id = ? AND tenant_id = ?`
+  ).get(id, me.tenantId) as Call | undefined;
   if (!call) notFound();
+
+  // RLS для менеджера — нельзя смотреть чужой звонок по прямой ссылке
+  if (me.role === "manager") {
+    if (!me.bitrixManagerId || call.manager_id !== me.bitrixManagerId) {
+      notFound();
+    }
+  }
 
   const transcript = db.prepare(`SELECT * FROM transcripts WHERE call_id = ?`).get(id) as Transcript | undefined;
   const analysis = db.prepare(`SELECT * FROM analyses WHERE call_id = ?`).get(id) as Analysis | undefined;

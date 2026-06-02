@@ -3,7 +3,10 @@ import {
   Star, ClipboardList, MessageSquare, Tag, Timer, ArrowDownLeft, ArrowUpRight,
   TrendingUp, AlertOctagon, Users, FileX, Package, type LucideIcon,
 } from "lucide-react";
+import { redirect } from "next/navigation";
 import { getDb, getSetting } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { rlsFor } from "@/lib/rls";
 import { DashboardFilters } from "./DashboardFilters";
 
 const DEFAULT_CONTACT_THRESHOLD = 15; // секунд
@@ -23,18 +26,24 @@ interface DailyRow {
 export default async function DashboardPage(props: {
   searchParams: Promise<{ from?: string; to?: string; with_crm?: string }>;
 }) {
+  const me = await getSessionUser();
+  if (!me) redirect("/login");
   const sp = await props.searchParams;
   const db = getDb();
   const withCrmOnly = sp.with_crm === "true";
+  const isManager = me.role === "manager";
 
   // Порог "разговор состоялся" — настраивается в settings (по умолчанию 15 сек)
   const contactThreshold = parseInt(getSetting("contact_threshold_seconds") || String(DEFAULT_CONTACT_THRESHOLD), 10);
   // "Не дозвон" — звонки длительностью < contactThreshold / 1.5 (т.е. порядка трети порога)
   const missedThreshold = Math.max(5, Math.floor(contactThreshold / 1.5));
 
-  // Базовый WHERE: фильтр по дате + опционально только звонки с CRM-привязкой
-  const dateWhere: string[] = [];
-  const dateParams: unknown[] = [];
+  // RLS — фильтр по tenant_id + (для manager) по его bitrix_manager_id
+  const rls = rlsFor(me, { table: "c" });
+
+  // Базовый WHERE: tenant + дата + опционально только с CRM
+  const dateWhere: string[] = [rls.sql];
+  const dateParams: unknown[] = [...rls.params];
   if (sp.from) { dateWhere.push("substr(c.started_at,1,10) >= ?"); dateParams.push(sp.from); }
   if (sp.to)   { dateWhere.push("substr(c.started_at,1,10) <= ?"); dateParams.push(sp.to); }
   if (withCrmOnly) {
@@ -42,8 +51,8 @@ export default async function DashboardPage(props: {
       "(c.bitrix_deal_id IS NOT NULL OR c.bitrix_lead_id IS NOT NULL OR c.bitrix_contact_id IS NOT NULL OR (c.bitrix_activity_id IS NOT NULL AND c.bitrix_activity_id != '0'))"
     );
   }
-  const datePeriodSql = dateWhere.length ? "WHERE " + dateWhere.join(" AND ") : "";
-  const dateAndSql = dateWhere.length ? "AND " + dateWhere.join(" AND ") : "";
+  const datePeriodSql = "WHERE " + dateWhere.join(" AND ");
+  const dateAndSql = "AND " + dateWhere.join(" AND ");
 
   // Период в подписи (если фильтр активен)
   const periodLabel = (sp.from || sp.to)
@@ -278,7 +287,14 @@ export default async function DashboardPage(props: {
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <h1 className="ds-h1">Дашборд</h1>
+        <h1 className="ds-h1">
+          {isManager ? "Мой кабинет" : "Дашборд"}
+          {isManager && me.name && (
+            <span style={{ fontSize: 16, color: "var(--muted-foreground)", marginLeft: 12, fontWeight: 500 }}>
+              · {me.name}
+            </span>
+          )}
+        </h1>
         <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
           Период: <b style={{ color: "var(--foreground)" }}>{periodLabel}</b>
         </span>
@@ -320,7 +336,8 @@ export default async function DashboardPage(props: {
         />
       </div>
 
-      {/* ───── Менеджеры — расширенная статистика (переехала вверх) ───── */}
+      {/* ───── Менеджеры — расширенная статистика (для head/admin/owner) ───── */}
+      {!isManager && (
       <div className="ds-card" style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -400,6 +417,7 @@ export default async function DashboardPage(props: {
           <b>Входящ.</b> — входящие звонки на которые ответили. <b>Исходящ.</b> — все исходящие.
         </div>
       </div>
+      )}
 
       {/* ───── Динамика по дням ───── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>

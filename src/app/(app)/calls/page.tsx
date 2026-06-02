@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { getDb } from "@/lib/db";
+import { getSessionUser } from "@/lib/auth";
+import { rlsFor } from "@/lib/rls";
 import { SentimentBadge, StatusBadge } from "@/app/_components/Badges";
 import { CallsFilters } from "./CallsFilters";
 
@@ -24,9 +27,15 @@ type Row = {
 export default async function CallsListPage(props: {
   searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string }>;
 }) {
+  const me = await getSessionUser();
+  if (!me) redirect("/login");
+  const isManager = me.role === "manager";
   const sp = await props.searchParams;
-  const where: string[] = [];
-  const params: unknown[] = [];
+
+  // RLS: tenant + (для manager) фильтр по своему bitrix_manager_id
+  const rls = rlsFor(me, { table: "c" });
+  const where: string[] = [rls.sql];
+  const params: unknown[] = [...rls.params];
 
   if (sp.status) { where.push("c.status = ?"); params.push(sp.status); }
   if (sp.sentiment) { where.push("a.sentiment = ?"); params.push(sp.sentiment); }
@@ -37,8 +46,11 @@ export default async function CallsListPage(props: {
   if (sp.from) { where.push("substr(c.started_at,1,10) >= ?"); params.push(sp.from); }
   if (sp.to)   { where.push("substr(c.started_at,1,10) <= ?"); params.push(sp.to); }
   // Скрытые менеджеры не показываются (фильтр настраивается в /settings)
-  where.push("(c.manager_id IS NULL OR c.manager_id NOT IN (SELECT id FROM managers WHERE is_active = 0))");
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  // Применяется только для head/admin/owner — у manager и так свой ID жёстко
+  if (!isManager) {
+    where.push("(c.manager_id IS NULL OR c.manager_id NOT IN (SELECT id FROM managers WHERE is_active = 0))");
+  }
+  const whereSql = `WHERE ${where.join(" AND ")}`;
 
   const rows = getDb()
     .prepare(
@@ -58,7 +70,7 @@ export default async function CallsListPage(props: {
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h1 className="ds-h1">Звонки</h1>
+        <h1 className="ds-h1">{isManager ? "Мои звонки" : "Звонки"}</h1>
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
           Найдено: <b>{totalCount.n}</b>{rows.length < totalCount.n ? ` (показано первые ${rows.length})` : ""}
         </div>
