@@ -64,10 +64,14 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("calls", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("managers", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("sales_scripts", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
-  // На analyses/transcripts/sessions tenant_id не нужен (1:1 с calls)
 
   // user_id у platform-пользователей кто может видеть звонок (linked manager)
   ensureColumn("calls", "user_id", "INTEGER"); // NULL = не привязан к пользователю платформы
+
+  // На существующей sessions таблице добавляем user_id/tenant_id если их нет.
+  // (В CREATE TABLE они уже есть, но БД из прошлой версии существует со старой схемой.)
+  ensureColumn("sessions", "user_id", "INTEGER");
+  ensureColumn("sessions", "tenant_id", "INTEGER");
 
   // Засеваем дефолтного тенанта если ещё не существует
   seedDefaultData(db);
