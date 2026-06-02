@@ -136,10 +136,22 @@ let _pgPool: import("pg").Pool | null = null;
 function makePgDb(): CompatDb {
   if (!_pgPool) {
     /* eslint-disable @typescript-eslint/no-require-imports */
-    const { Pool } = require("pg") as typeof import("pg");
+    const pg = require("pg") as typeof import("pg");
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error("DATABASE_URL не задан (DB_DRIVER=postgres)");
-    _pgPool = new Pool({
+
+    // КРИТИЧНО: возвращаем timestamp/timestamptz/date как СТРОКУ, а не как JS Date.
+    // SQLite-код везде работает со started_at/created_at как со строкой; если pg вернёт Date,
+    // React-рендеринг падает с "Objects are not valid as a React child", а .replace()/.slice()
+    // на Date-объектах кидают TypeError. Парсер 1114 = timestamp, 1184 = timestamptz, 1082 = date.
+    pg.types.setTypeParser(1114, (s: string) => s);
+    pg.types.setTypeParser(1184, (s: string) => s);
+    pg.types.setTypeParser(1082, (s: string) => s);
+    // BIGINT (oid 20) — pg по умолчанию возвращает как string чтобы не терять точность,
+    // но наши id влезают в JS number. Преобразуем чтобы code сравнения row.id === N работали.
+    pg.types.setTypeParser(20, (s: string) => parseInt(s, 10));
+
+    _pgPool = new pg.Pool({
       connectionString: url,
       max: 10,
       idleTimeoutMillis: 30_000,
