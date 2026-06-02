@@ -56,6 +56,15 @@ function adaptSqlToPg(sql: string): string {
   // datetime(column_name) → column_name (в PG это уже timestamp, обёртка не нужна).
   // Распознаём ТОЛЬКО форму с одним идентификатором (буквы/цифры/_/.) — не трогаем datetime('now',...).
   out = out.replace(/datetime\s*\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\)/g, "$1");
+  // sessions.user (SQLite legacy column name) → legacy_login (PG schema).
+  // `user` это reserved word в PG, поэтому колонка переименована.
+  // Покрываем: INSERT (id, user, user_id, ...), SELECT s.user, sessions.user
+  out = out.replace(/\bs\.user\b(?!\w|_)/g, "s.legacy_login");
+  out = out.replace(/\bsessions\.user\b(?!\w|_)/g, "sessions.legacy_login");
+  // INSERT/UPDATE списки колонок — `, user,` после открывающей скобки
+  out = out.replace(/(INSERT\s+INTO\s+sessions\s*\([^)]*?,\s*)user(\s*,)/gi, "$1legacy_login$2");
+  out = out.replace(/(INSERT\s+INTO\s+sessions\s*\(\s*)user(\s*,)/gi, "$1legacy_login$2");
+
   // SQLite хранит boolean как INT 0/1; PG — настоящий boolean. Конвертируем литералы для известных
   // boolean-колонок в SQL (только сравнения = 1 / = 0 и COALESCE(...,1/0)). Параметры (?$N) Adapter
   // не знает по типу — boolean параметры должны передаваться в код как true/false (better-sqlite3 OK).
