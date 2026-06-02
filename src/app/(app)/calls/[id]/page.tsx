@@ -8,6 +8,7 @@ import {
 import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { ReprocessButton } from "./ReprocessButton";
+import { SendToCrmButton } from "./SendToCrmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -228,6 +229,11 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
                 {topics.map((t) => <span key={t} className="ds-badge ds-badge-info">{t}</span>)}
               </div>
             </div>
+          )}
+
+          {/* §5.5 MASTER-TZ: CRM-write (только head/owner/admin). По умолчанию под DRY_RUN. */}
+          {me.role !== "manager" && (
+            <SendToCrmButton callId={call.id} />
           )}
         </div>
       )}
