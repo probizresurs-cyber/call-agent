@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Phone, MessageSquare, Mail, Video } from "lucide-react";
 import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
@@ -12,6 +12,8 @@ export const dynamic = "force-dynamic";
 type Row = {
   id: number;
   bitrix_call_id: string | null;
+  interaction_type: "call" | "chat" | "email" | "meeting" | null;
+  channel: string | null;
   manager_name: string | null;
   manager_id: string | null;
   client_phone: string | null;
@@ -24,8 +26,16 @@ type Row = {
   manager_score: number | null;
 };
 
+function TypeIcon({ type }: { type: string | null }) {
+  const t = type || "call";
+  if (t === "chat")    return <MessageSquare size={14} strokeWidth={2} color="var(--success)" />;
+  if (t === "email")   return <Mail size={14} strokeWidth={2} color="var(--primary)" />;
+  if (t === "meeting") return <Video size={14} strokeWidth={2} color="var(--warning)" />;
+  return <Phone size={14} strokeWidth={2} color="var(--muted-foreground)" />;
+}
+
 export default async function CallsListPage(props: {
-  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string }>;
 }) {
   const me = await getSessionUser();
   if (!me) redirect("/login");
@@ -38,6 +48,7 @@ export default async function CallsListPage(props: {
   const params: unknown[] = [...rls.params];
 
   if (sp.status) { where.push("c.status = ?"); params.push(sp.status); }
+  if (sp.type)   { where.push("c.interaction_type = ?"); params.push(sp.type); }
   if (sp.sentiment) { where.push("a.sentiment = ?"); params.push(sp.sentiment); }
   if (sp.q) {
     where.push(`c.id IN (SELECT call_id FROM transcripts WHERE text LIKE ?)`);
@@ -54,7 +65,8 @@ export default async function CallsListPage(props: {
 
   const rows = await getDbAsync()
     .prepare(
-      `SELECT c.id, c.bitrix_call_id, c.manager_name, c.manager_id, c.client_phone,
+      `SELECT c.id, c.bitrix_call_id, c.interaction_type, c.channel,
+              c.manager_name, c.manager_id, c.client_phone,
               c.direction, c.started_at, c.duration_sec, c.status,
               a.summary, a.sentiment, a.manager_score
        FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
@@ -90,6 +102,7 @@ export default async function CallsListPage(props: {
           <table className="ds-table">
             <thead>
               <tr>
+                <th style={{ width: 28 }}></th>
                 <th>#</th><th>Дата</th><th>Менеджер</th><th>Клиент</th>
                 <th>Дл.</th><th>Настр.</th><th>Оценка</th><th>Итог</th><th>Статус</th>
               </tr>
@@ -97,6 +110,9 @@ export default async function CallsListPage(props: {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
+                  <td style={{ textAlign: "center" }} title={r.interaction_type || "call"}>
+                    <TypeIcon type={r.interaction_type} />
+                  </td>
                   <td><Link href={`/calls/${r.id}`} style={{ color: "var(--primary)" }}>#{r.id}</Link></td>
                   <td style={{ whiteSpace: "nowrap" }}>{formatDate(r.started_at)}</td>
                   <td>{r.manager_name || (r.manager_id ? <span style={{ color: "var(--muted-foreground)" }}>ID {r.manager_id}</span> : "—")}</td>

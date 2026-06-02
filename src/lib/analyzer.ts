@@ -126,8 +126,18 @@ function userPrompt(args: {
   transcript: string;
   checklist: ChecklistItem[] | null;
   context: DealContext | null;
+  interactionType?: "call" | "chat" | "email" | "meeting";
 }) {
   const { transcript, checklist, context } = args;
+  const itype = args.interactionType ?? "call";
+
+  // Терминология подстраивается под тип взаимодействия — анализ остаётся тот же
+  const labels = {
+    call:    { noun: "звонок",    transcriptLabel: "Стенограмма звонка",        diarization: "сделай псевдо-диаризацию (manager/client/unknown)" },
+    chat:    { noun: "переписка", transcriptLabel: "Текст переписки",            diarization: "если в тексте видно кто пишет (manager/client) — размечай; иначе ставь unknown" },
+    email:   { noun: "email",     transcriptLabel: "Email-переписка",            diarization: "размечай по From/To если видно: получатель=client, отправитель из нашей компании=manager" },
+    meeting: { noun: "встреча",   transcriptLabel: "Стенограмма видео-встречи", diarization: "псевдо-диаризация по контексту (manager/client/unknown)" },
+  }[itype];
 
   const checklistBlock =
     checklist && checklist.length > 0
@@ -147,11 +157,13 @@ ${context.recentComments.map((c) => `  • ${c.createdAt}: ${c.text.slice(0, 300
 `
     : "Контекст сделки/лида не получен.";
 
-  return `${contextBlock}
+  return `Тип взаимодействия: ${labels.noun}. ${labels.diarization}.
+
+${contextBlock}
 
 ${checklistBlock}
 
-Стенограмма звонка:
+${labels.transcriptLabel}:
 """
 ${transcript}
 """
@@ -194,6 +206,7 @@ export async function analyzeCall(args: {
   context: DealContext | null;
   tenantId?: number;  // §4.4 для бюджет-гарда; если не передан — без учёта расхода
   callId?: number;    // для usage_events.call_id (опционально, аналитика)
+  interactionType?: "call" | "chat" | "email" | "meeting";  // §2 MASTER-TZ
 }): Promise<{ analysis: CallAnalysis; raw: string; model: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY не задан");
@@ -214,7 +227,7 @@ export async function analyzeCall(args: {
     system: SYSTEM_PROMPT,
     tools: [SAVE_ANALYSIS_TOOL],
     tool_choice: { type: "tool", name: "save_analysis" },
-    messages: [{ role: "user", content: userPrompt(args) }],
+    messages: [{ role: "user", content: userPrompt({ ...args, interactionType: args.interactionType }) }],
   }));
 
   // §4.4 Учёт расхода: суммируем input + output токены. Запись идёт через try/catch — не валит звонок.

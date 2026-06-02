@@ -27,6 +27,9 @@ type Call = {
   recording_path: string | null;
   error: string | null;
   deal_context_json: string | null;
+  interaction_type: string | null;
+  channel: string | null;
+  content_text: string | null;
 };
 type Transcript = {
   text: string;
@@ -117,7 +120,8 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <Info size={16} strokeWidth={2} /> Информация
           </h2>
-          <Row label="Bitrix call ID" value={call.bitrix_call_id || "—"} />
+          <Row label="Тип" value={typeLabel(call.interaction_type, call.channel)} />
+          <Row label="ID источника" value={call.bitrix_call_id || "—"} />
           <Row label="Дата" value={formatDate(call.started_at)} />
           <Row label="Менеджер" value={call.manager_name || call.manager_id || "—"} />
           <Row label="Клиент" value={call.client_phone || "—"} />
@@ -359,6 +363,22 @@ function formatDate(s: string | null): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return s;
   return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+}
+
+function typeLabel(t: string | null, ch: string | null): string {
+  const types: Record<string, string> = {
+    call: "Звонок", chat: "Чат", email: "Email", meeting: "Встреча",
+  };
+  const channels: Record<string, string> = {
+    bitrix_telephony: "Bitrix24 АТС",
+    openlines: "Bitrix Open Lines",
+    whatsapp: "WhatsApp", telegram: "Telegram", email_imap: "Email",
+    zoom: "Zoom", yandex_telemost: "Яндекс Телемост",
+    manual: "ручная загрузка", other: "другое",
+  };
+  const tLabel = types[t || "call"] || (t || "—");
+  const cLabel = ch ? ` · ${channels[ch] || ch}` : "";
+  return tLabel + cLabel;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

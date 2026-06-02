@@ -53,6 +53,14 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("analyses", "coaching_tips_json", "TEXT");  // §5.2 MASTER-TZ — советы менеджеру
   ensureColumn("calls", "deal_context_json", "TEXT");
 
+  // ─────── Фаза 2 MASTER-TZ: омниканальность ───────
+  // type: call (звонок, default) / chat / email / meeting
+  // channel: канал-источник (bitrix_telephony, openlines, whatsapp, telegram, email_imap, manual, zoom, yandex_telemost...)
+  // content_text: для чатов/email — сразу текст переписки, минуя транскрипцию
+  ensureColumn("calls", "interaction_type", "TEXT NOT NULL DEFAULT 'call'");
+  ensureColumn("calls", "channel", "TEXT NOT NULL DEFAULT 'bitrix_telephony'");
+  ensureColumn("calls", "content_text", "TEXT");
+
   // Мульти-скрипты: product (МП/МК/др.) и direction (in/out/all)
   ensureColumn("sales_scripts", "product", "TEXT");
   ensureColumn("sales_scripts", "direction", "TEXT DEFAULT 'all'");
@@ -243,9 +251,27 @@ export class NoRecordingError extends Error {
   }
 }
 
+// §2 + §3 MASTER-TZ: единая сущность взаимодействия.
+// Имя таблицы оставляем `calls` для обратной совместимости с существующим кодом;
+// конкретный тип определяется колонкой interaction_type.
+export type InteractionType = "call" | "chat" | "email" | "meeting";
+export type InteractionChannel =
+  | "bitrix_telephony"
+  | "openlines"
+  | "whatsapp"
+  | "telegram"
+  | "email_imap"
+  | "manual"
+  | "zoom"
+  | "yandex_telemost"
+  | "other";
+
 export interface CallRow {
   id: number;
   tenant_id: number | null;
+  interaction_type: InteractionType;
+  channel: InteractionChannel;
+  content_text: string | null;  // для chat/email — готовый текст переписки
   bitrix_call_id: string | null;
   bitrix_deal_id: string | null;
   bitrix_lead_id: string | null;

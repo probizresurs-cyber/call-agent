@@ -25,12 +25,14 @@ export function CallsFilters() {
   const qParam = search.get("q") || "";
   const sentimentParam = search.get("sentiment") || "";
   const statusParam = search.get("status") || "";
+  const typeParam = search.get("type") || "";
 
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
   const [q, setQ] = useState(qParam);
   const [sentiment, setSentiment] = useState(sentimentParam);
   const [status, setStatus] = useState(statusParam);
+  const [type, setType] = useState(typeParam);
 
   function navigate(next: Record<string, string>) {
     const params = new URLSearchParams();
@@ -41,10 +43,10 @@ export function CallsFilters() {
   }
 
   function apply() {
-    navigate({ from, to, q, sentiment, status });
+    navigate({ from, to, q, sentiment, status, type });
   }
   function reset() {
-    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus("");
+    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType("");
     startTransition(() => router.push("/calls"));
   }
   function presetToday() {
@@ -128,13 +130,20 @@ export function CallsFilters() {
           onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
           style={{ flex: "1 1 280px", minWidth: 200 }}
         />
-        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value }); }} style={{ width: 150 }}>
+          <option value="">Все типы</option>
+          <option value="call">Звонки</option>
+          <option value="chat">Чаты</option>
+          <option value="email">Email</option>
+          <option value="meeting">Встречи</option>
+        </select>
+        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type }); }} style={{ width: 170 }}>
           <option value="">Все настроения</option>
           <option value="positive">Позитив</option>
           <option value="neutral">Нейтрально</option>
           <option value="negative">Негатив</option>
         </select>
-        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type }); }} style={{ width: 170 }}>
           <option value="">Все статусы</option>
           <option value="done">Готово</option>
           <option value="pending">В очереди</option>

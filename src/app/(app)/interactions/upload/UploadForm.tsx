@@ -1,0 +1,272 @@
+"use client";
+
+import { useState } from "react";
+import { MessageSquare, Mail, Video, ArrowDownLeft, ArrowUpRight, FileText, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+
+type Type = "chat" | "email" | "meeting";
+type Channel = "whatsapp" | "telegram" | "email_imap" | "zoom" | "yandex_telemost" | "other" | "manual";
+type Direction = "in" | "out";
+
+const CHANNELS_BY_TYPE: Record<Type, Array<{ value: Channel; label: string }>> = {
+  chat: [
+    { value: "whatsapp", label: "WhatsApp" },
+    { value: "telegram", label: "Telegram" },
+    { value: "other",    label: "Другой мессенджер" },
+  ],
+  email: [
+    { value: "email_imap", label: "Email" },
+    { value: "other",      label: "Другое" },
+  ],
+  meeting: [
+    { value: "zoom",            label: "Zoom" },
+    { value: "yandex_telemost", label: "Яндекс Телемост" },
+    { value: "other",           label: "Другая платформа" },
+  ],
+};
+
+const TYPE_LABELS: Record<Type, { label: string; icon: React.ReactNode; hint: string }> = {
+  chat:    { label: "Чат",     icon: <MessageSquare size={16} />, hint: "Переписка в мессенджере. Можно вставить копипастом" },
+  email:   { label: "Email",   icon: <Mail size={16} />,           hint: "Письмо или цепочка писем. Скопируйте из почтового клиента" },
+  meeting: { label: "Встреча", icon: <Video size={16} />,          hint: "Запись Zoom / Яндекс Телемост. Файл (audio/video) — будет транскрибирован" },
+};
+
+export function UploadForm() {
+  const router = useRouter();
+  const [type, setType] = useState<Type>("chat");
+  const [channel, setChannel] = useState<Channel>("whatsapp");
+  const [direction, setDirection] = useState<Direction | "">("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [managerId, setManagerId] = useState("");
+  const [bitrixDealId, setBitrixDealId] = useState("");
+  const [bitrixLeadId, setBitrixLeadId] = useState("");
+  const [bitrixContactId, setBitrixContactId] = useState("");
+  const [contentText, setContentText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [startedAt, setStartedAt] = useState(() => {
+    const d = new Date();
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 16);
+  });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  // При смене типа корректируем список каналов
+  function onTypeChange(t: Type) {
+    setType(t);
+    const channels = CHANNELS_BY_TYPE[t];
+    if (!channels.find((c) => c.value === channel)) setChannel(channels[0].value);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true); setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.set("type", type);
+      fd.set("channel", channel);
+      if (direction) fd.set("direction", direction);
+      if (clientPhone) fd.set("client_phone", clientPhone);
+      if (clientName)  fd.set("client_name", clientName);
+      if (managerId)   fd.set("manager_id", managerId);
+      if (bitrixDealId)    fd.set("bitrix_deal_id", bitrixDealId);
+      if (bitrixLeadId)    fd.set("bitrix_lead_id", bitrixLeadId);
+      if (bitrixContactId) fd.set("bitrix_contact_id", bitrixContactId);
+      if (startedAt) fd.set("started_at", startedAt.replace("T", " ") + ":00");
+      if (contentText.trim()) fd.set("content_text", contentText);
+      if (file) fd.set("file", file);
+
+      const r = await fetch("/call-agent/api/interactions/upload", { method: "POST", body: fd });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error || "unknown");
+      setMsg({ kind: "ok", text: `Загружено как #${data.callId}. Анализ запустится в течение 30 секунд.` });
+      // Очистка контента, но не настроек — удобно лить несколько подряд
+      setContentText("");
+      setFile(null);
+      setClientPhone("");
+      setClientName("");
+      // Через 2 секунды редирект в карточку
+      setTimeout(() => router.push(`/calls/${data.callId}`), 1500);
+    } catch (e) {
+      setMsg({ kind: "err", text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const channels = CHANNELS_BY_TYPE[type];
+  const showFileInput = type === "meeting";
+  const showTextInput = type === "chat" || type === "email" || type === "meeting";
+
+  return (
+    <form onSubmit={submit} className="ds-card" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800 }}>
+      {/* Тип */}
+      <Field label="Тип взаимодействия">
+        <div style={{ display: "flex", gap: 8 }}>
+          {(Object.keys(TYPE_LABELS) as Type[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => onTypeChange(t)}
+              className="ds-button"
+              style={{
+                flex: 1,
+                background: type === t ? "var(--primary)" : "transparent",
+                color: type === t ? "white" : "var(--foreground)",
+                border: `1px solid ${type === t ? "var(--primary)" : "var(--border)"}`,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "10px",
+              }}
+            >
+              {TYPE_LABELS[t].icon} {TYPE_LABELS[t].label}
+            </button>
+          ))}
+        </div>
+        <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, marginTop: 4 }}>
+          {TYPE_LABELS[type].hint}
+        </div>
+      </Field>
+
+      {/* Канал + направление */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+        <Field label="Канал">
+          <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)} className="ds-input" style={inputStyle}>
+            {channels.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Направление">
+          <div style={{ display: "flex", gap: 6 }}>
+            <DirBtn checked={direction === "in"}  onClick={() => setDirection(direction === "in" ? "" : "in")}  icon={<ArrowDownLeft size={12} />} label="Входящ." />
+            <DirBtn checked={direction === "out"} onClick={() => setDirection(direction === "out" ? "" : "out")} icon={<ArrowUpRight size={12} />} label="Исходящ." />
+          </div>
+        </Field>
+      </div>
+
+      {/* Метаданные */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Дата и время">
+          <input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} className="ds-input" style={inputStyle} />
+        </Field>
+        <Field label="ID менеджера в Bitrix (опционально)">
+          <input value={managerId} onChange={(e) => setManagerId(e.target.value)} placeholder="например 123" className="ds-input" style={inputStyle} />
+        </Field>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Телефон клиента">
+          <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="79161234567" className="ds-input" style={inputStyle} />
+        </Field>
+        <Field label="Имя клиента (опционально)">
+          <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Иван Петров" className="ds-input" style={inputStyle} />
+        </Field>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <Field label="Bitrix Deal ID">
+          <input value={bitrixDealId} onChange={(e) => setBitrixDealId(e.target.value)} placeholder="" className="ds-input" style={inputStyle} />
+        </Field>
+        <Field label="Bitrix Lead ID">
+          <input value={bitrixLeadId} onChange={(e) => setBitrixLeadId(e.target.value)} placeholder="" className="ds-input" style={inputStyle} />
+        </Field>
+        <Field label="Bitrix Contact ID">
+          <input value={bitrixContactId} onChange={(e) => setBitrixContactId(e.target.value)} placeholder="" className="ds-input" style={inputStyle} />
+        </Field>
+      </div>
+
+      {/* Контент */}
+      {showTextInput && (
+        <Field label={type === "email" ? "Текст письма" : type === "chat" ? "Текст переписки" : "Транскрипт встречи (если уже есть текстом)"}>
+          <textarea
+            value={contentText}
+            onChange={(e) => setContentText(e.target.value)}
+            rows={10}
+            placeholder={
+              type === "email"
+                ? "Скопируйте содержимое письма (можно с заголовками From/To)"
+                : type === "chat"
+                ? "Менеджер: Здравствуйте...\nКлиент: Добрый день..."
+                : "Менеджер: ...\nКлиент: ..."
+            }
+            className="ds-input"
+            style={{ ...inputStyle, fontFamily: "monospace", fontSize: 13, resize: "vertical" }}
+          />
+        </Field>
+      )}
+
+      {showFileInput && (
+        <Field label="Или файл записи (.mp3 / .mp4 / .wav / .m4a)">
+          <input
+            type="file"
+            accept="audio/*,video/*,.mp3,.mp4,.wav,.m4a"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="ds-input"
+            style={inputStyle}
+          />
+          {file && (
+            <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, marginTop: 4 }}>
+              <FileText size={11} style={{ verticalAlign: -1 }} /> {file.name} ({(file.size / 1024 / 1024).toFixed(1)} MB)
+            </div>
+          )}
+        </Field>
+      )}
+
+      {msg && (
+        <div style={{
+          padding: 10,
+          background: msg.kind === "ok" ? "rgba(34,197,94,0.08)" : "rgba(220,38,38,0.08)",
+          border: `1px solid ${msg.kind === "ok" ? "rgba(34,197,94,0.30)" : "rgba(220,38,38,0.30)"}`,
+          borderRadius: 6, fontSize: 13,
+          color: msg.kind === "ok" ? "var(--success)" : "var(--destructive)",
+        }}>
+          {msg.text}
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button type="submit" disabled={busy || (!contentText.trim() && !file)} className="ds-button" style={{
+          background: "var(--primary)", color: "white",
+          opacity: busy || (!contentText.trim() && !file) ? 0.6 : 1,
+          minWidth: 140, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          {busy ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Загрузка...</> : "Загрузить"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── helpers ──
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "8px 10px", fontSize: 13,
+  background: "var(--background)", border: "1px solid var(--border)", borderRadius: 6,
+};
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="ds-body-sm" style={{ marginBottom: 4, fontSize: 12, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function DirBtn({ checked, onClick, icon, label }: { checked: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="ds-button"
+      style={{
+        flex: 1, fontSize: 12,
+        background: checked ? "var(--primary)" : "transparent",
+        color: checked ? "white" : "var(--foreground)",
+        border: `1px solid ${checked ? "var(--primary)" : "var(--border)"}`,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+      }}
+    >
+      {icon} {label}
+    </button>
+  );
+}

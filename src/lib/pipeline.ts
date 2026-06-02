@@ -30,9 +30,17 @@ export async function processCall(callId: number): Promise<void> {
     .prepare(`SELECT text, segments_json, language, model FROM transcripts WHERE call_id = ?`)
     .get<{ text: string; segments_json: string | null; language: string | null; model: string | null }>(callId);
 
-  // 1. Скачать запись — пропускаем если транскрипт уже есть
+  // Тип взаимодействия определяет ветку pipeline.
+  // call → старый путь (download → transcribe)
+  // chat/email → text-only (используем content_text, без аудио)
+  // meeting → если есть recording — транскрибируем, иначе content_text
+  const interactionType = (row.interaction_type ?? "call") as "call" | "chat" | "email" | "meeting";
+  const isTextOnly = (interactionType === "chat" || interactionType === "email") ||
+                     (interactionType === "meeting" && !row.recording_url && !row.recording_path);
+
+  // 1. Скачать запись — пропускаем для text-only и если транскрипт уже есть
   let recordingPath = row.recording_path;
-  if (!recordingPath && !existingTranscript) {
+  if (!isTextOnly && !recordingPath && !existingTranscript) {
     await setCallStatus(callId, "downloading");
 
     // Резолвим recording_url если пуст:
@@ -61,7 +69,10 @@ export async function processCall(callId: number): Promise<void> {
     await db.prepare(`UPDATE calls SET recording_path = ? WHERE id = ?`).run(recordingPath, callId);
   }
 
-  // 2. Транскрипция — либо берём существующую, либо запускаем Whisper
+  // 2. Получение текста взаимодействия. Три источника по приоритету:
+  //    a) кэш в transcripts (после прошлой обработки)
+  //    b) content_text для chat/email/meeting без аудио
+  //    c) Whisper-транскрипция аудио
   let t: { text: string; language: string | null; segments: Array<{start:number;end:number;text:string}>; model: string };
   if (existingTranscript) {
     let segments: Array<{start:number;end:number;text:string}> = [];
@@ -72,7 +83,15 @@ export async function processCall(callId: number): Promise<void> {
       segments,
       model: existingTranscript.model || "cached",
     };
-    console.log(`[pipeline] call #${callId}: используем кэшированный транскрипт (${t.text.length} симв.), Whisper пропускаем`);
+    console.log(`[pipeline] #${callId} (${interactionType}): используем кэшированный текст (${t.text.length} симв.)`);
+  } else if (isTextOnly) {
+    // chat/email/meeting без аудио — текст уже лежит в content_text
+    const txt = (row.content_text || "").trim();
+    if (!txt) {
+      throw new Error(`Тип ${interactionType} без content_text — нечего анализировать`);
+    }
+    t = { text: txt, language: "ru", segments: [], model: "text-only" };
+    console.log(`[pipeline] #${callId} (${interactionType}): text-only, ${txt.length} симв., Whisper пропускаем`);
   } else {
     await setCallStatus(callId, "transcribing");
     if (!recordingPath) throw new Error(`recordingPath не найден на этапе транскрипции`);
@@ -100,12 +119,14 @@ export async function processCall(callId: number): Promise<void> {
   const checklist = script?.checklist || null;
 
   // 5. Анализ с выбранным чек-листом. tenantId/callId — для §4.4 бюджет-гарда.
+  //    interactionType подстраивает терминологию (звонок vs переписка vs встреча).
   const { analysis, raw, model } = await analyzeCall({
     transcript: t.text,
     checklist,
     context,
     tenantId: row.tenant_id ?? 1,
     callId,
+    interactionType,
   });
 
   // 5. Сохраняем транскрипт + диалог
