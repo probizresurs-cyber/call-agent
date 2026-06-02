@@ -4,14 +4,14 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const g = await guard(); if (g) return g;
-  const db = getDb();
-  const rows = db
+  const db = getDbAsync();
+  const rows = await db
     .prepare(
       `SELECT id, name, product, direction, content_md, checklist_json, is_active, updated_at
        FROM sales_scripts
@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "name required" }, { status: 400 });
   }
 
-  const db = getDb();
-  const result = db.prepare(
+  const db = getDbAsync();
+  const result = await db.prepare(
     `INSERT INTO sales_scripts (name, product, direction, content_md, checklist_json, is_active)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(

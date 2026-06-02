@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDbAsync } from "@/lib/db-compat";
 import { usersGetBatch, formatUserName } from "./bitrix";
 
 /**
@@ -14,7 +14,7 @@ export async function backfillManagerNames(opts?: { forceAll?: boolean }): Promi
   fetched: number;
   updatedCalls: number;
 }> {
-  const db = getDb();
+  const db = getDbAsync();
 
   // Собираем уникальные manager_id у которых:
   //  - manager_name пуст (или forceAll)
@@ -24,16 +24,16 @@ export async function backfillManagerNames(opts?: { forceAll?: boolean }): Promi
     : `SELECT DISTINCT manager_id FROM calls
         WHERE manager_id IS NOT NULL AND manager_id != ''
           AND (manager_name IS NULL OR manager_name = '')`;
-  const rows = db.prepare(sql).all() as Array<{ manager_id: string }>;
+  const rows = await db.prepare(sql).all<{ manager_id: string }>();
   const ids = rows.map((r) => r.manager_id);
   if (ids.length === 0) return { uniqueIds: 0, fetched: 0, updatedCalls: 0 };
 
   // Сначала пробуем взять из локального кэша
-  const cachedRows = db
+  const cachedRows = await db
     .prepare(
       `SELECT id, name, email FROM managers WHERE id IN (${ids.map(() => "?").join(",")})`
     )
-    .all(...ids) as Array<{ id: string; name: string | null; email: string | null }>;
+    .all<{ id: string; name: string | null; email: string | null }>(...ids);
   const cached = new Map(cachedRows.map((r) => [r.id, { name: r.name, email: r.email }]));
 
   const idsToFetch = ids.filter((id) => !cached.has(id) || !cached.get(id)?.name);
@@ -50,7 +50,7 @@ export async function backfillManagerNames(opts?: { forceAll?: boolean }): Promi
     );
     for (const [bxId, u] of users) {
       const name = formatUserName(u);
-      upsert.run(bxId, name, u.EMAIL ?? null, u.ACTIVE === false ? 0 : 1);
+      await upsert.run(bxId, name, u.EMAIL ?? null, u.ACTIVE === false ? 0 : 1);
       cached.set(bxId, { name, email: u.EMAIL ?? null });
     }
   }
@@ -65,7 +65,7 @@ export async function backfillManagerNames(opts?: { forceAll?: boolean }): Promi
   for (const id of ids) {
     const name = cached.get(id)?.name;
     if (!name) continue;
-    const r = updateStmt.run(name, id, opts?.forceAll ? 1 : 0);
+    const r = await updateStmt.run(name, id, opts?.forceAll ? 1 : 0);
     updated += r.changes;
   }
 

@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { crmCallActivitiesByPeriod } from "@/lib/bitrix";
 import { backfillManagerNames } from "@/lib/managers";
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "fromDate required (YYYY-MM-DD)" }, { status: 400 });
   }
 
-  const db = getDb();
+  const db = getDbAsync();
   const t0 = Date.now();
 
   // 1. Грузим активности с RESPONSIBLE_ID за период
@@ -35,16 +35,14 @@ export async function POST(req: NextRequest) {
   });
 
   // 2. Берём все звонки с активностью за период
-  const calls = db.prepare(
+  const calls = await db.prepare(
     `SELECT id, bitrix_activity_id, manager_id
      FROM calls
      WHERE substr(started_at, 1, 10) >= ?
        AND substr(started_at, 1, 10) <= ?
        AND bitrix_activity_id IS NOT NULL
        AND bitrix_activity_id != '0'`
-  ).all(body.fromDate, body.toDate || body.fromDate) as Array<{
-    id: number; bitrix_activity_id: string; manager_id: string | null;
-  }>;
+  ).all<{ id: number; bitrix_activity_id: string; manager_id: string | null }>(body.fromDate, body.toDate || body.fromDate);
 
   // 3. Для каждого — если RESPONSIBLE отличается, обновляем
   const updateStmt = db.prepare(`UPDATE calls SET manager_id = ?, manager_name = NULL WHERE id = ?`);
@@ -53,7 +51,7 @@ export async function POST(req: NextRequest) {
   for (const c of calls) {
     const newMgr = activityResponsible.get(c.bitrix_activity_id);
     if (newMgr && newMgr !== c.manager_id) {
-      updateStmt.run(newMgr, c.id);
+      await updateStmt.run(newMgr, c.id);
       updated += 1;
     } else {
       unchanged += 1;

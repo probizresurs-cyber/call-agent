@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
 import { SentimentBadge, StatusBadge } from "@/app/_components/Badges";
@@ -52,7 +52,7 @@ export default async function CallsListPage(props: {
   }
   const whereSql = `WHERE ${where.join(" AND ")}`;
 
-  const rows = getDb()
+  const rows = await getDbAsync()
     .prepare(
       `SELECT c.id, c.bitrix_call_id, c.manager_name, c.manager_id, c.client_phone,
               c.direction, c.started_at, c.duration_sec, c.status,
@@ -61,11 +61,11 @@ export default async function CallsListPage(props: {
        ${whereSql}
        ORDER BY c.id DESC LIMIT 200`
     )
-    .all(...params) as Row[];
+    .all<Row>(...params);
 
-  const totalCount = getDb()
+  const totalCount = (await getDbAsync()
     .prepare(`SELECT COUNT(*) AS n FROM calls c LEFT JOIN analyses a ON a.call_id = c.id ${whereSql}`)
-    .get(...params) as { n: number };
+    .get<{ n: number }>(...params))!;
 
   return (
     <>

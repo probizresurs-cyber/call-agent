@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { guard } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -25,8 +25,8 @@ export async function GET(req: NextRequest) {
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const db = getDb();
-  const rows = db
+  const db = getDbAsync();
+  const rows = await db
     .prepare(
       `SELECT c.*,
               a.summary, a.sentiment, a.manager_score, a.script_compliance,
@@ -39,9 +39,9 @@ export async function GET(req: NextRequest) {
     )
     .all(...params, limit, offset);
 
-  const total = db
+  const total = await db
     .prepare(`SELECT COUNT(*) AS n FROM calls c LEFT JOIN analyses a ON a.call_id = c.id ${whereSql}`)
-    .get(...params) as { n: number };
+    .get<{ n: number }>(...params);
 
-  return NextResponse.json({ ok: true, items: rows, total: total.n });
+  return NextResponse.json({ ok: true, items: rows, total: total?.n ?? 0 });
 }

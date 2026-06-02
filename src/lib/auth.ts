@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { getDb } from "./db";
+import { getDbAsync } from "@/lib/db-compat";
 
 const COOKIE_NAME = "ca_session";
 const SESSION_TTL_HOURS = 24 * 14;
@@ -57,27 +57,25 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const token = c.get(COOKIE_NAME)?.value;
   if (!token) return null;
 
-  const db = getDb();
-  const row = db
+  const db = getDbAsync();
+  const row = await db
     .prepare(
       `SELECT s.user_id, s.user as legacy_login, s.tenant_id as session_tenant
        FROM sessions s
        WHERE s.id = ? AND s.expires_at > datetime('now')`
     )
-    .get(token) as { user_id: number | null; legacy_login: string; session_tenant: number | null } | undefined;
+    .get<{ user_id: number | null; legacy_login: string; session_tenant: number | null }>(token);
   if (!row) return null;
 
   // Новая схема: ищем по user_id
   if (row.user_id) {
-    const u = db
+    const u = await db
       .prepare(
         `SELECT id, tenant_id, login, role, name, email, bitrix_manager_id, is_active
          FROM users WHERE id = ?`
       )
-      .get(row.user_id) as
-        | { id: number; tenant_id: number; login: string; role: UserRole;
-            name: string | null; email: string | null; bitrix_manager_id: string | null; is_active: number }
-        | undefined;
+      .get<{ id: number; tenant_id: number; login: string; role: UserRole;
+            name: string | null; email: string | null; bitrix_manager_id: string | null; is_active: number }>(row.user_id);
     if (!u || !u.is_active) return null;
     return {
       id: u.id,
@@ -92,15 +90,13 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   // Legacy путь — сессия создана старым кодом, по логину. Подтянем из users по логину.
   ensureAdminEnv();
-  const u = db
+  const u = await db
     .prepare(
       `SELECT id, tenant_id, login, role, name, email, bitrix_manager_id
        FROM users WHERE login = ? LIMIT 1`
     )
-    .get(row.legacy_login) as
-      | { id: number; tenant_id: number; login: string; role: UserRole;
-          name: string | null; email: string | null; bitrix_manager_id: string | null }
-      | undefined;
+    .get<{ id: number; tenant_id: number; login: string; role: UserRole;
+          name: string | null; email: string | null; bitrix_manager_id: string | null }>(row.legacy_login);
   if (!u) return null;
   return {
     id: u.id,
@@ -116,17 +112,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 /** Создаёт сессию для пользователя по login+password. Возвращает true/false. */
 export async function login(loginRaw: string, password: string): Promise<boolean> {
   ensureAdminEnv();
-  const db = getDb();
+  const db = getDbAsync();
 
   // 1. Пытаемся через users-таблицу
-  const u = db
+  const u = await db
     .prepare(
       `SELECT id, tenant_id, password_hash, is_active
        FROM users WHERE login = ? LIMIT 1`
     )
-    .get(loginRaw.trim()) as
-      | { id: number; tenant_id: number; password_hash: string; is_active: number }
-      | undefined;
+    .get<{ id: number; tenant_id: number; password_hash: string; is_active: number }>(loginRaw.trim());
   if (!u || !u.is_active) return false;
 
   const ok = await bcrypt.compare(password, u.password_hash);
@@ -134,7 +128,7 @@ export async function login(loginRaw: string, password: string): Promise<boolean
 
   const token = crypto.randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + SESSION_TTL_HOURS * 3600_000);
-  db
+  await db
     .prepare(
       `INSERT INTO sessions (id, user, user_id, tenant_id, expires_at)
        VALUES (?, ?, ?, ?, ?)`
@@ -142,7 +136,7 @@ export async function login(loginRaw: string, password: string): Promise<boolean
     .run(token, loginRaw.trim(), u.id, u.tenant_id, expires.toISOString().replace("T", " ").slice(0, 19));
 
   // Обновляем last_login для отслеживания активности
-  db.prepare(`UPDATE users SET updated_at = datetime('now') WHERE id = ?`).run(u.id);
+  await db.prepare(`UPDATE users SET updated_at = datetime('now') WHERE id = ?`).run(u.id);
 
   const c = await cookies();
   c.set(COOKIE_NAME, token, {
@@ -159,7 +153,7 @@ export async function logout() {
   const c = await cookies();
   const token = c.get(COOKIE_NAME)?.value;
   if (token) {
-    getDb().prepare(`DELETE FROM sessions WHERE id = ?`).run(token);
+    await getDbAsync().prepare(`DELETE FROM sessions WHERE id = ?`).run(token);
   }
   c.delete(COOKIE_NAME);
 }

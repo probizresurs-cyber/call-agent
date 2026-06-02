@@ -9,7 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   // Совместимость со старым API: onlyDone=true → mode="done"
   const mode: Mode = body.mode ?? (body.onlyDone === false ? "all" : "done");
 
-  const db = getDb();
+  const db = getDbAsync();
   let sql: string;
   if (mode === "failed") {
     // Все failed — даже без транскрипта (тогда воркер пройдёт через Whisper заново)
@@ -39,8 +39,9 @@ export async function POST(req: NextRequest) {
              AND id IN (SELECT call_id FROM transcripts WHERE text IS NOT NULL AND text != '')`;
   }
 
-  const r = db.prepare(sql).run();
-  const queued = db.prepare("SELECT COUNT(*) AS n FROM calls WHERE status='pending'").get() as { n: number };
+  const r = await db.prepare(sql).run();
+  const queued = await db.prepare("SELECT COUNT(*) AS n FROM calls WHERE status='pending'").get<{ n: number }>();
+  if (!queued) throw new Error("queue count query failed");
   return NextResponse.json({
     ok: true,
     mode,

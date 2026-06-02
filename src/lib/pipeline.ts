@@ -1,5 +1,6 @@
 import path from "path";
-import { getDb, setCallStatus, NoRecordingError, type CallRow, type ChecklistItem } from "./db";
+import { setCallStatus, NoRecordingError, type CallRow, type ChecklistItem } from "./db";
+import { getDbAsync } from "@/lib/db-compat";
 import {
   downloadRecording,
   crmTimelineCommentAdd,
@@ -17,17 +18,17 @@ const RECORDINGS_DIR = process.env.RECORDINGS_DIR
   : path.join(process.cwd(), "storage", "recordings");
 
 export async function processCall(callId: number): Promise<void> {
-  const db = getDb();
-  const row = db.prepare(`SELECT * FROM calls WHERE id = ?`).get(callId) as CallRow | undefined;
+  const db = getDbAsync();
+  const row = await db.prepare(`SELECT * FROM calls WHERE id = ?`).get<CallRow>(callId);
   if (!row) throw new Error(`Call ${callId} не найден`);
 
-  db.prepare(`UPDATE calls SET attempts = attempts + 1 WHERE id = ?`).run(callId);
+  await db.prepare(`UPDATE calls SET attempts = attempts + 1 WHERE id = ?`).run(callId);
 
   // 0. Если транскрипт уже есть — переанализ, не платим Whisper заново.
   //    Полезно когда меняли скрипты / чек-листы и хотим переоценить старые звонки.
-  const existingTranscript = db
+  const existingTranscript = await db
     .prepare(`SELECT text, segments_json, language, model FROM transcripts WHERE call_id = ?`)
-    .get(callId) as { text: string; segments_json: string | null; language: string | null; model: string | null } | undefined;
+    .get<{ text: string; segments_json: string | null; language: string | null; model: string | null }>(callId);
 
   // 1. Скачать запись — пропускаем если транскрипт уже есть
   let recordingPath = row.recording_path;
@@ -41,7 +42,7 @@ export async function processCall(callId: number): Promise<void> {
     if (!recordingUrl && row.bitrix_activity_id && row.bitrix_activity_id !== "0") {
       recordingUrl = await resolveRecordingFromActivity(row.bitrix_activity_id);
       if (recordingUrl) {
-        db.prepare(`UPDATE calls SET recording_url = ? WHERE id = ?`).run(recordingUrl, callId);
+        await db.prepare(`UPDATE calls SET recording_url = ? WHERE id = ?`).run(recordingUrl, callId);
       }
     }
     if (!recordingUrl) {
@@ -57,7 +58,7 @@ export async function processCall(callId: number): Promise<void> {
       RECORDINGS_DIR,
       String(row.bitrix_call_id ?? callId)
     );
-    db.prepare(`UPDATE calls SET recording_path = ? WHERE id = ?`).run(recordingPath, callId);
+    await db.prepare(`UPDATE calls SET recording_path = ? WHERE id = ?`).run(recordingPath, callId);
   }
 
   // 2. Транскрипция — либо берём существующую, либо запускаем Whisper
@@ -85,7 +86,7 @@ export async function processCall(callId: number): Promise<void> {
     bitrixLeadId: row.bitrix_lead_id,
   });
   if (context) {
-    db.prepare(`UPDATE calls SET deal_context_json = ? WHERE id = ?`).run(
+    await db.prepare(`UPDATE calls SET deal_context_json = ? WHERE id = ?`).run(
       JSON.stringify(context),
       callId
     );
@@ -94,7 +95,7 @@ export async function processCall(callId: number): Promise<void> {
   // 4. Определяем продукт + выбираем подходящий скрипт
   const { product, script } = await pickScriptForCall(t.text, row.direction);
   if (product) {
-    db.prepare(`UPDATE calls SET detected_product = ? WHERE id = ?`).run(product, callId);
+    await db.prepare(`UPDATE calls SET detected_product = ? WHERE id = ?`).run(product, callId);
   }
   const checklist = script?.checklist || null;
 
@@ -106,7 +107,7 @@ export async function processCall(callId: number): Promise<void> {
   });
 
   // 5. Сохраняем транскрипт + диалог
-  db.prepare(
+  await db.prepare(
     `INSERT INTO transcripts (call_id, text, segments_json, dialogue_json, language, model)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(call_id) DO UPDATE SET
@@ -125,7 +126,7 @@ export async function processCall(callId: number): Promise<void> {
   // FTS5 индекс отключён — поиск идёт через LIKE по transcripts.text
 
   // 6. Сохраняем анализ
-  db.prepare(
+  await db.prepare(
     `INSERT INTO analyses (call_id, summary, sentiment, manager_score, script_compliance,
        next_action, objections_json, topics_json, raw_json, model,
        client_name, checklist_scores_json, detected_product)
@@ -160,7 +161,7 @@ export async function processCall(callId: number): Promise<void> {
   const hasWebhook = !!process.env.BITRIX_WEBHOOK_URL?.trim();
   if (dryRun || !hasWebhook) {
     const reason = dryRun ? "BITRIX_DRY_RUN=true" : "BITRIX_WEBHOOK_URL не задан";
-    db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
+    await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
       `sync skipped: ${reason}`,
       callId
     );
@@ -169,9 +170,9 @@ export async function processCall(callId: number): Promise<void> {
     try {
       await syncBackToBitrix(row, analysis);
       // успех — очищаем поле error (если там был warning из прошлого прогона)
-      db.prepare(`UPDATE calls SET error = NULL WHERE id = ?`).run(callId);
+      await db.prepare(`UPDATE calls SET error = NULL WHERE id = ?`).run(callId);
     } catch (e) {
-      db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
+      await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
         `sync warning: ${(e as Error).message}`,
         callId
       );
@@ -189,10 +190,10 @@ interface ResolvedScript {
   checklist: ChecklistItem[] | null;
 }
 
-function loadActiveScripts(): ResolvedScript[] {
-  const rows = getDb()
+async function loadActiveScripts(): Promise<ResolvedScript[]> {
+  const rows = await getDbAsync()
     .prepare(`SELECT id, name, product, direction, checklist_json FROM sales_scripts WHERE is_active = 1`)
-    .all() as Array<{ id: number; name: string; product: string | null; direction: string | null; checklist_json: string | null }>;
+    .all<{ id: number; name: string; product: string | null; direction: string | null; checklist_json: string | null }>();
   return rows.map((r) => {
     let checklist: ChecklistItem[] | null = null;
     if (r.checklist_json) {
@@ -223,7 +224,7 @@ async function pickScriptForCall(
   transcript: string,
   callDirection: "in" | "out" | null
 ): Promise<{ product: string | null; script: ResolvedScript | null }> {
-  const scripts = loadActiveScripts();
+  const scripts = await loadActiveScripts();
   if (scripts.length === 0) return { product: null, script: null };
 
   const productCodes = [...new Set(scripts.map((s) => s.product).filter((p): p is string => !!p))];

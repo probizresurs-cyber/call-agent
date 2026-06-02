@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getSessionUser, canManage, type UserRole } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
@@ -14,8 +14,8 @@ export async function GET() {
   if (!u) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   if (!canManage(u.role)) return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
-  const db = getDb();
-  const rows = db
+  const db = getDbAsync();
+  const rows = await db
     .prepare(
       `SELECT
          u.id, u.login, u.role, u.name, u.email, u.is_active,
@@ -56,13 +56,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "только owner может создать owner" }, { status: 403 });
   }
 
-  const db = getDb();
-  const exists = db.prepare(`SELECT 1 FROM users WHERE tenant_id = ? AND login = ?`)
+  const db = getDbAsync();
+  const exists = await db.prepare(`SELECT 1 FROM users WHERE tenant_id = ? AND login = ?`)
     .get(u.tenantId, body.login.trim());
   if (exists) return NextResponse.json({ ok: false, error: "логин уже занят" }, { status: 400 });
 
   const hash = await bcrypt.hash(body.password, 10);
-  const r = db.prepare(
+  const r = await db.prepare(
     `INSERT INTO users (tenant_id, login, password_hash, role, name, email, bitrix_manager_id)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(

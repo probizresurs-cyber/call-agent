@@ -4,7 +4,8 @@ import {
   TrendingUp, AlertOctagon, Users, FileX, Package, type LucideIcon,
 } from "lucide-react";
 import { redirect } from "next/navigation";
-import { getDb, getSetting } from "@/lib/db";
+import { getSetting } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
 import { DashboardFilters } from "./DashboardFilters";
@@ -29,7 +30,7 @@ export default async function DashboardPage(props: {
   const me = await getSessionUser();
   if (!me) redirect("/login");
   const sp = await props.searchParams;
-  const db = getDb();
+  const db = getDbAsync();
   const withCrmOnly = sp.with_crm === "true";
   const isManager = me.role === "manager";
 
@@ -60,7 +61,7 @@ export default async function DashboardPage(props: {
     : "за всё время";
 
   // ───────────── KPI карточки ─────────────
-  const totals = db
+  const totals = (await db
     .prepare(
       `SELECT
          COUNT(*) AS total,
@@ -75,30 +76,30 @@ export default async function DashboardPage(props: {
        FROM calls c
        ${datePeriodSql}`
     )
-    .get(...dateParams) as {
+    .get<{
       total: number; done: number; in_progress: number; failed: number;
       no_recording: number;
       incoming: number; outgoing: number;
       avg_duration: number; total_duration: number;
-    };
+    }>(...dateParams))!;
 
-  const aggs = db
+  const aggs = (await db
     .prepare(
       `SELECT AVG(a.manager_score) AS avg_score, AVG(a.script_compliance) AS avg_compliance
        FROM analyses a JOIN calls c ON c.id = a.call_id
        ${datePeriodSql}`
     )
-    .get(...dateParams) as { avg_score: number | null; avg_compliance: number | null };
+    .get<{ avg_score: number | null; avg_compliance: number | null }>(...dateParams))!;
 
   // ───────────── Sentiment ─────────────
-  const sentiments = db
+  const sentiments = await db
     .prepare(
       `SELECT a.sentiment, COUNT(*) AS n
        FROM analyses a JOIN calls c ON c.id = a.call_id
        ${datePeriodSql}
        GROUP BY a.sentiment`
     )
-    .all(...dateParams) as Array<{ sentiment: string; n: number }>;
+    .all<{ sentiment: string; n: number }>(...dateParams);
   const sentMap: Record<SentimentBucket, number> = { positive: 0, neutral: 0, negative: 0, unknown: 0 };
   for (const s of sentiments) sentMap[(s.sentiment as SentimentBucket) || "unknown"] = s.n;
   const sentTotal = sentMap.positive + sentMap.neutral + sentMap.negative;
@@ -107,7 +108,7 @@ export default async function DashboardPage(props: {
   // Контакт состоялся = длительность >= 30 сек (есть какой-то разговор)
   // Не дозвонились = длительность < 10 сек (автоответчик / повесили)
   // Скрытые менеджеры (m.is_active=0) — не показываем
-  const allManagers = db
+  const allManagers = await db
     .prepare(
       `SELECT c.manager_id,
               COALESCE(MAX(c.manager_name), m.name, '') AS manager_name,
@@ -133,17 +134,17 @@ export default async function DashboardPage(props: {
        GROUP BY c.manager_id
        ORDER BY calls DESC`
     )
-    .all(...dateParams) as Array<{
+    .all<{
       manager_id: string; manager_name: string;
       calls: number; connected: number; missed: number;
       total_seconds: number;
       incoming: number; outgoing: number;
       avg_score: number | null; avg_compliance: number | null;
       pos: number; neu: number; neg: number;
-    }>;
+    }>(...dateParams);
 
   // ───────────── Динамика по дням (последние 14) ─────────────
-  const daily = db
+  const daily = await db
     .prepare(
       `SELECT
          substr(c.started_at, 1, 10) AS day,
@@ -156,7 +157,7 @@ export default async function DashboardPage(props: {
          AND substr(c.started_at,1,10) >= date('now','-13 day')
        GROUP BY day ORDER BY day ASC`
     )
-    .all() as DailyRow[];
+    .all<DailyRow>();
 
   // Заполняем пропущенные дни нулями
   const series: DailyRow[] = [];
@@ -170,10 +171,10 @@ export default async function DashboardPage(props: {
   const maxDaily = Math.max(1, ...series.map((s) => s.total));
 
   // ───────────── Топ возражений + темы ─────────────
-  const rawObj = db.prepare(
+  const rawObj = await db.prepare(
     `SELECT a.objections_json FROM analyses a JOIN calls c ON c.id = a.call_id
      WHERE a.objections_json IS NOT NULL ${dateAndSql}`
-  ).all(...dateParams) as Array<{ objections_json: string }>;
+  ).all<{ objections_json: string }>(...dateParams);
   const objCount = new Map<string, number>();
   for (const r of rawObj) {
     try {
@@ -189,10 +190,10 @@ export default async function DashboardPage(props: {
     .sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([title, count]) => ({ title, count }));
 
-  const rawTopics = db.prepare(
+  const rawTopics = await db.prepare(
     `SELECT a.topics_json FROM analyses a JOIN calls c ON c.id = a.call_id
      WHERE a.topics_json IS NOT NULL ${dateAndSql}`
-  ).all(...dateParams) as Array<{ topics_json: string }>;
+  ).all<{ topics_json: string }>(...dateParams);
   const topicCount = new Map<string, number>();
   for (const r of rawTopics) {
     try {
@@ -212,7 +213,7 @@ export default async function DashboardPage(props: {
   // Разделяем «не определён» на 2 категории:
   //   1) Без транскрипта — звонки без записи (служебные / 0-сек) — AI не мог слушать
   //   2) AI не определил — есть транскрипт, но Claude не понял о чём
-  const productStats = db
+  const productStats = await db
     .prepare(
       `SELECT
          CASE
@@ -245,13 +246,13 @@ export default async function DashboardPage(props: {
          END,
          calls DESC`
     )
-    .all(...dateParams) as Array<{
+    .all<{
       product: string | null;
       calls: number; connected: number; missed: number;
       total_seconds: number;
       avg_score: number | null; avg_compliance: number | null;
       pos: number; neu: number; neg: number;
-    }>;
+    }>(...dateParams);
 
   function productLabel(p: string | null): string {
     if (p === "__no_transcript__") return "Без транскрипта";
@@ -260,12 +261,12 @@ export default async function DashboardPage(props: {
   }
 
   // ───────────── Слабые пункты чек-листа ─────────────
-  const rawChecklist = db
+  const rawChecklist = await db
     .prepare(
       `SELECT a.checklist_scores_json FROM analyses a JOIN calls c ON c.id = a.call_id
        WHERE a.checklist_scores_json IS NOT NULL ${dateAndSql}`
     )
-    .all(...dateParams) as Array<{ checklist_scores_json: string }>;
+    .all<{ checklist_scores_json: string }>(...dateParams);
   const itemStats = new Map<string, { title: string; sum: number; n: number }>();
   for (const r of rawChecklist) {
     try {

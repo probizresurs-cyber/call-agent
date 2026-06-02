@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { getSessionUser, canManage, type UserRole } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
@@ -20,9 +20,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id)) return NextResponse.json({ ok: false, error: "bad id" }, { status: 400 });
 
-  const db = getDb();
-  const target = db.prepare(`SELECT id, tenant_id, role FROM users WHERE id = ?`).get(id) as
-    { id: number; tenant_id: number; role: UserRole } | undefined;
+  const db = getDbAsync();
+  const target = await db.prepare(`SELECT id, tenant_id, role FROM users WHERE id = ?`)
+    .get<{ id: number; tenant_id: number; role: UserRole }>(id);
   if (!target || target.tenant_id !== me.tenantId) {
     return NextResponse.json({ ok: false, error: "user not found" }, { status: 404 });
   }
@@ -61,7 +61,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   fields.push("updated_at = datetime('now')");
   params.push(id);
-  db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...params);
+  await db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...params);
   return NextResponse.json({ ok: true });
 }
 
@@ -75,9 +75,9 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (!Number.isFinite(id) || id === me.id) {
     return NextResponse.json({ ok: false, error: "нельзя удалить самого себя" }, { status: 400 });
   }
-  const db = getDb();
-  const target = db.prepare(`SELECT tenant_id, role FROM users WHERE id = ?`).get(id) as
-    { tenant_id: number; role: UserRole } | undefined;
+  const db = getDbAsync();
+  const target = await db.prepare(`SELECT tenant_id, role FROM users WHERE id = ?`)
+    .get<{ tenant_id: number; role: UserRole }>(id);
   if (!target || target.tenant_id !== me.tenantId) {
     return NextResponse.json({ ok: false, error: "user not found" }, { status: 404 });
   }
@@ -85,7 +85,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ ok: false, error: "только owner может удалить owner" }, { status: 403 });
   }
   // Удаляем сессии + помечаем неактивным (мягкое удаление чтобы не разорвать историю)
-  db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(id);
-  db.prepare(`UPDATE users SET is_active = 0, updated_at = datetime('now') WHERE id = ?`).run(id);
+  await db.prepare(`DELETE FROM sessions WHERE user_id = ?`).run(id);
+  await db.prepare(`UPDATE users SET is_active = 0, updated_at = datetime('now') WHERE id = ?`).run(id);
   return NextResponse.json({ ok: true });
 }

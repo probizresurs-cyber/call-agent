@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { guard } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   const g = await guard(); if (g) return g;
-  const db = getDb();
+  const db = getDbAsync();
 
-  const totals = db
+  const totals = await db
     .prepare(
       `SELECT
          COUNT(*) AS total,
@@ -19,15 +19,15 @@ export async function GET() {
     )
     .get();
 
-  const sentiments = db
+  const sentiments = await db
     .prepare(`SELECT sentiment, COUNT(*) AS n FROM analyses GROUP BY sentiment`)
     .all();
 
-  const avgScore = db
+  const avgScore = await db
     .prepare(`SELECT AVG(manager_score) AS avg FROM analyses`)
-    .get() as { avg: number | null };
+    .get<{ avg: number | null }>();
 
-  const topManagers = db
+  const topManagers = await db
     .prepare(
       `SELECT c.manager_id, c.manager_name,
               COUNT(*) AS calls,
@@ -43,7 +43,7 @@ export async function GET() {
     ok: true,
     totals,
     sentiments,
-    avgManagerScore: avgScore.avg,
+    avgManagerScore: avgScore?.avg ?? null,
     topManagers,
   });
 }

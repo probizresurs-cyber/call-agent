@@ -4,7 +4,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { guard } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
@@ -25,7 +25,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     is_active?: boolean;
   };
 
-  const db = getDb();
+  const db = getDbAsync();
   const fields: string[] = [];
   const params: unknown[] = [];
 
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   params.push(id);
-  db.prepare(`UPDATE sales_scripts SET ${fields.join(", ")} WHERE id = ?`).run(...params);
+  await db.prepare(`UPDATE sales_scripts SET ${fields.join(", ")} WHERE id = ?`).run(...params);
   return NextResponse.json({ ok: true });
 }
 
@@ -53,6 +53,6 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (!Number.isFinite(id)) {
     return NextResponse.json({ ok: false, error: "bad id" }, { status: 400 });
   }
-  getDb().prepare(`DELETE FROM sales_scripts WHERE id = ?`).run(id);
+  await getDbAsync().prepare(`DELETE FROM sales_scripts WHERE id = ?`).run(id);
   return NextResponse.json({ ok: true });
 }

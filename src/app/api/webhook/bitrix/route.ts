@@ -8,7 +8,7 @@
  * Проверяем токен (либо в query ?token=, либо в поле auth.application_token).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { voxGetStatistic, crmActivityGet, entityTypeStringToId } from "@/lib/bitrix";
 
 export const runtime = "nodejs";
@@ -72,9 +72,9 @@ async function ingestVoxCall(callId: string) {
     return;
   }
 
-  const db = getDb();
+  const db = getDbAsync();
   const entityType = entityTypeStringToId(stat.CRM_ENTITY_TYPE);
-  db.prepare(
+  await db.prepare(
     `INSERT INTO calls
       (bitrix_call_id, bitrix_deal_id, bitrix_lead_id, bitrix_contact_id,
        bitrix_activity_id, manager_id, client_phone, direction,
@@ -104,9 +104,9 @@ async function ingestCrmActivity(activityId: string) {
   const recordingUrl = file?.urlMachine || file?.url || null;
   if (!recordingUrl) return;
 
-  const db = getDb();
+  const db = getDbAsync();
   const entityType = a.OWNER_TYPE_ID ? Number(a.OWNER_TYPE_ID) : null;
-  db.prepare(
+  await db.prepare(
     `INSERT INTO calls
       (bitrix_call_id, bitrix_deal_id, bitrix_lead_id, bitrix_contact_id,
        bitrix_activity_id, manager_id, started_at, recording_url, status)

@@ -5,7 +5,7 @@ import {
   CheckCircle2, XCircle, CircleDot, MessageSquare, Tag,
   Phone, ArrowDownLeft, ArrowUpRight,
 } from "lucide-react";
-import { getDb } from "@/lib/db";
+import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { ReprocessButton } from "./ReprocessButton";
 
@@ -55,10 +55,10 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
   if (!me) redirect("/login");
   const { id: idStr } = await props.params;
   const id = parseInt(idStr, 10);
-  const db = getDb();
-  const call = db.prepare(
+  const db = getDbAsync();
+  const call = await db.prepare(
     `SELECT * FROM calls WHERE id = ? AND tenant_id = ?`
-  ).get(id, me.tenantId) as Call | undefined;
+  ).get<Call>(id, me.tenantId);
   if (!call) notFound();
 
   // RLS для менеджера — нельзя смотреть чужой звонок по прямой ссылке
@@ -68,8 +68,8 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
     }
   }
 
-  const transcript = db.prepare(`SELECT * FROM transcripts WHERE call_id = ?`).get(id) as Transcript | undefined;
-  const analysis = db.prepare(`SELECT * FROM analyses WHERE call_id = ?`).get(id) as Analysis | undefined;
+  const transcript = await db.prepare(`SELECT * FROM transcripts WHERE call_id = ?`).get<Transcript>(id);
+  const analysis = await db.prepare(`SELECT * FROM analyses WHERE call_id = ?`).get<Analysis>(id);
 
   const objections: string[] = analysis?.objections_json ? JSON.parse(analysis.objections_json) : [];
   const topics: string[] = analysis?.topics_json ? JSON.parse(analysis.topics_json) : [];

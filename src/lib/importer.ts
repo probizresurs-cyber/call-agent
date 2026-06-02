@@ -2,7 +2,7 @@
  * Импорт звонков из Битрикса в нашу БД.
  * Используется и в API route (/api/import/bitrix), и в auto-importer (воркер).
  */
-import { getDb } from "./db";
+import { getDbAsync } from "@/lib/db-compat";
 import { voxListStatistics, entityTypeStringToId, crmCallActivitiesByPeriod } from "./bitrix";
 import { backfillManagerNames } from "./managers";
 
@@ -44,7 +44,7 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
     return { ok: false, error: "BITRIX_WEBHOOK_URL не задан в .env" };
   }
 
-  const db = getDb();
+  const db = getDbAsync();
   const t0 = Date.now();
   let start = 0;
   let totalFetched = 0;
@@ -91,7 +91,7 @@ export async function importCallsFromBitrix(opts: ImportOpts): Promise<ImportRes
         const initialAttempts = isServiceCall ? 99 : 0;  // 99 = не повторять
 
         const entityType = entityTypeStringToId(stat.CRM_ENTITY_TYPE);
-        const r = insertStmt.run(
+        const r = await insertStmt.run(
           stat.ID,
           entityType === 2 ? stat.CRM_ENTITY_ID ?? null : null,
           entityType === 1 ? stat.CRM_ENTITY_ID ?? null : null,
