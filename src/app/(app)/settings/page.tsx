@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -7,7 +7,9 @@ import { ScriptsManager } from "./ScriptsManager";
 import { DashboardSettingsCard } from "./DashboardSettingsCard";
 import { ReanalyzeCard } from "./ReanalyzeCard";
 import { UsersCard } from "./UsersCard";
+import { FlagsCard } from "./FlagsCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
+import { getFlagsSummary } from "@/lib/flags";
 import { getSessionUser, canManage } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +24,21 @@ export default async function SettingsPage() {
   const dryRun = process.env.BITRIX_DRY_RUN !== "false";
   const isManager = canManage(me.role);  // owner или admin
 
+  const flags = await getFlagsSummary(me.tenantId);
+
   return (
     <>
       <h1 className="ds-h1" style={{ marginBottom: 20 }}>Настройки</h1>
+
+      {/* ───────── Системные флаги (видно только owner/admin) ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Shield size={16} strokeWidth={2} /> Системные флаги
+          </h2>
+          <FlagsCard initial={flags} />
+        </div>
+      )}
 
       {/* ───────── Подключение к Битрикс24 ───────── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>

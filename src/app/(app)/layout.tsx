@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon } from "lucide-react";
+import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon, Activity } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -50,6 +50,11 @@ export default async function AuthedLayout({ children }: { children: React.React
           <Link className="nav-link" href="/calls">
             <Phone size={16} strokeWidth={2} /> {callsLabel}
           </Link>
+          {showSettings && (
+            <Link className="nav-link" href="/queue">
+              <Activity size={16} strokeWidth={2} /> Очередь
+            </Link>
+          )}
           {showSettings && (
             <Link className="nav-link" href="/settings">
               <Settings size={16} strokeWidth={2} /> Настройки
