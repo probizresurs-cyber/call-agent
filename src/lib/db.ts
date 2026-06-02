@@ -58,7 +58,40 @@ function applyAlterMigrations(db: Database.Database) {
   // В calls — какой product определил AI (для статистики)
   ensureColumn("calls", "detected_product", "TEXT");
   ensureColumn("analyses", "detected_product", "TEXT");
-  // Сам product можно фильтровать в дашборде
+
+  // ─────── Спринт 1.1: tenant_id на всех доменных таблицах ───────
+  // Default = 1 (Орлинк). Future-proofing для multi-tenancy без даунтайма.
+  ensureColumn("calls", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn("managers", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn("sales_scripts", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
+  // На analyses/transcripts/sessions tenant_id не нужен (1:1 с calls)
+
+  // user_id у platform-пользователей кто может видеть звонок (linked manager)
+  ensureColumn("calls", "user_id", "INTEGER"); // NULL = не привязан к пользователю платформы
+
+  // Засеваем дефолтного тенанта если ещё не существует
+  seedDefaultData(db);
+}
+
+function seedDefaultData(db: Database.Database) {
+  // Default tenant
+  const hasTenant = db.prepare(`SELECT 1 FROM tenants WHERE id = 1`).get();
+  if (!hasTenant) {
+    db.prepare(`INSERT INTO tenants (id, name, slug) VALUES (1, 'Орлинк', 'orlink')`).run();
+  }
+
+  // Default owner-user из .env (миграция с file-based auth на DB-based)
+  const adminLogin = process.env.ADMIN_LOGIN;
+  const adminHash = process.env.ADMIN_PASSWORD_HASH;
+  if (adminLogin && adminHash) {
+    const existing = db.prepare(`SELECT id FROM users WHERE login = ?`).get(adminLogin);
+    if (!existing) {
+      db.prepare(
+        `INSERT INTO users (tenant_id, login, password_hash, role, name)
+         VALUES (1, ?, ?, 'owner', 'Owner (из .env)')`
+      ).run(adminLogin, adminHash);
+    }
+  }
 }
 
 const SCHEMA_SQL = `
@@ -138,9 +171,41 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT
 );
 
+-- ─────── Спринт 1.1: tenants + users (multi-tenant фундамент) ───────
+
+CREATE TABLE IF NOT EXISTS tenants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  -- настройки тенанта (JSON): budget, retention_days, integrations
+  settings_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id INTEGER NOT NULL DEFAULT 1,
+  login TEXT NOT NULL,                       -- email или username
+  password_hash TEXT NOT NULL,                -- bcrypt
+  role TEXT NOT NULL DEFAULT 'manager',       -- owner | admin | head | manager
+  name TEXT,                                  -- ФИО
+  email TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  -- Привязка к Bitrix-менеджеру (для роли manager — он видит свои звонки)
+  bitrix_manager_id TEXT,                     -- managers.id
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(tenant_id, login)
+);
+CREATE INDEX IF NOT EXISTS idx_users_tenant_role ON users(tenant_id, role);
+CREATE INDEX IF NOT EXISTS idx_users_bitrix ON users(bitrix_manager_id);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,             -- сессионный токен
-  user TEXT NOT NULL,              -- логин
+  user TEXT NOT NULL,              -- логин (legacy) — оставляем для обратной совместимости
+  user_id INTEGER,                 -- FK к users.id (новый путь)
+  tenant_id INTEGER,               -- для быстрого фильтра без JOIN
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT NOT NULL
 );

@@ -5,14 +5,27 @@ import fs from "fs";
 import path from "path";
 import { getDb } from "./db";
 
+const COOKIE_NAME = "ca_session";
+const SESSION_TTL_HOURS = 24 * 14;
+
+export type UserRole = "owner" | "admin" | "head" | "manager";
+
+export interface SessionUser {
+  id: number;
+  tenantId: number;
+  login: string;
+  role: UserRole;
+  name: string | null;
+  email: string | null;
+  bitrixManagerId: string | null;
+}
+
 /**
- * Гарантируем что ADMIN_LOGIN / ADMIN_PASSWORD_HASH подгружены.
- * Next.js обычно сам читает .env, но при запуске через PM2 в нестандартных
- * окружениях это иногда не срабатывает — делаем явный фолбэк.
+ * Гарантируем что ADMIN_LOGIN / ADMIN_PASSWORD_HASH подгружены — нужно для
+ * первичного посева owner-пользователя при старте на новой инсталляции.
  */
 function ensureAdminEnv() {
   if (process.env.ADMIN_LOGIN && process.env.ADMIN_PASSWORD_HASH) return;
-  // ищем .env в нескольких типичных местах
   const tryPaths = [
     path.join(process.cwd(), ".env"),
     path.join(process.cwd(), ".env.local"),
@@ -39,11 +52,6 @@ function ensureAdminEnv() {
   }
 }
 
-const COOKIE_NAME = "ca_session";
-const SESSION_TTL_HOURS = 24 * 14;
-
-export type SessionUser = { user: string };
-
 export async function getSessionUser(): Promise<SessionUser | null> {
   const c = await cookies();
   const token = c.get(COOKIE_NAME)?.value;
@@ -52,37 +60,95 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const db = getDb();
   const row = db
     .prepare(
-      `SELECT user, expires_at FROM sessions WHERE id = ? AND expires_at > datetime('now')`
+      `SELECT s.user_id, s.user as legacy_login, s.tenant_id as session_tenant
+       FROM sessions s
+       WHERE s.id = ? AND s.expires_at > datetime('now')`
     )
-    .get(token) as { user: string; expires_at: string } | undefined;
+    .get(token) as { user_id: number | null; legacy_login: string; session_tenant: number | null } | undefined;
   if (!row) return null;
-  return { user: row.user };
+
+  // Новая схема: ищем по user_id
+  if (row.user_id) {
+    const u = db
+      .prepare(
+        `SELECT id, tenant_id, login, role, name, email, bitrix_manager_id, is_active
+         FROM users WHERE id = ?`
+      )
+      .get(row.user_id) as
+        | { id: number; tenant_id: number; login: string; role: UserRole;
+            name: string | null; email: string | null; bitrix_manager_id: string | null; is_active: number }
+        | undefined;
+    if (!u || !u.is_active) return null;
+    return {
+      id: u.id,
+      tenantId: u.tenant_id,
+      login: u.login,
+      role: u.role,
+      name: u.name,
+      email: u.email,
+      bitrixManagerId: u.bitrix_manager_id,
+    };
+  }
+
+  // Legacy путь — сессия создана старым кодом, по логину. Подтянем из users по логину.
+  ensureAdminEnv();
+  const u = db
+    .prepare(
+      `SELECT id, tenant_id, login, role, name, email, bitrix_manager_id
+       FROM users WHERE login = ? LIMIT 1`
+    )
+    .get(row.legacy_login) as
+      | { id: number; tenant_id: number; login: string; role: UserRole;
+          name: string | null; email: string | null; bitrix_manager_id: string | null }
+      | undefined;
+  if (!u) return null;
+  return {
+    id: u.id,
+    tenantId: u.tenant_id,
+    login: u.login,
+    role: u.role,
+    name: u.name,
+    email: u.email,
+    bitrixManagerId: u.bitrix_manager_id,
+  };
 }
 
+/** Создаёт сессию для пользователя по login+password. Возвращает true/false. */
 export async function login(loginRaw: string, password: string): Promise<boolean> {
   ensureAdminEnv();
-  const expectedLogin = process.env.ADMIN_LOGIN || "";
-  const expectedHash = process.env.ADMIN_PASSWORD_HASH || "";
-  if (!expectedLogin || !expectedHash) {
-    throw new Error("ADMIN_LOGIN / ADMIN_PASSWORD_HASH не заданы в .env");
-  }
-  if (loginRaw.trim() !== expectedLogin) return false;
-  const ok = await bcrypt.compare(password, expectedHash);
+  const db = getDb();
+
+  // 1. Пытаемся через users-таблицу
+  const u = db
+    .prepare(
+      `SELECT id, tenant_id, password_hash, is_active
+       FROM users WHERE login = ? LIMIT 1`
+    )
+    .get(loginRaw.trim()) as
+      | { id: number; tenant_id: number; password_hash: string; is_active: number }
+      | undefined;
+  if (!u || !u.is_active) return false;
+
+  const ok = await bcrypt.compare(password, u.password_hash);
   if (!ok) return false;
 
   const token = crypto.randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + SESSION_TTL_HOURS * 3600_000);
-  getDb()
-    .prepare(`INSERT INTO sessions (id, user, expires_at) VALUES (?, ?, ?)`)
-    .run(token, expectedLogin, expires.toISOString().replace("T", " ").slice(0, 19));
+  db
+    .prepare(
+      `INSERT INTO sessions (id, user, user_id, tenant_id, expires_at)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(token, loginRaw.trim(), u.id, u.tenant_id, expires.toISOString().replace("T", " ").slice(0, 19));
+
+  // Обновляем last_login для отслеживания активности
+  db.prepare(`UPDATE users SET updated_at = datetime('now') WHERE id = ?`).run(u.id);
 
   const c = await cookies();
   c.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
-    // path "/" чтобы cookie корректно передавалась независимо от basePath.
-    // Next.js + nginx иногда теряли cookie с path="/call-agent" → циклический redirect.
     path: "/",
     expires,
   });
@@ -95,23 +161,10 @@ export async function logout() {
   if (token) {
     getDb().prepare(`DELETE FROM sessions WHERE id = ?`).run(token);
   }
-  // delete должен использовать тот же path что и set
-  c.set(COOKIE_NAME, "", { path: "/", expires: new Date(0) });
+  c.delete(COOKIE_NAME);
 }
 
-/**
- * Используется в route handlers и Server Actions.
- * Возвращает либо пользователя, либо null (а не throw),
- * потому что throw Response не всегда корректно ловится Next.js в App Router.
- */
-export async function requireUser(): Promise<SessionUser | null> {
-  return await getSessionUser();
-}
-
-/**
- * Хелпер для route handlers: либо сразу отдаёт NextResponse 401,
- * либо возвращает null если можно идти дальше.
- */
+/** Хелпер для route handlers — возвращает 401 если нет сессии */
 export async function guard(): Promise<Response | null> {
   const u = await getSessionUser();
   if (!u) {
@@ -121,4 +174,38 @@ export async function guard(): Promise<Response | null> {
     });
   }
   return null;
+}
+
+/** Хелпер: 401 если нет сессии, 403 если роль не подходит */
+export async function guardRole(allowedRoles: UserRole[]): Promise<Response | null> {
+  const u = await getSessionUser();
+  if (!u) {
+    return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
+      status: 401, headers: { "Content-Type": "application/json" },
+    });
+  }
+  if (!allowedRoles.includes(u.role)) {
+    return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
+      status: 403, headers: { "Content-Type": "application/json" },
+    });
+  }
+  return null;
+}
+
+/** True для owner/admin (могут управлять настройками/пользователями) */
+export function canManage(role: UserRole): boolean {
+  return role === "owner" || role === "admin";
+}
+
+/** True для owner/admin/head (видят данные всей команды) */
+export function canViewTeam(role: UserRole): boolean {
+  return role === "owner" || role === "admin" || role === "head";
+}
+
+/**
+ * @deprecated Заменён на guard() / guardRole().
+ * Оставлен для обратной совместимости пока миграция всех вызовов идёт постепенно.
+ */
+export async function requireUser(): Promise<SessionUser | null> {
+  return await getSessionUser();
 }
