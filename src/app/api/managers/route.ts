@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest) {
      ON CONFLICT(id) DO UPDATE SET
        is_active = excluded.is_active,
        updated_at = datetime('now')`
-  ).run(id, is_active ? 1 : 0);
+  ).run(id, !!is_active);
 
   return NextResponse.json({ ok: true });
 }

@@ -34,7 +34,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (body.direction !== undefined) { fields.push("direction = ?"); params.push(body.direction); }
   if (body.content_md !== undefined) { fields.push("content_md = ?"); params.push(body.content_md); }
   if (body.checklist !== undefined) { fields.push("checklist_json = ?"); params.push(JSON.stringify(body.checklist)); }
-  if (body.is_active !== undefined) { fields.push("is_active = ?"); params.push(body.is_active ? 1 : 0); }
+  if (body.is_active !== undefined) { fields.push("is_active = ?"); params.push(!!body.is_active); }
   fields.push("updated_at = datetime('now')");
 
   if (fields.length === 1) {

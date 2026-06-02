@@ -60,11 +60,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const db = getDbAsync();
   const row = await db
     .prepare(
-      `SELECT s.user_id, s.user as legacy_login, s.tenant_id as session_tenant
+      `SELECT s.user_id, s.tenant_id as session_tenant
        FROM sessions s
        WHERE s.id = ? AND s.expires_at > datetime('now')`
     )
-    .get<{ user_id: number | null; legacy_login: string; session_tenant: number | null }>(token);
+    .get<{ user_id: number | null; session_tenant: number | null }>(token);
   if (!row) return null;
 
   // Новая схема: ищем по user_id

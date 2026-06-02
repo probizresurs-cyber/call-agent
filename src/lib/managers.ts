@@ -50,7 +50,7 @@ export async function backfillManagerNames(opts?: { forceAll?: boolean }): Promi
     );
     for (const [bxId, u] of users) {
       const name = formatUserName(u);
-      await upsert.run(bxId, name, u.EMAIL ?? null, u.ACTIVE === false ? 0 : 1);
+      await upsert.run(bxId, name, u.EMAIL ?? null, u.ACTIVE !== false);
       cached.set(bxId, { name, email: u.EMAIL ?? null });
     }
   }
@@ -65,7 +65,7 @@ export async function backfillManagerNames(opts?: { forceAll?: boolean }): Promi
   for (const id of ids) {
     const name = cached.get(id)?.name;
     if (!name) continue;
-    const r = await updateStmt.run(name, id, opts?.forceAll ? 1 : 0);
+    const r = await updateStmt.run(name, id, !!opts?.forceAll);
     updated += r.changes;
   }
 

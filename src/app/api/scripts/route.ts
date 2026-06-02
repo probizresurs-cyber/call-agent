@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     body.direction || "all",
     body.content_md || "",
     JSON.stringify(body.checklist ?? []),
-    body.is_active === false ? 0 : 1
+    body.is_active !== false
   );
 
   return NextResponse.json({ ok: true, id: result.lastInsertRowid });

@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
   const db = getDbAsync();
   const result = await db.prepare(
     `INSERT INTO sales_scripts (name, product, direction, content_md, checklist_json, is_active)
-     VALUES (?, ?, ?, ?, ?, 1)`
-  ).run(t.name, t.code, t.direction, t.content_md, JSON.stringify(t.checklist));
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(t.name, t.code, t.direction, t.content_md, JSON.stringify(t.checklist), true);
 
   return NextResponse.json({ ok: true, id: result.lastInsertRowid });
 }

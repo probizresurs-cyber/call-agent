@@ -52,6 +52,8 @@ async function processQueueTick() {
   //  - no_recording с попытками < MAX_NO_RECORDING_ATTEMPTS И последнее обновление больше часа назад
   //  - "stale" — застрявшие в processing-статусах больше STALE_MINUTES минут
   //    (это значит воркер крашнулся в их обработке; берём на повтор)
+  // Интервалы захардкожены в SQL — datetime() с параметром не работает в PG-адаптере.
+  // Если NO_RECORDING_RETRY_HOURS или STALE_MINUTES меняются — отредактировать здесь.
   const row = await db
     .prepare(
       `SELECT id, status FROM calls
@@ -60,9 +62,9 @@ async function processQueueTick() {
          OR (status = 'failed' AND attempts < ?)
          OR (status = 'no_recording'
              AND attempts < ?
-             AND datetime(updated_at) <= datetime('now', ?))
+             AND datetime(updated_at) <= datetime('now', '-${NO_RECORDING_RETRY_HOURS} hour'))
          OR (status IN ('downloading','transcribing','analyzing','syncing')
-             AND datetime(updated_at) <= datetime('now', ?))
+             AND datetime(updated_at) <= datetime('now', '-${STALE_MINUTES} minute'))
        ORDER BY
          CASE status
            WHEN 'pending' THEN 0
@@ -76,8 +78,6 @@ async function processQueueTick() {
     .get<{ id: number; status: string }>(
       MAX_ATTEMPTS,
       MAX_NO_RECORDING_ATTEMPTS,
-      `-${NO_RECORDING_RETRY_HOURS} hour`,
-      `-${STALE_MINUTES} minute`
     );
   if (!row) return;
 

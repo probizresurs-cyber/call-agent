@@ -14,11 +14,11 @@ export async function POST(req: NextRequest) {
   if (!name) return NextResponse.json({ ok: false, error: "name required" }, { status: 400 });
 
   const db = getDbAsync();
-  await db.prepare(`UPDATE sales_scripts SET is_active = 0`).run();
+  await db.prepare(`UPDATE sales_scripts SET is_active = ?`).run(false);
   await db.prepare(
     `INSERT INTO sales_scripts (name, content_md, checklist_json, is_active)
-     VALUES (?, ?, ?, 1)`
-  ).run(name, content || "", JSON.stringify(checklist ?? []));
+     VALUES (?, ?, ?, ?)`
+  ).run(name, content || "", JSON.stringify(checklist ?? []), true);
 
   return NextResponse.json({ ok: true });
 }

@@ -50,9 +50,22 @@ function adaptSqlToPg(sql: string): string {
   let out = questionMarksToPgPlaceholders(sql);
   // datetime('now') → NOW()
   out = out.replace(/datetime\s*\(\s*'now'\s*\)/gi, "NOW()");
-  // datetime('now','-X hour/minute') → NOW() - interval 'X hours'
-  out = out.replace(/datetime\s*\(\s*'now'\s*,\s*'([+-]?\d+)\s+(hour|minute|day|second)'\s*\)/gi,
+  // datetime('now','-X hour/minute/day') → (NOW() - interval 'X hours')
+  out = out.replace(/datetime\s*\(\s*'now'\s*,\s*'([+-]?\d+)\s+(hour|minute|day|second)s?'\s*\)/gi,
     (_, n, unit) => `(NOW() + interval '${n} ${unit}')`);
+  // datetime(column_name) → column_name (в PG это уже timestamp, обёртка не нужна).
+  // Распознаём ТОЛЬКО форму с одним идентификатором (буквы/цифры/_/.) — не трогаем datetime('now',...).
+  out = out.replace(/datetime\s*\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\)/g, "$1");
+  // SQLite хранит boolean как INT 0/1; PG — настоящий boolean. Конвертируем литералы для известных
+  // boolean-колонок в SQL (только сравнения = 1 / = 0 и COALESCE(...,1/0)). Параметры (?$N) Adapter
+  // не знает по типу — boolean параметры должны передаваться в код как true/false (better-sqlite3 OK).
+  const boolCols = ["is_active", "is_service", "is_admin", "is_owner"];
+  for (const col of boolCols) {
+    out = out.replace(new RegExp(`(\\b${col})\\s*=\\s*1\\b`, "gi"), "$1 = TRUE");
+    out = out.replace(new RegExp(`(\\b${col})\\s*=\\s*0\\b`, "gi"), "$1 = FALSE");
+    out = out.replace(new RegExp(`COALESCE\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_.]*\\.${col})\\s*,\\s*1\\s*\\)`, "gi"), "COALESCE($1, TRUE)");
+    out = out.replace(new RegExp(`COALESCE\\s*\\(\\s*([a-zA-Z_][a-zA-Z0-9_.]*\\.${col})\\s*,\\s*0\\s*\\)`, "gi"), "COALESCE($1, FALSE)");
+  }
   // substr(x, 1, 10) — оба поддерживают (no-op)
   // SUM(CASE WHEN ... THEN 1 ELSE 0 END) — оба
   // INSERT ... ON CONFLICT(col) DO NOTHING — оба
