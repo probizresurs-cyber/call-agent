@@ -36,19 +36,21 @@ export function ReanalyzeCard() {
     }
   }
 
-  async function run(onlyDone: boolean) {
-    if (!confirm(
-      onlyDone
-        ? "Сбросить ВСЕ успешно обработанные звонки в очередь для переанализа? Они будут заново прогнаны через Claude с актуальными скриптами. Whisper повторно НЕ запускается (используем сохранённые транскрипты)."
-        : "Сбросить done + failed звонки на переанализ?"
-    )) return;
+  async function run(mode: "done" | "failed" | "all") {
+    const msg =
+      mode === "done"
+        ? "Сбросить ВСЕ успешно обработанные звонки на переанализ? Они будут заново прогнаны через Claude с актуальными скриптами. Whisper повторно НЕ запускается (используем сохранённые транскрипты)."
+        : mode === "failed"
+        ? "Сбросить все failed звонки на повторную обработку? Это в основном те, что упали из-за лимита API или временной ошибки. Если транскрипт есть — Whisper пропустится."
+        : "Сбросить done + failed звонки на переанализ?";
+    if (!confirm(msg)) return;
     setBusy(true);
     setResult(null);
     try {
       const r = await fetch("/call-agent/api/calls/reanalyze-all", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ onlyDone }),
+        body: JSON.stringify({ mode }),
       });
       const data = await r.json();
       if (data.ok) {
@@ -71,15 +73,19 @@ export function ReanalyzeCard() {
         <b>Whisper повторно не запускается</b> — используются сохранённые транскрипты, экономия ~75% стоимости.
         ≈$0.01 за звонок (только Claude).
       </p>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" className="ds-btn ds-btn-primary"
-          onClick={() => run(true)} disabled={busy}>
+          onClick={() => run("done")} disabled={busy}>
           {busy ? <Loader2 size={14} className="mr-spin" /> : <RotateCcw size={14} />}
-          Переанализировать все done звонки
+          Переанализировать все done
         </button>
         <button type="button" className="ds-btn ds-btn-secondary"
-          onClick={() => run(false)} disabled={busy}>
-          Переанализировать done + failed
+          onClick={() => run("failed")} disabled={busy}>
+          <RotateCcw size={14} /> Только failed
+        </button>
+        <button type="button" className="ds-btn ds-btn-ghost"
+          onClick={() => run("all")} disabled={busy}>
+          done + failed
         </button>
       </div>
       {result && (
