@@ -111,7 +111,7 @@ export default async function DashboardPage(props: {
   const allManagers = await db
     .prepare(
       `SELECT c.manager_id,
-              COALESCE(MAX(c.manager_name), m.name, '') AS manager_name,
+              COALESCE(MAX(c.manager_name), MAX(m.name), '') AS manager_name,
               COUNT(*) AS calls,
               SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
               COALESCE(SUM(c.duration_sec), 0) AS total_seconds,

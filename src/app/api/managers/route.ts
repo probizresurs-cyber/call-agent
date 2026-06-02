@@ -16,9 +16,9 @@ export async function GET() {
   const rows = await db.prepare(
     `SELECT
        c.manager_id AS id,
-       COALESCE(MAX(c.manager_name), m.name, '') AS name,
-       m.email,
-       COALESCE(m.is_active, 1) AS is_active,
+       COALESCE(MAX(c.manager_name), MAX(m.name), '') AS name,
+       MAX(m.email) AS email,
+       COALESCE(MAX(CASE WHEN m.is_active THEN 1 ELSE 0 END), 1) AS is_active,
        COUNT(*) AS calls
      FROM calls c
      LEFT JOIN managers m ON m.id = c.manager_id

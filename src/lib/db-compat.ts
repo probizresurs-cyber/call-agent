@@ -56,6 +56,14 @@ function adaptSqlToPg(sql: string): string {
   // datetime(column_name) → column_name (в PG это уже timestamp, обёртка не нужна).
   // Распознаём ТОЛЬКО форму с одним идентификатором (буквы/цифры/_/.) — не трогаем datetime('now',...).
   out = out.replace(/datetime\s*\(\s*([a-zA-Z_][a-zA-Z0-9_.]*)\s*\)/g, "$1");
+  // date('now', '-X day') → (CURRENT_DATE - INTERVAL 'X days')::text — SQLite-функция.
+  out = out.replace(/date\s*\(\s*'now'\s*,\s*'([+-]?\d+)\s+(day|hour|minute|second)s?'\s*\)/gi,
+    (_, n, unit) => `((CURRENT_DATE + INTERVAL '${n} ${unit}')::text)`);
+  // date('now') → CURRENT_DATE::text
+  out = out.replace(/date\s*\(\s*'now'\s*\)/gi, "(CURRENT_DATE::text)");
+  // substr(table.started_at, 1, 10) — нужен ::text приведение, т.к. в PG это timestamptz.
+  // Покрываем все *_at колонки чтобы не пропустить created_at/updated_at и т.п.
+  out = out.replace(/substr\s*\(\s*([a-zA-Z_][a-zA-Z0-9_.]*_at)\s*,/gi, "substr($1::text,");
   // sessions.user (SQLite legacy column name) → legacy_login (PG schema).
   // `user` это reserved word в PG, поэтому колонка переименована.
   // Покрываем: INSERT (id, user, user_id, ...), SELECT s.user, sessions.user

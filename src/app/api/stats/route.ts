@@ -29,7 +29,7 @@ export async function GET() {
 
   const topManagers = await db
     .prepare(
-      `SELECT c.manager_id, c.manager_name,
+      `SELECT c.manager_id, MAX(c.manager_name) AS manager_name,
               COUNT(*) AS calls,
               AVG(a.manager_score) AS avg_score
        FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
