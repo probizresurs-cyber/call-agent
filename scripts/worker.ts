@@ -93,11 +93,19 @@ async function processQueueTick() {
   } catch (e) {
     const err = e as Error;
     const msg = err.message;
-    // Различаем "нет записи" (не наша вина) и реальную техническую ошибку
+    // Различаем три класса ошибок:
+    //  - NoRecordingError — Bitrix не вернул файл (no_recording)
+    //  - BudgetExceededError — §4.4 закончился лимит токенов/секунд на тенант (budget_exceeded)
+    //  - всё остальное — failed
     if (err.name === "NoRecordingError") {
       console.warn(`[worker] ⊘ #${row.id} no recording:`, msg);
       await getDbAsync().prepare(
         `UPDATE calls SET status='no_recording', error=?, updated_at=datetime('now') WHERE id=?`
+      ).run(msg, row.id);
+    } else if (err.name === "BudgetExceededError") {
+      console.warn(`[worker] 💰 #${row.id} budget exceeded:`, msg);
+      await getDbAsync().prepare(
+        `UPDATE calls SET status='budget_exceeded', error=?, updated_at=datetime('now') WHERE id=?`
       ).run(msg, row.id);
     } else {
       console.error(`[worker] ✗ #${row.id} failed:`, msg);

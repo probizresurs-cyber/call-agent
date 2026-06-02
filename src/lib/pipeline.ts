@@ -76,7 +76,7 @@ export async function processCall(callId: number): Promise<void> {
   } else {
     await setCallStatus(callId, "transcribing");
     if (!recordingPath) throw new Error(`recordingPath не найден на этапе транскрипции`);
-    t = await transcribeFile(recordingPath);
+    t = await transcribeFile(recordingPath, { tenantId: row.tenant_id ?? 1, callId });
   }
 
   // 3. Контекст сделки — параллельно с шагом 4 не получится, потому что Claude его использует
@@ -99,11 +99,13 @@ export async function processCall(callId: number): Promise<void> {
   }
   const checklist = script?.checklist || null;
 
-  // 5. Анализ с выбранным чек-листом
+  // 5. Анализ с выбранным чек-листом. tenantId/callId — для §4.4 бюджет-гарда.
   const { analysis, raw, model } = await analyzeCall({
     transcript: t.text,
     checklist,
     context,
+    tenantId: row.tenant_id ?? 1,
+    callId,
   });
 
   // 5. Сохраняем транскрипт + диалог

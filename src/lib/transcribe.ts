@@ -1,5 +1,6 @@
 import fs from "fs";
 import OpenAI from "openai";
+import { checkBudget, recordUsage } from "./budget";
 
 const WHISPER_MODEL = "whisper-1"; // у OpenAI это пока самая стабильная транскрипция
 
@@ -13,10 +14,18 @@ export interface TranscribeResult {
   model: string;
 }
 
-export async function transcribeFile(filePath: string): Promise<TranscribeResult> {
+export async function transcribeFile(
+  filePath: string,
+  opts: { tenantId?: number; callId?: number } = {}
+): Promise<TranscribeResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY не задан");
   if (!fs.existsSync(filePath)) throw new Error(`Файл записи не найден: ${filePath}`);
+
+  // §4.4 Бюджет-гард: проверяем лимит на минуты Whisper за месяц.
+  if (opts.tenantId) {
+    await checkBudget(opts.tenantId, "openai_seconds");
+  }
 
   // OPENAI_BASE_URL — для прокси (Cloudflare Worker) обхода гео-блока РФ.
   const baseURL = process.env.OPENAI_BASE_URL?.trim() || undefined;
@@ -38,6 +47,14 @@ export async function transcribeFile(filePath: string): Promise<TranscribeResult
         language?: string;
         segments?: Array<{ start: number; end: number; text: string }>;
       };
+
+      // §4.4 Учёт расхода: длительность аудио = последний segment.end (Whisper verbose_json даёт это).
+      // Fallback: размер файла / 16 КБ-в-секунду ≈ грубая оценка (если segments пусты).
+      if (opts.tenantId) {
+        const lastSegment = raw.segments?.[raw.segments.length - 1];
+        const seconds = lastSegment?.end ?? Math.floor(fs.statSync(filePath).size / 16000);
+        await recordUsage(opts.tenantId, "openai_seconds", seconds, opts.callId);
+      }
 
       return {
         text: raw.text || "",

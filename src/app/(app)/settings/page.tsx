@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -8,8 +8,10 @@ import { DashboardSettingsCard } from "./DashboardSettingsCard";
 import { ReanalyzeCard } from "./ReanalyzeCard";
 import { UsersCard } from "./UsersCard";
 import { FlagsCard } from "./FlagsCard";
+import { BudgetCard } from "./BudgetCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 import { getFlagsSummary } from "@/lib/flags";
+import { getTenantBudget, getMonthlyUsage } from "@/lib/budget";
 import { getSessionUser, canManage } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,10 @@ export default async function SettingsPage() {
   const isManager = canManage(me.role);  // owner или admin
 
   const flags = await getFlagsSummary(me.tenantId);
+  const [budget, usage] = await Promise.all([
+    getTenantBudget(me.tenantId),
+    getMonthlyUsage(me.tenantId),
+  ]);
 
   return (
     <>
@@ -37,6 +43,16 @@ export default async function SettingsPage() {
             <Shield size={16} strokeWidth={2} /> Системные флаги
           </h2>
           <FlagsCard initial={flags} />
+        </div>
+      )}
+
+      {/* ───────── Бюджет на обработку (§4.4 MASTER-TZ) ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Coins size={16} strokeWidth={2} /> Бюджет на обработку
+          </h2>
+          <BudgetCard initial={{ budget, usage }} />
         </div>
       )}
 

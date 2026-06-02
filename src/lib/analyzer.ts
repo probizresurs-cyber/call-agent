@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ChecklistItem, ChecklistItemScore, DialogueTurn } from "./db";
 import type { DealContext } from "./bitrix";
+import { checkBudget, recordUsage } from "./budget";
 
 const CLAUDE_MODEL = "claude-sonnet-4-6";
 
@@ -185,9 +186,16 @@ export async function analyzeCall(args: {
   transcript: string;
   checklist: ChecklistItem[] | null;
   context: DealContext | null;
+  tenantId?: number;  // §4.4 для бюджет-гарда; если не передан — без учёта расхода
+  callId?: number;    // для usage_events.call_id (опционально, аналитика)
 }): Promise<{ analysis: CallAnalysis; raw: string; model: string }> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY не задан");
+
+  // §4.4 Бюджет-гард: ДО запроса проверяем не исчерпан ли лимит токенов на тенант.
+  if (args.tenantId) {
+    await checkBudget(args.tenantId, "anthropic_tokens");  // бросает BudgetExceededError если 'stop'
+  }
 
   const client = new Anthropic({
     apiKey,
@@ -202,6 +210,12 @@ export async function analyzeCall(args: {
     tool_choice: { type: "tool", name: "save_analysis" },
     messages: [{ role: "user", content: userPrompt(args) }],
   }));
+
+  // §4.4 Учёт расхода: суммируем input + output токены. Запись идёт через try/catch — не валит звонок.
+  if (args.tenantId) {
+    const total = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
+    await recordUsage(args.tenantId, "anthropic_tokens", total, args.callId);
+  }
 
   // Извлекаем tool_use блок — он содержит уже распарсенный JSON
   const toolUse = msg.content.find(

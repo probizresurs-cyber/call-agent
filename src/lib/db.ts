@@ -226,7 +226,8 @@ export type CallStatus =
   | "syncing"
   | "done"
   | "failed"
-  | "no_recording";  // запись звонка отсутствует в Битриксе (не наша ошибка)
+  | "no_recording"      // запись звонка отсутствует в Битриксе (не наша ошибка)
+  | "budget_exceeded";  // §4.4: лимит токенов/секунд на тенант исчерпан, повторно подберётся в новом месяце
 
 /**
  * Кастомная ошибка для случаев когда у звонка нет файла записи.
@@ -243,6 +244,7 @@ export class NoRecordingError extends Error {
 
 export interface CallRow {
   id: number;
+  tenant_id: number | null;
   bitrix_call_id: string | null;
   bitrix_deal_id: string | null;
   bitrix_lead_id: string | null;
