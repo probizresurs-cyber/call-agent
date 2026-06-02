@@ -124,7 +124,13 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <Row label="ID источника" value={call.bitrix_call_id || "—"} />
           <Row label="Дата" value={formatDate(call.started_at)} />
           <Row label="Менеджер" value={call.manager_name || call.manager_id || "—"} />
-          <Row label="Клиент" value={call.client_phone || "—"} />
+          <Row label="Клиент" value={
+            call.client_phone ? (
+              <Link href={`/clients/${call.client_phone.replace(/\D/g, "").replace(/^8/, "7")}`} style={{ color: "var(--primary)" }}>
+                {call.client_phone} →
+              </Link>
+            ) : "—"
+          } />
           <Row label="Имя клиента (из разговора)" value={analysis?.client_name || "—"} />
           <Row
             label="Направление"
