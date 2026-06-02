@@ -16,11 +16,8 @@ export const maxDuration = 300;
 
 export async function GET() {
   const g = await guard(); if (g) return g;
-  return NextResponse.json({
-    ok: true,
-    enabled: isAutoImportEnabled(),
-    last: getLastAutoImport(),
-  });
+  const [enabled, last] = await Promise.all([isAutoImportEnabled(), getLastAutoImport()]);
+  return NextResponse.json({ ok: true, enabled, last });
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +25,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { enabled?: boolean; runNow?: boolean };
 
   if (typeof body.enabled === "boolean") {
-    setAutoImportEnabled(body.enabled);
+    await setAutoImportEnabled(body.enabled);
   }
   let runResult = null;
   if (body.runNow) {
@@ -36,10 +33,6 @@ export async function POST(req: NextRequest) {
     // не зависит от того когда был предыдущий цикл
     runResult = await runAutoImport({ manual: true });
   }
-  return NextResponse.json({
-    ok: true,
-    enabled: isAutoImportEnabled(),
-    last: getLastAutoImport(),
-    runResult,
-  });
+  const [enabled, last] = await Promise.all([isAutoImportEnabled(), getLastAutoImport()]);
+  return NextResponse.json({ ok: true, enabled, last, runResult });
 }

@@ -33,7 +33,7 @@ export async function processCall(callId: number): Promise<void> {
   // 1. Скачать запись — пропускаем если транскрипт уже есть
   let recordingPath = row.recording_path;
   if (!recordingPath && !existingTranscript) {
-    setCallStatus(callId, "downloading");
+    await setCallStatus(callId, "downloading");
 
     // Резолвим recording_url если пуст:
     // для внешних АТС (Телфин и т.п.) в voximplant.statistic.get URL=null,
@@ -74,13 +74,13 @@ export async function processCall(callId: number): Promise<void> {
     };
     console.log(`[pipeline] call #${callId}: используем кэшированный транскрипт (${t.text.length} симв.), Whisper пропускаем`);
   } else {
-    setCallStatus(callId, "transcribing");
+    await setCallStatus(callId, "transcribing");
     if (!recordingPath) throw new Error(`recordingPath не найден на этапе транскрипции`);
     t = await transcribeFile(recordingPath);
   }
 
   // 3. Контекст сделки — параллельно с шагом 4 не получится, потому что Claude его использует
-  setCallStatus(callId, "analyzing");
+  await setCallStatus(callId, "analyzing");
   const context: DealContext | null = await buildCallContext({
     bitrixDealId: row.bitrix_deal_id,
     bitrixLeadId: row.bitrix_lead_id,
@@ -156,7 +156,7 @@ export async function processCall(callId: number): Promise<void> {
   );
 
   // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL
-  setCallStatus(callId, "syncing");
+  await setCallStatus(callId, "syncing");
   const dryRun = process.env.BITRIX_DRY_RUN === "true";
   const hasWebhook = !!process.env.BITRIX_WEBHOOK_URL?.trim();
   if (dryRun || !hasWebhook) {
@@ -179,7 +179,7 @@ export async function processCall(callId: number): Promise<void> {
     }
   }
 
-  setCallStatus(callId, "done");
+  await setCallStatus(callId, "done");
 }
 
 interface ResolvedScript {

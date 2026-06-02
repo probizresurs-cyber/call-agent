@@ -154,6 +154,33 @@ ${transcript}
 (приветствие, вопросы о продукте, цене, сроках — это менеджер; вопросы о цене, гарантии — это клиент).`;
 }
 
+/**
+ * Retry wrapper для 429 (rate_limit) и 529 (overloaded).
+ * Anthropic возвращает эти коды когда модель временно перегружена/лимитирована.
+ * Backoff: 3s → 9s → 27s. После 3 неудачных попыток — пробрасываем ошибку наверх.
+ */
+async function withRetry<T>(label: string, fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      const err = e as { status?: number; message?: string };
+      const status = err.status ?? 0;
+      const msg = err.message ?? "";
+      const isRetryable =
+        status === 429 || status === 529 ||
+        /overloaded/i.test(msg) || /rate.?limit/i.test(msg);
+      if (!isRetryable || attempt === maxAttempts) throw e;
+      const delayMs = 3000 * Math.pow(3, attempt - 1); // 3s, 9s, 27s
+      console.warn(`[${label}] attempt ${attempt}/${maxAttempts} failed (${status} ${msg.slice(0, 80)}), retry in ${delayMs}ms`);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 export async function analyzeCall(args: {
   transcript: string;
   checklist: ChecklistItem[] | null;
@@ -167,14 +194,14 @@ export async function analyzeCall(args: {
     baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
   });
 
-  const msg = await client.messages.create({
+  const msg = await withRetry("analyzer", () => client.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 4000,
     system: SYSTEM_PROMPT,
     tools: [SAVE_ANALYSIS_TOOL],
     tool_choice: { type: "tool", name: "save_analysis" },
     messages: [{ role: "user", content: userPrompt(args) }],
-  });
+  }));
 
   // Извлекаем tool_use блок — он содержит уже распарсенный JSON
   const toolUse = msg.content.find(

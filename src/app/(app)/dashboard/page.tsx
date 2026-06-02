@@ -35,7 +35,7 @@ export default async function DashboardPage(props: {
   const isManager = me.role === "manager";
 
   // Порог "разговор состоялся" — настраивается в settings (по умолчанию 15 сек)
-  const contactThreshold = parseInt(getSetting("contact_threshold_seconds") || String(DEFAULT_CONTACT_THRESHOLD), 10);
+  const contactThreshold = parseInt((await getSetting("contact_threshold_seconds")) || String(DEFAULT_CONTACT_THRESHOLD), 10);
   // "Не дозвон" — звонки длительностью < contactThreshold / 1.5 (т.е. порядка трети порога)
   const missedThreshold = Math.max(5, Math.floor(contactThreshold / 1.5));
 

@@ -60,7 +60,7 @@ export default async function SettingsPage() {
         <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
           <RefreshCw size={16} strokeWidth={2} /> Автоматический импорт новых звонков
         </h2>
-        <AutoImportCard initial={{ enabled: isAutoImportEnabled(), last: getLastAutoImport() }} />
+        <AutoImportCard initial={{ enabled: await isAutoImportEnabled(), last: await getLastAutoImport() }} />
       </div>
 
       {/* ───────── Импорт исторических звонков ───────── */}

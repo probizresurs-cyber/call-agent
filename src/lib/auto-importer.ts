@@ -1,4 +1,4 @@
-import { getDb, getSetting, setSetting } from "./db";
+import { getSetting, setSetting } from "./db";
 import { importCallsFromBitrix, type ImportResult, type ImportError } from "./importer";
 
 const LAST_IMPORT_KEY = "last_auto_import_at";
@@ -15,21 +15,22 @@ const INITIAL_LOOKBACK_DAYS = 7;
 // При ручном "Запустить сейчас" — игнорируем last_import_at и берём 1 день
 const MANUAL_LOOKBACK_DAYS = 1;
 
-export function isAutoImportEnabled(): boolean {
-  const v = getSetting(AUTO_ENABLED_KEY);
+export async function isAutoImportEnabled(): Promise<boolean> {
+  const v = await getSetting(AUTO_ENABLED_KEY);
   // Если ещё не задано — по умолчанию ВКЛ
   return v == null || v === "true";
 }
 
-export function setAutoImportEnabled(enabled: boolean): void {
-  setSetting(AUTO_ENABLED_KEY, enabled ? "true" : "false");
+export async function setAutoImportEnabled(enabled: boolean): Promise<void> {
+  await setSetting(AUTO_ENABLED_KEY, enabled ? "true" : "false");
 }
 
-export function getLastAutoImport(): { at: string | null; result: string | null } {
-  return {
-    at: getSetting(LAST_IMPORT_KEY),
-    result: getSetting(LAST_RESULT_KEY),
-  };
+export async function getLastAutoImport(): Promise<{ at: string | null; result: string | null }> {
+  const [at, result] = await Promise.all([
+    getSetting(LAST_IMPORT_KEY),
+    getSetting(LAST_RESULT_KEY),
+  ]);
+  return { at, result };
 }
 
 /** Возвращает YYYY-MM-DD от current time с учётом MSK (или UTC если оффсет 0) */
@@ -46,11 +47,11 @@ export interface RunAutoImportOpts {
 }
 
 export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<ImportResult | ImportError | { ok: false; error: "disabled" }> {
-  if (!opts.manual && !isAutoImportEnabled()) {
+  if (!opts.manual && !(await isAutoImportEnabled())) {
     return { ok: false, error: "disabled" };
   }
 
-  const lastAt = getSetting(LAST_IMPORT_KEY);
+  const lastAt = await getSetting(LAST_IMPORT_KEY);
   let fromIso: string;
 
   if (opts.manual) {
@@ -83,13 +84,13 @@ export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<Impor
   // Сохраняем timestamp текущего запуска как last (даже если result.ok=false, но не disabled —
   // лучше двигать вперёд чем застрять навсегда)
   const now = new Date().toISOString();
-  setSetting(LAST_IMPORT_KEY, now);
+  await setSetting(LAST_IMPORT_KEY, now);
 
   // Краткое описание результата для UI
   const summary = result.ok
     ? `inserted=${result.inserted}, fetched=${result.totalFetched}, skipped=${result.skipped}`
     : `error: ${result.error}`;
-  setSetting(LAST_RESULT_KEY, summary);
+  await setSetting(LAST_RESULT_KEY, summary);
 
   return result;
 }

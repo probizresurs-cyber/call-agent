@@ -311,22 +311,24 @@ export interface DialogueTurn {
   end?: number;
 }
 
-export function setCallStatus(callId: number, status: CallStatus, error?: string) {
-  const db = getDb();
-  db.prepare(
+export async function setCallStatus(callId: number, status: CallStatus, error?: string): Promise<void> {
+  const { getDbAsync } = await import("./db-compat");
+  await getDbAsync().prepare(
     `UPDATE calls SET status = ?, error = ?, updated_at = datetime('now') WHERE id = ?`
   ).run(status, error ?? null, callId);
 }
 
-export function getSetting(key: string): string | null {
-  const row = getDb().prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as
-    | { value: string }
-    | undefined;
+export async function getSetting(key: string): Promise<string | null> {
+  const { getDbAsync } = await import("./db-compat");
+  const row = await getDbAsync()
+    .prepare(`SELECT value FROM settings WHERE key = ?`)
+    .get<{ value: string }>(key);
   return row?.value ?? null;
 }
 
-export function setSetting(key: string, value: string) {
-  getDb()
+export async function setSetting(key: string, value: string): Promise<void> {
+  const { getDbAsync } = await import("./db-compat");
+  await getDbAsync()
     .prepare(
       `INSERT INTO settings(key, value) VALUES(?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`

@@ -15,7 +15,7 @@ const KNOWN_KEYS = [
 export async function GET() {
   const g = await guard(); if (g) return g;
   const out: Record<string, string | null> = {};
-  for (const k of KNOWN_KEYS) out[k] = getSetting(k);
+  for (const k of KNOWN_KEYS) out[k] = await getSetting(k);
   return NextResponse.json({ ok: true, settings: out });
 }
 
@@ -25,6 +25,6 @@ export async function POST(req: NextRequest) {
   if (!key || !(KNOWN_KEYS as readonly string[]).includes(key)) {
     return NextResponse.json({ ok: false, error: "unknown key" }, { status: 400 });
   }
-  setSetting(key, value || "");
+  await setSetting(key, value || "");
   return NextResponse.json({ ok: true });
 }
