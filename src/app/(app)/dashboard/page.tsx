@@ -215,36 +215,42 @@ export default async function DashboardPage(props: {
   //   2) AI не определил — есть транскрипт, но Claude не понял о чём
   const productStats = await db
     .prepare(
-      `SELECT
-         CASE
-           WHEN COALESCE(NULLIF(c.detected_product,''), NULLIF(a.detected_product,'')) IS NOT NULL
-             THEN COALESCE(NULLIF(c.detected_product,''), NULLIF(a.detected_product,''))
-           WHEN c.id IN (SELECT call_id FROM transcripts WHERE text IS NOT NULL AND text != '')
-             THEN '__no_match__'
-           ELSE '__no_transcript__'
-         END AS product,
-         COUNT(*) AS calls,
-         SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
-         SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
-         COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
-         AVG(a.manager_score) AS avg_score,
-         AVG(a.script_compliance) AS avg_compliance,
-         SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS pos,
-         SUM(CASE WHEN a.sentiment='neutral'  THEN 1 ELSE 0 END) AS neu,
-         SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS neg
-       FROM calls c
-       LEFT JOIN analyses a ON a.call_id = c.id
-       LEFT JOIN managers m ON m.id = c.manager_id
-       WHERE (m.is_active IS NULL OR m.is_active = 1)
-         ${dateAndSql}
-       GROUP BY product
+      // Подзапрос: в PG нельзя ссылаться на alias из SELECT внутри CASE в ORDER BY верхнего уровня,
+      // поэтому вычисляем product в подзапросе и оборачиваем агрегацию во внешний SELECT.
+      `SELECT sub.product, sub.calls, sub.connected, sub.missed, sub.total_seconds,
+              sub.avg_score, sub.avg_compliance, sub.pos, sub.neu, sub.neg
+       FROM (
+         SELECT
+           CASE
+             WHEN COALESCE(NULLIF(c.detected_product,''), NULLIF(a.detected_product,'')) IS NOT NULL
+               THEN COALESCE(NULLIF(c.detected_product,''), NULLIF(a.detected_product,''))
+             WHEN c.id IN (SELECT call_id FROM transcripts WHERE text IS NOT NULL AND text != '')
+               THEN '__no_match__'
+             ELSE '__no_transcript__'
+           END AS product,
+           COUNT(*) AS calls,
+           SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
+           SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
+           COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
+           AVG(a.manager_score) AS avg_score,
+           AVG(a.script_compliance) AS avg_compliance,
+           SUM(CASE WHEN a.sentiment='positive' THEN 1 ELSE 0 END) AS pos,
+           SUM(CASE WHEN a.sentiment='neutral'  THEN 1 ELSE 0 END) AS neu,
+           SUM(CASE WHEN a.sentiment='negative' THEN 1 ELSE 0 END) AS neg
+         FROM calls c
+         LEFT JOIN analyses a ON a.call_id = c.id
+         LEFT JOIN managers m ON m.id = c.manager_id
+         WHERE (m.is_active IS NULL OR m.is_active = 1)
+           ${dateAndSql}
+         GROUP BY 1
+       ) sub
        ORDER BY
          CASE
-           WHEN product = '__no_transcript__' THEN 2
-           WHEN product = '__no_match__' THEN 1
+           WHEN sub.product = '__no_transcript__' THEN 2
+           WHEN sub.product = '__no_match__' THEN 1
            ELSE 0
          END,
-         calls DESC`
+         sub.calls DESC`
     )
     .all<{
       product: string | null;
