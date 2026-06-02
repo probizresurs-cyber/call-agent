@@ -131,8 +131,8 @@ export async function processCall(callId: number): Promise<void> {
   await db.prepare(
     `INSERT INTO analyses (call_id, summary, sentiment, manager_score, script_compliance,
        next_action, objections_json, topics_json, raw_json, model,
-       client_name, checklist_scores_json, detected_product)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       client_name, checklist_scores_json, detected_product, coaching_tips_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(call_id) DO UPDATE SET
        summary=excluded.summary, sentiment=excluded.sentiment,
        manager_score=excluded.manager_score, script_compliance=excluded.script_compliance,
@@ -140,6 +140,7 @@ export async function processCall(callId: number): Promise<void> {
        topics_json=excluded.topics_json, raw_json=excluded.raw_json, model=excluded.model,
        client_name=excluded.client_name, checklist_scores_json=excluded.checklist_scores_json,
        detected_product=excluded.detected_product,
+       coaching_tips_json=excluded.coaching_tips_json,
        created_at=datetime('now')`
   ).run(
     callId,
@@ -154,7 +155,8 @@ export async function processCall(callId: number): Promise<void> {
     model,
     analysis.client_name ?? null,
     JSON.stringify(analysis.checklist_scores ?? []),
-    product ?? null
+    product ?? null,
+    JSON.stringify(analysis.coaching_tips ?? [])
   );
 
   // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL

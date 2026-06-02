@@ -9,6 +9,7 @@ import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
 import { DashboardFilters } from "./DashboardFilters";
+import { CoachInsights } from "./CoachInsights";
 
 const DEFAULT_CONTACT_THRESHOLD = 15; // секунд
 
@@ -345,6 +346,9 @@ export default async function DashboardPage(props: {
           value={`${totals.incoming} / ${totals.outgoing}`}
         />
       </div>
+
+      {/* §5.1-§5.2 MASTER-TZ: для menager — зоны роста + лента подсказок */}
+      {isManager && <CoachInsights user={me} />}
 
       {/* ───── Менеджеры — расширенная статистика (для head/admin/owner) ───── */}
       {!isManager && (

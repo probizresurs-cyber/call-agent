@@ -45,6 +45,7 @@ type Analysis = {
   model: string | null;
   client_name: string | null;
   checklist_scores_json: string | null;
+  coaching_tips_json: string | null;
 };
 
 type Dialogue = Array<{ speaker: "manager" | "client" | "unknown"; text: string }>;
@@ -75,6 +76,8 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
   const topics: string[] = analysis?.topics_json ? JSON.parse(analysis.topics_json) : [];
   const checklistScores: ChecklistScore[] = analysis?.checklist_scores_json
     ? JSON.parse(analysis.checklist_scores_json) : [];
+  const coachingTips: string[] = analysis?.coaching_tips_json
+    ? JSON.parse(analysis.coaching_tips_json) : [];
   const dialogue: Dialogue = transcript?.dialogue_json ? JSON.parse(transcript.dialogue_json) : [];
 
   return (
@@ -185,6 +188,25 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
 
           <Section title="Краткое содержание" body={analysis.summary} />
           <Section title="Следующий шаг" body={analysis.next_action} />
+
+          {/* §5.2 MASTER-TZ: советы менеджеру — доброжелательный коучинг, не упрёк */}
+          {coachingTips.length > 0 && (
+            <div style={{
+              marginTop: 14, padding: 12,
+              background: "rgba(96, 165, 250, 0.06)",
+              border: "1px solid rgba(96, 165, 250, 0.20)",
+              borderRadius: 8,
+            }}>
+              <div className="ds-caption" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: "var(--primary)" }}>
+                <CircleDot size={12} /> Что попробовать в следующий раз
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                {coachingTips.map((tip, i) => (
+                  <li key={i} className="ds-body-sm" style={{ lineHeight: 1.5 }}>{tip}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {objections.length > 0 && (
             <div style={{ marginTop: 14 }}>

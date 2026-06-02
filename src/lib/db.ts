@@ -50,6 +50,7 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("transcripts", "dialogue_json", "TEXT");
   ensureColumn("analyses", "client_name", "TEXT");
   ensureColumn("analyses", "checklist_scores_json", "TEXT");
+  ensureColumn("analyses", "coaching_tips_json", "TEXT");  // §5.2 MASTER-TZ — советы менеджеру
   ensureColumn("calls", "deal_context_json", "TEXT");
 
   // Мульти-скрипты: product (МП/МК/др.) и direction (in/out/all)
@@ -279,6 +280,7 @@ export interface AnalysisRow {
   created_at: string;
   client_name: string | null;
   checklist_scores_json: string | null;
+  coaching_tips_json: string | null;  // §5.2 MASTER-TZ
 }
 
 export interface TranscriptRow {

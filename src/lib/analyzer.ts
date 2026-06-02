@@ -18,6 +18,7 @@ export interface CallAnalysis {
   next_action: string;
   topics: string[];
   dialogue: DialogueTurn[];
+  coaching_tips: string[];  // §5.2 MASTER-TZ: 1-3 доброжелательных совета на следующий звонок
 }
 
 const SYSTEM_PROMPT = `Ты — эксперт по B2B-продажам и контролю качества call-центра.
@@ -106,12 +107,17 @@ const SAVE_ANALYSIS_TOOL: Anthropic.Tool = {
           required: ["speaker", "text"],
         },
       },
+      coaching_tips: {
+        type: "array",
+        items: { type: "string" },
+        description: "1-3 конкретных, доброжелательных совета менеджеру на следующий звонок. Тон — помощь и подсказка, НЕ ярлык «плохой сотрудник». Формат: «Попробуйте X», «В следующий раз можно Y», «Обратите внимание на Z». Не давать общих советов типа «работайте лучше». Если звонок был полностью успешным — отметить что менеджер сделал хорошо.",
+      },
     },
     required: [
       "summary", "sentiment", "client_intent", "objections",
       "manager_score", "manager_score_reason",
       "checklist_compliance", "checklist_scores",
-      "next_action", "topics", "dialogue",
+      "next_action", "topics", "dialogue", "coaching_tips",
     ],
   } as Anthropic.Tool["input_schema"],
 };
@@ -231,6 +237,7 @@ export async function analyzeCall(args: {
   // Нормализация — на случай если модель не дала какое-то опциональное поле
   parsed.client_name = parsed.client_name ?? null;
   parsed.dialogue ||= [];
+  parsed.coaching_tips ||= [];
   parsed.checklist_scores ||= [];
   parsed.objections ||= [];
   parsed.topics ||= [];
