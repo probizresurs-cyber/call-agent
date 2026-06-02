@@ -1,7 +1,14 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Phone, Settings, LogOut } from "lucide-react";
-import { getSessionUser, logout } from "@/lib/auth";
+import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon } from "lucide-react";
+import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  owner: "Владелец",
+  admin: "Администратор",
+  head: "РОП",
+  manager: "Менеджер",
+};
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -12,6 +19,11 @@ export default async function AuthedLayout({ children }: { children: React.React
     await logout();
     redirect("/login");
   }
+
+  // Менеджер видит «Мои звонки» вместо общего «Звонки», и не видит «Настройки»
+  const showSettings = canManage(user.role) || user.role === "head";
+  const callsLabel = user.role === "manager" ? "Мои звонки" : "Звонки";
+  const dashboardLabel = user.role === "manager" ? "Мой кабинет" : "Дашборд";
 
   return (
     <div className="shell">
@@ -33,19 +45,31 @@ export default async function AuthedLayout({ children }: { children: React.React
 
         <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Link className="nav-link" href="/dashboard">
-            <BarChart3 size={16} strokeWidth={2} /> Дашборд
+            <BarChart3 size={16} strokeWidth={2} /> {dashboardLabel}
           </Link>
           <Link className="nav-link" href="/calls">
-            <Phone size={16} strokeWidth={2} /> Звонки
+            <Phone size={16} strokeWidth={2} /> {callsLabel}
           </Link>
-          <Link className="nav-link" href="/settings">
-            <Settings size={16} strokeWidth={2} /> Настройки
-          </Link>
+          {showSettings && (
+            <Link className="nav-link" href="/settings">
+              <Settings size={16} strokeWidth={2} /> Настройки
+            </Link>
+          )}
         </nav>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 12, color: "var(--sidebar-muted)" }}>
-            Вы вошли как <b style={{ color: "var(--sidebar-fg)" }}>{user.user}</b>
+          <div style={{ padding: "8px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--sidebar-fg)", fontWeight: 600 }}>
+              {user.role === "owner" || user.role === "admin"
+                ? <ShieldCheck size={12} strokeWidth={2} />
+                : user.role === "head"
+                ? <Headphones size={12} strokeWidth={2} />
+                : <UserIcon size={12} strokeWidth={2} />}
+              {user.name || user.login}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--sidebar-muted)", marginTop: 2 }}>
+              {ROLE_LABELS[user.role]}
+            </div>
           </div>
           <form action={doLogout}>
             <button type="submit" className="ds-btn ds-btn-secondary" style={{

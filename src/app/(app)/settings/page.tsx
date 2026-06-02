@@ -1,17 +1,26 @@
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw } from "lucide-react";
+import { redirect } from "next/navigation";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
 import { ScriptsManager } from "./ScriptsManager";
 import { DashboardSettingsCard } from "./DashboardSettingsCard";
 import { ReanalyzeCard } from "./ReanalyzeCard";
+import { UsersCard } from "./UsersCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
+import { getSessionUser, canManage } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  const me = await getSessionUser();
+  if (!me) redirect("/login");
+  // Менеджер не имеет доступа к настройкам платформы
+  if (!canManage(me.role) && me.role !== "head") redirect("/dashboard");
+
   const webhookSet = !!process.env.BITRIX_WEBHOOK_URL?.trim();
   const dryRun = process.env.BITRIX_DRY_RUN !== "false";
+  const isManager = canManage(me.role);  // owner или admin
 
   return (
     <>
@@ -77,10 +86,20 @@ export default async function SettingsPage() {
         )}
       </div>
 
-      {/* ───────── Менеджеры — видимость ───────── */}
+      {/* ───────── Пользователи платформы (только для owner/admin) ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
+            <UserCog size={16} strokeWidth={2} /> Пользователи платформы
+          </h2>
+          <UsersCard />
+        </div>
+      )}
+
+      {/* ───────── Менеджеры Битрикса — видимость ───────── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>
         <h2 className="ds-h3" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-          <Users size={16} strokeWidth={2} /> Менеджеры — отображение
+          <Users size={16} strokeWidth={2} /> Менеджеры Битрикса — отображение
         </h2>
         <ManagersCard />
       </div>
