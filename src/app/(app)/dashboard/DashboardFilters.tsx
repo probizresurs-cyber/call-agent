@@ -89,7 +89,7 @@ interface ManagerOption {
   name: string;
 }
 
-export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
+export function DashboardFilters({ managers, basePath = "/dashboard" }: { managers?: ManagerOption[]; basePath?: string }) {
   const router = useRouter();
   const search = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -112,7 +112,7 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
     if (crm) params.set("with_crm", "true");
     const mgr = next.managerId !== undefined ? next.managerId : managerId;
     if (mgr) params.set("manager_id", mgr);
-    startTransition(() => router.push("/dashboard" + (params.toString() ? `?${params}` : "")));
+    startTransition(() => router.push(basePath + (params.toString() ? `?${params}` : "")));
   }
 
   function toggleCrm() {
@@ -125,7 +125,7 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
 
   function reset() {
     setFrom(""); setTo(""); setManagerId("");
-    startTransition(() => router.push("/dashboard"));
+    startTransition(() => router.push(basePath));
   }
 
   function shiftDay(delta: number) {
