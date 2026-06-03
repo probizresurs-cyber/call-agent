@@ -34,7 +34,7 @@ export default function LoginPage() {
       <form onSubmit={submit} className="ds-card" style={{ width: 360, padding: 28 }}>
         <h1 className="ds-h2" style={{ marginBottom: 4 }}>Call-Agent</h1>
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 20 }}>
-          Анализатор звонков Битрикс24
+          AI-анализ звонков, чатов и встреч
         </div>
 
         <label className="ds-caption" style={{ display: "block", marginBottom: 6 }}>Логин</label>

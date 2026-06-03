@@ -39,7 +39,7 @@ export default async function AuthedLayout({ children }: { children: React.React
           >CA</div>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Call-Agent</div>
-            <div style={{ fontSize: 11, color: "var(--sidebar-muted)" }}>Bitrix24 calls</div>
+            <div style={{ fontSize: 11, color: "var(--sidebar-muted)" }}>AI-анализ коммуникаций</div>
           </div>
         </div>
 
