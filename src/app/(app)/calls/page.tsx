@@ -119,13 +119,22 @@ export default async function CallsListPage(props: {
                 <th>#</th><th>Дата</th><th>Менеджер</th><th>Клиент</th>
                 <th>Дл.</th><th>Настр.</th><th>Оценка</th>
                 <th style={{ minWidth: expanded ? 600 : 360 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Link
+                    href={toggleHref}
+                    title={expanded ? "Свернуть колонку" : "Раскрыть всю колонку (показывать полностью)"}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "2px 8px",
+                      background: expanded ? "color-mix(in oklch, var(--primary) 15%, transparent)" : "var(--muted)",
+                      color: expanded ? "var(--primary)" : "var(--foreground)",
+                      borderRadius: 4, textDecoration: "none",
+                      fontWeight: 600, fontSize: 12,
+                      border: `1px solid ${expanded ? "var(--primary)" : "var(--border)"}`,
+                    }}
+                  >
                     Итог
-                    <Link href={toggleHref} title={expanded ? "Свернуть колонку" : "Раскрыть всю колонку"}
-                      style={{ color: "var(--muted-foreground)", display: "inline-flex" }}>
-                      {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-                    </Link>
-                  </span>
+                    {expanded ? <Minimize2 size={13} strokeWidth={2.5} /> : <Maximize2 size={13} strokeWidth={2.5} />}
+                  </Link>
                 </th>
                 <th>Статус</th>
               </tr>
