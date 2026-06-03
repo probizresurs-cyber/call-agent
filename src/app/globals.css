@@ -178,10 +178,55 @@ html, body {
 .nav-link:hover { background: var(--sidebar-hover); }
 .nav-link.active { background: var(--sidebar-active); }
 
+/* ── Responsive ── */
+/* Tablet и меньше */
 @media (max-width: 900px) {
   .shell { grid-template-columns: 1fr; }
-  .shell-sidebar { position: relative; height: auto; flex-direction: row; flex-wrap: wrap; }
-  .shell-main { padding: 18px; }
+  .shell-sidebar {
+    position: sticky; top: 0;
+    height: auto;
+    padding: 10px 14px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+    z-index: 100;
+  }
+  .shell-sidebar > *:first-child { width: 100%; margin-bottom: 4px; }  /* лого занимает всю ширину */
+  .shell-sidebar nav { flex-direction: row; flex-wrap: wrap; gap: 4px !important; }
+  .shell-sidebar .nav-link { padding: 6px 10px; font-size: 13px; }
+  .shell-main { padding: 14px; max-width: 100%; }
+  .ds-h1 { font-size: 22px; }
+  .ds-h2 { font-size: 18px; }
+  .ds-h3 { font-size: 15px; }
+  .ds-card { padding: 12px; }
+  /* Все таблицы — горизонтальный скролл вместо обрезки */
+  .ds-table { font-size: 12px; }
+  .ds-table td, .ds-table th { padding: 6px 8px; }
+}
+
+/* Mobile */
+@media (max-width: 600px) {
+  .shell-main { padding: 10px; }
+  .ds-h1 { font-size: 19px; }
+  .ds-card { padding: 10px; }
+  /* KPI grid: на mobile 1-2 колонки */
+  .kpi-grid-5 { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-grid-3 { grid-template-columns: 1fr !important; }
+  /* Шапки страниц в столбик */
+  .page-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
+  /* Маленькие экраны = всегда горизонтальный scroll для таблиц */
+  .ds-table-wrap { overflow-x: auto; }
+}
+
+/* Очень узкие экраны (< 400) — крайний случай */
+@media (max-width: 400px) {
+  .shell-sidebar .nav-link span { display: none; }  /* остаются только иконки */
+}
+
+/* Большие TV-экраны / мониторы (для public dashboard ?tv=1) */
+@media (min-width: 1600px) {
+  .shell-main { max-width: 1500px; }
 }
 
 /* ----- Helpers ----- */

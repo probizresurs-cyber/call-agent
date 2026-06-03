@@ -334,7 +334,7 @@ export default async function DashboardPage(props: {
       <DashboardFilters managers={isManager ? undefined : managersList} />
 
       {/* ───── KPI ───── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 16 }}>
+      <div className="kpi-grid-5" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 16 }}>
         <Kpi icon={Phone} label="Всего звонков" value={String(totals.total)} />
         <Kpi icon={CheckCircle2} label="Проанализировано" value={String(totals.done)} color="var(--success)" />
         <Kpi icon={Clock} label="В обработке" value={String(totals.in_progress)} color="var(--primary)" />
@@ -342,7 +342,7 @@ export default async function DashboardPage(props: {
         <Kpi icon={AlertTriangle} label="Ошибки" value={String(totals.failed)} color="var(--destructive)" />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 }}>
+      <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 }}>
         <Kpi
           icon={Star}
           label="Средняя оценка менеджера"

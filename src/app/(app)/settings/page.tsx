@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2 } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -10,10 +10,12 @@ import { UsersCard } from "./UsersCard";
 import { FlagsCard } from "./FlagsCard";
 import { BudgetCard } from "./BudgetCard";
 import { BitrixActivitiesCard } from "./BitrixActivitiesCard";
+import { DashboardShareCard } from "./DashboardShareCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 import { getFlagsSummary } from "@/lib/flags";
 import { getTenantBudget, getMonthlyUsage } from "@/lib/budget";
 import { getLastFetchedAt } from "@/lib/bitrix-activities";
+import { getDashboardToken } from "@/lib/dashboard-share";
 import { getSessionUser, canManage } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -29,10 +31,11 @@ export default async function SettingsPage() {
   const isManager = canManage(me.role);  // owner или admin
 
   const flags = await getFlagsSummary(me.tenantId);
-  const [budget, usage, lastFetchedActivities] = await Promise.all([
+  const [budget, usage, lastFetchedActivities, dashboardToken] = await Promise.all([
     getTenantBudget(me.tenantId),
     getMonthlyUsage(me.tenantId),
     getLastFetchedAt(),
+    getDashboardToken(me.tenantId),
   ]);
 
   return (
@@ -56,6 +59,19 @@ export default async function SettingsPage() {
             <Coins size={16} strokeWidth={2} /> Бюджет на обработку
           </h2>
           <BudgetCard initial={{ budget, usage }} />
+        </div>
+      )}
+
+      {/* ───────── Публичная ссылка на дашборд ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Share2 size={16} strokeWidth={2} /> Поделиться дашбордом
+          </h2>
+          <DashboardShareCard
+            initialToken={dashboardToken}
+            baseUrl={process.env.NEXT_PUBLIC_BASE_URL || "https://marketradar24.ru"}
+          />
         </div>
       )}
 
