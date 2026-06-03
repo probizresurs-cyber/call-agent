@@ -152,9 +152,10 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
 
   return (
     <div style={{
-      display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
-      marginBottom: 20, padding: 12, background: "var(--card)",
+      display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap",
+      marginBottom: 20, padding: 10, background: "var(--card)",
       border: "1px solid var(--border)", borderRadius: 8,
+      overflowX: "auto",
     }}>
       {/* Тогл "Только с CRM" */}
       <button
@@ -165,14 +166,15 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
           ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
           : "Показываются все звонки, включая холодные без CRM-привязки"}
         style={{
-          display: "flex", alignItems: "center", gap: 8,
-          padding: "0 12px", height: 30, fontSize: 13,
-          borderRadius: 4,
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "0 10px", height: 30, fontSize: 13,
+          borderRadius: 4, flexShrink: 0,
           border: "1px solid var(--border)",
           background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
           color: withCrm ? "var(--primary)" : "var(--muted-foreground)",
           cursor: pending ? "wait" : "pointer",
           fontWeight: withCrm ? 600 : 400,
+          whiteSpace: "nowrap",
         }}
       >
         <span style={{
@@ -183,70 +185,71 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
         Только с CRM
       </button>
 
-      {/* Левая часть: пресеты */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", flex: "1 1 auto" }}>
-        {PRESETS.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            onClick={() => applyPreset(p)}
-            className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
-            style={{ height: 30, padding: "0 12px", fontSize: 13 }}
-            disabled={pending}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Пресеты диапазона */}
+      {PRESETS.map((p) => (
         <button
+          key={p.key}
           type="button"
-          onClick={reset}
-          className={active === "all" ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-ghost"}
-          style={{ height: 30, padding: "0 12px", fontSize: 13 }}
+          onClick={() => applyPreset(p)}
+          className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
+          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
           disabled={pending}
         >
-          За всё время
+          {p.label}
         </button>
-      </div>
+      ))}
+      <button
+        type="button"
+        onClick={reset}
+        className={active === "all" ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-ghost"}
+        style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+        disabled={pending}
+      >
+        За всё время
+      </button>
 
-      {/* Правая часть: фильтр менеджеров + ручные даты и стрелки */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-        {managers && managers.length > 0 && (
-          <select
-            value={managerId}
-            onChange={(e) => onManagerChange(e.target.value)}
-            disabled={pending}
-            title="Фильтр по менеджеру"
-            style={{
-              height: 30, padding: "0 8px", fontSize: 13,
-              background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
-              border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
-              color: managerId ? "var(--primary)" : "var(--foreground)",
-              borderRadius: 4, minWidth: 150,
-            }}
-          >
-            <option value="">Все менеджеры</option>
-            {managers.map((m) => (
-              <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
-            ))}
-          </select>
-        )}
-        <button type="button" className="ds-btn ds-btn-secondary"
-          onClick={() => shiftDay(-1)} title="На день назад"
-          style={{ width: 30, height: 30, padding: 0 }}>
-          <ChevronLeft size={14} />
-        </button>
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={(f, t) => navigate({ from: f, to: t })}
-          maxDate={isoDate(today())}
-        />
-        <button type="button" className="ds-btn ds-btn-secondary"
-          onClick={() => shiftDay(+1)} title="На день вперёд"
-          style={{ width: 30, height: 30, padding: 0 }}>
-          <ChevronRight size={14} />
-        </button>
-      </div>
+      {/* Разделитель */}
+      <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 2px", flexShrink: 0 }} />
+
+      {/* Фильтр менеджеров */}
+      {managers && managers.length > 0 && (
+        <select
+          value={managerId}
+          onChange={(e) => onManagerChange(e.target.value)}
+          disabled={pending}
+          title="Фильтр по менеджеру"
+          style={{
+            height: 30, padding: "0 8px", fontSize: 13, flexShrink: 0,
+            background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
+            border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
+            color: managerId ? "var(--primary)" : "var(--foreground)",
+            borderRadius: 4, minWidth: 150,
+          }}
+        >
+          <option value="">Все менеджеры</option>
+          {managers.map((m) => (
+            <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
+          ))}
+        </select>
+      )}
+
+      {/* Стрелки и date picker */}
+      <button type="button" className="ds-btn ds-btn-secondary"
+        onClick={() => shiftDay(-1)} title="На день назад"
+        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
+        <ChevronLeft size={14} />
+      </button>
+      <DateRangePicker
+        from={from}
+        to={to}
+        onChange={(f, t) => navigate({ from: f, to: t })}
+        maxDate={isoDate(today())}
+      />
+      <button type="button" className="ds-btn ds-btn-secondary"
+        onClick={() => shiftDay(+1)} title="На день вперёд"
+        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
+        <ChevronRight size={14} />
+      </button>
     </div>
   );
 }
