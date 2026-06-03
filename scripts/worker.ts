@@ -13,6 +13,7 @@ loadEnv(path.join(__dirname, ".."));
 import { getDbAsync } from "../src/lib/db-compat";
 import { processCall } from "../src/lib/pipeline";
 import { runAutoImport, isAutoImportEnabled } from "../src/lib/auto-importer";
+import { fetchEmailAndChats, getLastFetchedAt } from "../src/lib/bitrix-activities";
 
 // Сразу логируем доступность ключевых ENV — поможет диагностике
 console.log("[worker] env check:",
@@ -21,9 +22,10 @@ console.log("[worker] env check:",
   "ANTHROPIC_API_KEY=" + (process.env.ANTHROPIC_API_KEY ? "set" : "MISSING")
 );
 
-const POLL_INTERVAL_MS = 5_000;        // 5 сек — обработка очереди
-const AUTO_IMPORT_INTERVAL_MS = 300_000; // 5 минут — проверка новых звонков
-const AUTO_RETRY_INTERVAL_MS = 1_800_000; // 30 минут — переанализ failed с retry-able ошибками
+const POLL_INTERVAL_MS = 5_000;            // 5 сек — обработка очереди
+const AUTO_IMPORT_INTERVAL_MS = 300_000;    // 5 минут — проверка новых звонков
+const AUTO_RETRY_INTERVAL_MS = 1_800_000;    // 30 минут — переанализ failed
+const ACTIVITIES_FETCH_INTERVAL_MS = 600_000; // 10 минут — забор email + Open Lines чатов
 const MAX_ATTEMPTS = 3;                   // для pending/failed
 const MAX_NO_RECORDING_ATTEMPTS = 6;      // для no_recording — попыток в течение 6 часов
 const NO_RECORDING_RETRY_HOURS = 1;       // повтор раз в час
@@ -193,5 +195,26 @@ console.log("[worker] starting:",
   while (true) {
     try { await autoRetryFailedTick(); } catch (e) { console.error("[auto-retry] tick error:", e); }
     await new Promise((r) => setTimeout(r, AUTO_RETRY_INTERVAL_MS));
+  }
+})();
+
+// ─────────────── Забор email + Open Lines чатов каждые 10 минут ───────────────
+(async function activitiesFetchLoop() {
+  // Первый запуск через 1 минуту после старта
+  await new Promise((r) => setTimeout(r, 60_000));
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    if (process.env.BITRIX_WEBHOOK_URL?.trim()) {
+      try {
+        const since = (await getLastFetchedAt()) || undefined;
+        const r = await fetchEmailAndChats({ tenantId: 1, since, limit: 100 });
+        if (r.inserted > 0) {
+          console.log(`[activities-fetch] +${r.inserted} email/chats (total=${r.totalFetched}, skipped=${r.skipped}, errors=${r.errors})`);
+        }
+      } catch (e) {
+        console.warn("[activities-fetch] tick error:", (e as Error).message);
+      }
+    }
+    await new Promise((r) => setTimeout(r, ACTIVITIES_FETCH_INTERVAL_MS));
   }
 })();

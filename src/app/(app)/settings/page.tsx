@@ -9,9 +9,11 @@ import { ReanalyzeCard } from "./ReanalyzeCard";
 import { UsersCard } from "./UsersCard";
 import { FlagsCard } from "./FlagsCard";
 import { BudgetCard } from "./BudgetCard";
+import { BitrixActivitiesCard } from "./BitrixActivitiesCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 import { getFlagsSummary } from "@/lib/flags";
 import { getTenantBudget, getMonthlyUsage } from "@/lib/budget";
+import { getLastFetchedAt } from "@/lib/bitrix-activities";
 import { getSessionUser, canManage } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +29,10 @@ export default async function SettingsPage() {
   const isManager = canManage(me.role);  // owner или admin
 
   const flags = await getFlagsSummary(me.tenantId);
-  const [budget, usage] = await Promise.all([
+  const [budget, usage, lastFetchedActivities] = await Promise.all([
     getTenantBudget(me.tenantId),
     getMonthlyUsage(me.tenantId),
+    getLastFetchedAt(),
   ]);
 
   return (
@@ -92,6 +95,16 @@ export default async function SettingsPage() {
         </h2>
         <AutoImportCard initial={{ enabled: await isAutoImportEnabled(), last: await getLastAutoImport() }} />
       </div>
+
+      {/* ───────── Email + Open Lines чаты из Bitrix ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <RefreshCw size={16} strokeWidth={2} /> Email и чаты из Bitrix
+          </h2>
+          <BitrixActivitiesCard initialLastFetched={lastFetchedActivities} />
+        </div>
+      )}
 
       {/* ───────── Импорт исторических звонков ───────── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>

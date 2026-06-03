@@ -49,6 +49,10 @@ export class BitrixError extends Error {
   }
 }
 
+export async function callBitrixApi<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  return call<T>(method, params);
+}
+
 async function call<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   const url = baseUrl() + method + ".json";
   const res = await fetch(url, {
