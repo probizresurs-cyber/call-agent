@@ -51,6 +51,7 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("analyses", "client_name", "TEXT");
   ensureColumn("analyses", "checklist_scores_json", "TEXT");
   ensureColumn("analyses", "coaching_tips_json", "TEXT");  // §5.2 MASTER-TZ — советы менеджеру
+  ensureColumn("analyses", "call_stage", "TEXT");           // cold/qualification/deal_followup/informational/no_contact
   ensureColumn("calls", "deal_context_json", "TEXT");
 
   // ─────── Фаза 2 MASTER-TZ: омниканальность ───────

@@ -202,12 +202,12 @@ function LooseThreadRow({ t }: { t: LooseThread }) {
 
   return (
     <li style={{ display: "flex", gap: 10, padding: 8, background: "var(--background)", borderRadius: 4 }}>
-      <Link href={`/calls/${t.callId}`} style={{ color: "var(--primary)", flexShrink: 0, fontWeight: 600, fontSize: 13 }}>
+      <Link href={`/calls/${t.callId}`} style={{ color: "var(--primary)", flexShrink: 0, fontWeight: 600, fontSize: 14 }}>
         #{t.callId}
       </Link>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: kindColor, marginBottom: 2 }}>{kindLabel}</div>
-        <div className="ds-body-sm" style={{ color: "var(--foreground)" }}>{t.description}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: kindColor, marginBottom: 4 }}>{kindLabel}</div>
+        <div style={{ color: "var(--foreground)", fontSize: 14, lineHeight: 1.5 }}>{t.description}</div>
       </div>
     </li>
   );
@@ -231,7 +231,7 @@ function TimelineItem({ it, last }: { it: InteractionTimelineItem; last: boolean
 
       {/* Контент */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--muted-foreground)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--muted-foreground)" }}>
           <span>{formatDateTime(it.started_at)}</span>
           <span>·</span>
           <span>{typeLabel(it.interaction_type)}</span>
@@ -246,14 +246,14 @@ function TimelineItem({ it, last }: { it: InteractionTimelineItem; last: boolean
         </div>
 
         <div style={{ marginTop: 4, display: "flex", alignItems: "flex-start", gap: 8 }}>
-          <Link href={`/calls/${it.id}`} style={{ color: "var(--primary)", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+          <Link href={`/calls/${it.id}`} style={{ color: "var(--primary)", fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
             #{it.id}
           </Link>
-          <div style={{ flex: 1, fontSize: 13 }}>
+          <div style={{ flex: 1, fontSize: 14, lineHeight: 1.5 }}>
             {it.summary || <span style={{ color: "var(--muted-foreground)", fontStyle: "italic" }}>{it.status === "done" ? "Анализ без summary" : it.status}</span>}
             {it.next_action && (
-              <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, marginTop: 2 }}>
-                <b>След. шаг:</b> {it.next_action}
+              <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginTop: 4, lineHeight: 1.5 }}>
+                <b style={{ color: "var(--primary)" }}>След. шаг:</b> {it.next_action}
               </div>
             )}
           </div>

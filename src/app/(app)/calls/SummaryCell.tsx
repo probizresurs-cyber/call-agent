@@ -23,23 +23,37 @@ export function SummaryCell({ summary, nextAction }: Props) {
       onClick={() => setExpanded(!expanded)}
       title={expanded ? "Свернуть" : "Кликните чтобы раскрыть полностью"}
       style={{
-        display: "-webkit-box",
-        WebkitLineClamp: expanded ? "unset" : 3,
-        WebkitBoxOrient: "vertical",
-        overflow: expanded ? "visible" : "hidden",
-        lineHeight: 1.4,
-        fontSize: 13,
-        wordBreak: "break-word",
         cursor: "pointer",
         userSelect: expanded ? "text" : "none",
-      } as React.CSSProperties}
+      }}
     >
-      {summary && <span>{summary}</span>}
+      {summary && (
+        <div style={{
+          display: "-webkit-box",
+          WebkitLineClamp: expanded ? "unset" : 3,
+          WebkitBoxOrient: "vertical",
+          overflow: expanded ? "visible" : "hidden",
+          lineHeight: 1.4,
+          fontSize: 13,
+          wordBreak: "break-word",
+          marginBottom: nextAction ? 6 : 0,
+        } as React.CSSProperties}>
+          {summary}
+        </div>
+      )}
       {nextAction && (
-        <span style={{ color: "var(--muted-foreground)" }}>
-          {summary ? " · " : ""}
-          <b>След. шаг:</b> {nextAction}
-        </span>
+        <div style={{
+          display: "-webkit-box",
+          WebkitLineClamp: expanded ? "unset" : 2,
+          WebkitBoxOrient: "vertical",
+          overflow: expanded ? "visible" : "hidden",
+          fontSize: 12,
+          lineHeight: 1.4,
+          color: "var(--muted-foreground)",
+          wordBreak: "break-word",
+        } as React.CSSProperties}>
+          <b style={{ color: "var(--primary)" }}>След. шаг:</b> {nextAction}
+        </div>
       )}
     </div>
   );

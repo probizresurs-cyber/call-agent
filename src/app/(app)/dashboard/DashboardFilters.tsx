@@ -151,12 +151,13 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
   const active = activePreset();
 
   return (
-    <>
-      {/* Верхняя мини-строка: тогл "Только с CRM" — отдельно справа */}
-      <div style={{
-        display: "flex", justifyContent: "flex-end",
-        marginBottom: 8,
-      }}>
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 8,
+      marginBottom: 20, padding: 10, background: "var(--card)",
+      border: "1px solid var(--border)", borderRadius: 8,
+    }}>
+      {/* Верхний ряд: тогл "Только с CRM" — заметно слева */}
+      <div style={{ display: "flex", alignItems: "center" }}>
         <button
           type="button"
           onClick={toggleCrm}
@@ -165,19 +166,19 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
             ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
             : "Показываются все звонки, включая холодные без CRM-привязки"}
           style={{
-            display: "inline-flex", alignItems: "center", gap: 6,
-            padding: "0 12px", height: 28, fontSize: 12,
-            borderRadius: 14,
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "0 14px", height: 32, fontSize: 13,
+            borderRadius: 4,
             border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
             background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
-            color: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+            color: withCrm ? "var(--primary)" : "var(--foreground)",
             cursor: pending ? "wait" : "pointer",
-            fontWeight: withCrm ? 600 : 400,
+            fontWeight: 600,
             whiteSpace: "nowrap",
           }}
         >
           <span style={{
-            width: 7, height: 7, borderRadius: "50%",
+            width: 8, height: 8, borderRadius: "50%",
             background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
             display: "inline-block",
           }} />
@@ -185,11 +186,8 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
         </button>
       </div>
 
-    <div style={{
-      display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap",
-      marginBottom: 20, padding: 10, background: "var(--card)",
-      border: "1px solid var(--border)", borderRadius: 8,
-    }}>
+      {/* Нижний ряд: пресеты + менеджеры + date picker */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
       {/* Пресеты диапазона */}
       {PRESETS.map((p) => (
         <button
@@ -255,7 +253,7 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
         style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
         <ChevronRight size={14} />
       </button>
+      </div>
     </div>
-    </>
   );
 }

@@ -153,8 +153,8 @@ export async function processCall(callId: number): Promise<void> {
   await db.prepare(
     `INSERT INTO analyses (call_id, summary, sentiment, manager_score, script_compliance,
        next_action, objections_json, topics_json, raw_json, model,
-       client_name, checklist_scores_json, detected_product, coaching_tips_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       client_name, checklist_scores_json, detected_product, coaching_tips_json, call_stage)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(call_id) DO UPDATE SET
        summary=excluded.summary, sentiment=excluded.sentiment,
        manager_score=excluded.manager_score, script_compliance=excluded.script_compliance,
@@ -163,6 +163,7 @@ export async function processCall(callId: number): Promise<void> {
        client_name=excluded.client_name, checklist_scores_json=excluded.checklist_scores_json,
        detected_product=excluded.detected_product,
        coaching_tips_json=excluded.coaching_tips_json,
+       call_stage=excluded.call_stage,
        created_at=datetime('now')`
   ).run(
     callId,
@@ -178,7 +179,8 @@ export async function processCall(callId: number): Promise<void> {
     analysis.client_name ?? null,
     JSON.stringify(analysis.checklist_scores ?? []),
     product ?? null,
-    JSON.stringify(analysis.coaching_tips ?? [])
+    JSON.stringify(analysis.coaching_tips ?? []),
+    analysis.call_stage ?? "cold"
   );
 
   // 6.5. §5.3 MASTER-TZ: создаём reminder из next_action если есть распознаваемый срок.

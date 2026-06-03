@@ -179,6 +179,26 @@ export function ScriptsManager() {
           }}>
           <FileText size={14} /> Шаблон МК (металлоконструкции)
         </button>
+        <button type="button" className="ds-btn ds-btn-secondary"
+          onClick={async () => {
+            if (!confirm("Создать шаблон «Холодный звонок / выявление потребности»? 11 пунктов чек-листа специально для холодных и квалификационных звонков — без оценки закрытия, фокус на выявлении и следующем шаге.")) return;
+            const r = await fetch("/call-agent/api/scripts/template?key=cold", { method: "POST" });
+            const data = await r.json();
+            if (data.ok) { void refresh(); startTransition(() => router.refresh()); }
+            else alert("Ошибка: " + data.error);
+          }}>
+          <FileText size={14} /> Шаблон «Холодный звонок»
+        </button>
+        <button type="button" className="ds-btn ds-btn-secondary"
+          onClick={async () => {
+            if (!confirm("Создать шаблон «Звонок по сделке»? 9 пунктов чек-листа: открытие с учётом истории сделки, работа с возражениями, попытка закрытия, договорённость о следующем шаге.")) return;
+            const r = await fetch("/call-agent/api/scripts/template?key=deal", { method: "POST" });
+            const data = await r.json();
+            if (data.ok) { void refresh(); startTransition(() => router.refresh()); }
+            else alert("Ошибка: " + data.error);
+          }}>
+          <FileText size={14} /> Шаблон «По сделке»
+        </button>
       </div>
     </>
   );
