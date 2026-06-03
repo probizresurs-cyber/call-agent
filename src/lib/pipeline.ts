@@ -113,7 +113,10 @@ export async function processCall(callId: number): Promise<void> {
   }
 
   // 4. Определяем продукт + выбираем подходящий скрипт
-  const { product, script } = await pickScriptForCall(t.text, row.direction);
+  const { product, script } = await pickScriptForCall(t.text, row.direction, {
+    tenantId: row.tenant_id ?? 1,
+    callId,
+  });
   if (product) {
     await db.prepare(`UPDATE calls SET detected_product = ? WHERE id = ?`).run(product, callId);
   }
@@ -265,7 +268,8 @@ async function loadActiveScripts(): Promise<ResolvedScript[]> {
  */
 async function pickScriptForCall(
   transcript: string,
-  callDirection: "in" | "out" | null
+  callDirection: "in" | "out" | null,
+  opts: { tenantId?: number; callId?: number } = {}
 ): Promise<{ product: string | null; script: ResolvedScript | null }> {
   const scripts = await loadActiveScripts();
   if (scripts.length === 0) return { product: null, script: null };
@@ -277,7 +281,7 @@ async function pickScriptForCall(
 
   let product: string | null = null;
   if (candidates.length > 1) {
-    try { product = await detectProduct(transcript, candidates); }
+    try { product = await detectProduct(transcript, candidates, opts); }
     catch (e) { console.warn("[pipeline] detectProduct failed:", (e as Error).message); }
   } else if (candidates.length === 1) {
     product = candidates[0].code;

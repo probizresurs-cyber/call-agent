@@ -17,7 +17,7 @@
  */
 import { getDbAsync } from "./db-compat";
 
-export type UsageKind = "anthropic_tokens" | "openai_seconds";
+export type UsageKind = "anthropic_tokens" | "openai_seconds" | "openai_chat_tokens";
 export type BudgetAction = "stop" | "notify_only";
 
 export class BudgetExceededError extends Error {
@@ -30,12 +30,14 @@ export class BudgetExceededError extends Error {
 export interface TenantBudget {
   maxAnthropicTokens: number | null;
   maxOpenaiSeconds: number | null;
+  maxOpenaiChatTokens: number | null;
   action: BudgetAction;
 }
 
 export interface UsageSummary {
   anthropicTokens: number;
   openaiSeconds: number;
+  openaiChatTokens: number;
   periodStart: string;  // YYYY-MM-01
 }
 
@@ -85,8 +87,9 @@ export async function getTenantBudget(tenantId: number): Promise<TenantBudget> {
     .get<{ settings: unknown }>(tenantId);
   const s = parseSettings(row?.settings);
   return {
-    maxAnthropicTokens: numOrNull(s?.max_anthropic_tokens_per_month),
-    maxOpenaiSeconds:   numOrNull(s?.max_openai_seconds_per_month),
+    maxAnthropicTokens:  numOrNull(s?.max_anthropic_tokens_per_month),
+    maxOpenaiSeconds:    numOrNull(s?.max_openai_seconds_per_month),
+    maxOpenaiChatTokens: numOrNull(s?.max_openai_chat_tokens_per_month),
     action: (s?.budget_action === "notify_only" ? "notify_only" : "stop") as BudgetAction,
   };
 }
@@ -99,9 +102,10 @@ export async function setTenantBudget(tenantId: number, b: Partial<TenantBudget>
     .get<{ settings: unknown }>(tenantId);
   const current = parseSettings(row?.settings) ?? {};
   const next: Record<string, unknown> = { ...current };
-  if (b.maxAnthropicTokens !== undefined) next.max_anthropic_tokens_per_month = b.maxAnthropicTokens;
-  if (b.maxOpenaiSeconds   !== undefined) next.max_openai_seconds_per_month   = b.maxOpenaiSeconds;
-  if (b.action             !== undefined) next.budget_action                   = b.action;
+  if (b.maxAnthropicTokens  !== undefined) next.max_anthropic_tokens_per_month   = b.maxAnthropicTokens;
+  if (b.maxOpenaiSeconds    !== undefined) next.max_openai_seconds_per_month     = b.maxOpenaiSeconds;
+  if (b.maxOpenaiChatTokens !== undefined) next.max_openai_chat_tokens_per_month = b.maxOpenaiChatTokens;
+  if (b.action              !== undefined) next.budget_action                      = b.action;
   await db
     .prepare(`UPDATE tenants SET settings = ? WHERE id = ?`)
     .run(JSON.stringify(next), tenantId);
@@ -128,8 +132,9 @@ export async function getMonthlyUsage(tenantId: number): Promise<UsageSummary> {
   for (const r of rows) map[r.kind] = Number(r.total ?? 0);
 
   return {
-    anthropicTokens: map["anthropic_tokens"] ?? 0,
-    openaiSeconds:   map["openai_seconds"] ?? 0,
+    anthropicTokens:  map["anthropic_tokens"] ?? 0,
+    openaiSeconds:    map["openai_seconds"] ?? 0,
+    openaiChatTokens: map["openai_chat_tokens"] ?? 0,
     periodStart,
   };
 }
@@ -142,13 +147,15 @@ export async function getMonthlyUsage(tenantId: number): Promise<UsageSummary> {
 export async function checkBudget(tenantId: number, kind: UsageKind): Promise<{ allowed: boolean; reason?: string }> {
   const [budget, usage] = await Promise.all([getTenantBudget(tenantId), getMonthlyUsage(tenantId)]);
   const limit =
-    kind === "anthropic_tokens" ? budget.maxAnthropicTokens :
-    kind === "openai_seconds"   ? budget.maxOpenaiSeconds   : null;
-  if (limit == null || limit <= 0) return { allowed: true }; // лимит не задан = без ограничения
+    kind === "anthropic_tokens"   ? budget.maxAnthropicTokens :
+    kind === "openai_seconds"     ? budget.maxOpenaiSeconds :
+    kind === "openai_chat_tokens" ? budget.maxOpenaiChatTokens : null;
+  if (limit == null || limit <= 0) return { allowed: true };
 
   const used =
-    kind === "anthropic_tokens" ? usage.anthropicTokens :
-    kind === "openai_seconds"   ? usage.openaiSeconds   : 0;
+    kind === "anthropic_tokens"   ? usage.anthropicTokens :
+    kind === "openai_seconds"     ? usage.openaiSeconds :
+    kind === "openai_chat_tokens" ? usage.openaiChatTokens : 0;
 
   if (used >= limit) {
     if (budget.action === "stop") {

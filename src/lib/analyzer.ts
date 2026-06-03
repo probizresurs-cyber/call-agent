@@ -1,9 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { ChecklistItem, ChecklistItemScore, DialogueTurn } from "./db";
 import type { DealContext } from "./bitrix";
-import { checkBudget, recordUsage } from "./budget";
-
-const CLAUDE_MODEL = "claude-sonnet-4-6";
+import { callWithTool } from "./ai-provider";
 
 export interface CallAnalysis {
   client_name: string | null;
@@ -51,11 +48,8 @@ const SYSTEM_PROMPT = `Ты — эксперт по B2B-продажам и ко
 
 Используй инструмент save_analysis для возврата результата.`;
 
-// JSON Schema для tool_use — Anthropic SDK сам валидирует структуру
-const SAVE_ANALYSIS_TOOL: Anthropic.Tool = {
-  name: "save_analysis",
-  description: "Сохранить структурированный анализ звонка",
-  input_schema: {
+// JSON Schema для tool_use — одинаковый для OpenAI и Anthropic через ai-provider.callWithTool
+const SAVE_ANALYSIS_SCHEMA = {
     type: "object",
     properties: {
       client_name: {
@@ -153,7 +147,6 @@ const SAVE_ANALYSIS_TOOL: Anthropic.Tool = {
       "checklist_compliance", "checklist_scores",
       "next_action", "topics", "dialogue", "coaching_tips", "call_stage",
     ],
-  } as Anthropic.Tool["input_schema"],
 };
 
 function userPrompt(args: {
@@ -207,79 +200,28 @@ ${transcript}
 (приветствие, вопросы о продукте, цене, сроках — это менеджер; вопросы о цене, гарантии — это клиент).`;
 }
 
-/**
- * Retry wrapper для 429 (rate_limit) и 529 (overloaded).
- * Anthropic возвращает эти коды когда модель временно перегружена/лимитирована.
- * Backoff: 3s → 9s → 27s. После 3 неудачных попыток — пробрасываем ошибку наверх.
- */
-async function withRetry<T>(label: string, fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (e) {
-      lastErr = e;
-      const err = e as { status?: number; message?: string };
-      const status = err.status ?? 0;
-      const msg = err.message ?? "";
-      const isRetryable =
-        status === 429 || status === 529 ||
-        /overloaded/i.test(msg) || /rate.?limit/i.test(msg);
-      if (!isRetryable || attempt === maxAttempts) throw e;
-      const delayMs = 3000 * Math.pow(3, attempt - 1); // 3s, 9s, 27s
-      console.warn(`[${label}] attempt ${attempt}/${maxAttempts} failed (${status} ${msg.slice(0, 80)}), retry in ${delayMs}ms`);
-      await new Promise((r) => setTimeout(r, delayMs));
-    }
-  }
-  throw lastErr;
-}
-
 export async function analyzeCall(args: {
   transcript: string;
   checklist: ChecklistItem[] | null;
   context: DealContext | null;
-  tenantId?: number;  // §4.4 для бюджет-гарда; если не передан — без учёта расхода
-  callId?: number;    // для usage_events.call_id (опционально, аналитика)
+  tenantId?: number;  // §4.4 для бюджет-гарда
+  callId?: number;    // для usage_events.call_id
   interactionType?: "call" | "chat" | "email" | "meeting";  // §2 MASTER-TZ
 }): Promise<{ analysis: CallAnalysis; raw: string; model: string }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY не задан");
-
-  // §4.4 Бюджет-гард: ДО запроса проверяем не исчерпан ли лимит токенов на тенант.
-  if (args.tenantId) {
-    await checkBudget(args.tenantId, "anthropic_tokens");  // бросает BudgetExceededError если 'stop'
-  }
-
-  const client = new Anthropic({
-    apiKey,
-    baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
+  // Провайдер AI выбирается через ENV AI_PROVIDER (openai | anthropic), default = openai.
+  // Бюджет-гард и retry внутри callWithTool — единая логика для обоих провайдеров.
+  const out = await callWithTool<CallAnalysis>({
+    toolName: "save_analysis",
+    schema: SAVE_ANALYSIS_SCHEMA,
+    system: SYSTEM_PROMPT,
+    user: userPrompt({ ...args, interactionType: args.interactionType }),
+    modelTier: "premium",
+    maxTokens: 4000,
+    tenantId: args.tenantId,
+    callId: args.callId,
   });
 
-  const msg = await withRetry("analyzer", () => client.messages.create({
-    model: CLAUDE_MODEL,
-    max_tokens: 4000,
-    system: SYSTEM_PROMPT,
-    tools: [SAVE_ANALYSIS_TOOL],
-    tool_choice: { type: "tool", name: "save_analysis" },
-    messages: [{ role: "user", content: userPrompt({ ...args, interactionType: args.interactionType }) }],
-  }));
-
-  // §4.4 Учёт расхода: суммируем input + output токены. Запись идёт через try/catch — не валит звонок.
-  if (args.tenantId) {
-    const total = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0);
-    await recordUsage(args.tenantId, "anthropic_tokens", total, args.callId);
-  }
-
-  // Извлекаем tool_use блок — он содержит уже распарсенный JSON
-  const toolUse = msg.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === "tool_use" && b.name === "save_analysis"
-  );
-
-  if (!toolUse) {
-    throw new Error("Claude не вызвал save_analysis tool — модель отказала или вернула только текст");
-  }
-
-  const parsed = toolUse.input as CallAnalysis;
+  const parsed = out.result;
 
   // Нормализация — на случай если модель не дала какое-то опциональное поле
   parsed.client_name = parsed.client_name ?? null;
@@ -292,7 +234,7 @@ export async function analyzeCall(args: {
 
   return {
     analysis: parsed,
-    raw: JSON.stringify(parsed),  // для логов / debugging
-    model: CLAUDE_MODEL,
+    raw: out.rawResponseJson,
+    model: `${out.provider}:${out.model}`,
   };
 }
