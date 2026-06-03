@@ -151,40 +151,45 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
   const active = activePreset();
 
   return (
+    <>
+      {/* Верхняя мини-строка: тогл "Только с CRM" — отдельно справа */}
+      <div style={{
+        display: "flex", justifyContent: "flex-end",
+        marginBottom: 8,
+      }}>
+        <button
+          type="button"
+          onClick={toggleCrm}
+          disabled={pending}
+          title={withCrm
+            ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
+            : "Показываются все звонки, включая холодные без CRM-привязки"}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            padding: "0 12px", height: 28, fontSize: 12,
+            borderRadius: 14,
+            border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
+            background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
+            color: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+            cursor: pending ? "wait" : "pointer",
+            fontWeight: withCrm ? 600 : 400,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span style={{
+            width: 7, height: 7, borderRadius: "50%",
+            background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+            display: "inline-block",
+          }} />
+          Только с CRM
+        </button>
+      </div>
+
     <div style={{
-      display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap",
+      display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap",
       marginBottom: 20, padding: 10, background: "var(--card)",
       border: "1px solid var(--border)", borderRadius: 8,
-      overflowX: "auto",
     }}>
-      {/* Тогл "Только с CRM" */}
-      <button
-        type="button"
-        onClick={toggleCrm}
-        disabled={pending}
-        title={withCrm
-          ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
-          : "Показываются все звонки, включая холодные без CRM-привязки"}
-        style={{
-          display: "flex", alignItems: "center", gap: 6,
-          padding: "0 10px", height: 30, fontSize: 13,
-          borderRadius: 4, flexShrink: 0,
-          border: "1px solid var(--border)",
-          background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
-          color: withCrm ? "var(--primary)" : "var(--muted-foreground)",
-          cursor: pending ? "wait" : "pointer",
-          fontWeight: withCrm ? 600 : 400,
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
-          display: "inline-block",
-        }} />
-        Только с CRM
-      </button>
-
       {/* Пресеты диапазона */}
       {PRESETS.map((p) => (
         <button
@@ -251,5 +256,6 @@ export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
         <ChevronRight size={14} />
       </button>
     </div>
+    </>
   );
 }
