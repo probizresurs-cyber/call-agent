@@ -16,7 +16,12 @@ function yesterdayIso(): string {
   return isoDate(d);
 }
 
-export function CallsFilters() {
+interface ManagerOption {
+  id: string;
+  name: string;
+}
+
+export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   const router = useRouter();
   const search = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -27,6 +32,7 @@ export function CallsFilters() {
   const sentimentParam = search.get("sentiment") || "";
   const statusParam = search.get("status") || "";
   const typeParam = search.get("type") || "";
+  const managerParam = search.get("manager_id") || "";
 
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
@@ -34,6 +40,7 @@ export function CallsFilters() {
   const [sentiment, setSentiment] = useState(sentimentParam);
   const [status, setStatus] = useState(statusParam);
   const [type, setType] = useState(typeParam);
+  const [managerId, setManagerId] = useState(managerParam);
 
   function navigate(next: Record<string, string>) {
     const params = new URLSearchParams();
@@ -44,36 +51,35 @@ export function CallsFilters() {
   }
 
   function apply() {
-    navigate({ from, to, q, sentiment, status, type });
+    navigate({ from, to, q, sentiment, status, type, manager_id: managerId });
   }
   function reset() {
-    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType("");
+    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType(""); setManagerId("");
     startTransition(() => router.push("/calls"));
   }
   function presetToday() {
     const t = todayIso();
     setFrom(t); setTo(t);
-    navigate({ from: t, to: t, q, sentiment, status });
+    navigate({ from: t, to: t, q, sentiment, status, type, manager_id: managerId });
   }
   function presetYesterday() {
     const y = yesterdayIso();
     setFrom(y); setTo(y);
-    navigate({ from: y, to: y, q, sentiment, status });
+    navigate({ from: y, to: y, q, sentiment, status, type, manager_id: managerId });
   }
   function presetLast7() {
     const d = new Date(); d.setDate(d.getDate() - 6);
     const f = isoDate(d), t = todayIso();
     setFrom(f); setTo(t);
-    navigate({ from: f, to: t, q, sentiment, status });
+    navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId });
   }
   function shiftDay(delta: number) {
-    // Если from/to не задан — отталкиваемся от сегодня
     const base = from || todayIso();
     const d = new Date(base);
     d.setDate(d.getDate() + delta);
     const ds = isoDate(d);
     setFrom(ds); setTo(ds);
-    navigate({ from: ds, to: ds, q, sentiment, status });
+    navigate({ from: ds, to: ds, q, sentiment, status, type, manager_id: managerId });
   }
 
   return (
@@ -87,7 +93,7 @@ export function CallsFilters() {
         <DateRangePicker
           from={from}
           to={to}
-          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type }); }}
+          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId }); }}
           maxDate={todayIso()}
         />
         <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(+1)} title="Вперёд день"
@@ -117,26 +123,45 @@ export function CallsFilters() {
           onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
           style={{ flex: "1 1 280px", minWidth: 200 }}
         />
-        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value }); }} style={{ width: 150 }}>
+        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value, manager_id: managerId }); }} style={{ width: 150 }}>
           <option value="">Все типы</option>
           <option value="call">Звонки</option>
           <option value="chat">Чаты</option>
           <option value="email">Email</option>
           <option value="meeting">Встречи</option>
         </select>
-        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type, manager_id: managerId }); }} style={{ width: 170 }}>
           <option value="">Все настроения</option>
           <option value="positive">Позитив</option>
           <option value="neutral">Нейтрально</option>
           <option value="negative">Негатив</option>
         </select>
-        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type, manager_id: managerId }); }} style={{ width: 170 }}>
           <option value="">Все статусы</option>
           <option value="done">Готово</option>
           <option value="pending">В очереди</option>
           <option value="no_recording">Без записи</option>
           <option value="failed">Ошибка</option>
         </select>
+        {managers && managers.length > 0 && (
+          <select
+            className="ds-input"
+            value={managerId}
+            onChange={(e) => { setManagerId(e.target.value); navigate({ from, to, q, sentiment, status, type, manager_id: e.target.value }); }}
+            title="Фильтр по менеджеру"
+            style={{
+              width: 180,
+              background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : undefined,
+              borderColor: managerId ? "var(--primary)" : undefined,
+              color: managerId ? "var(--primary)" : undefined,
+            }}
+          >
+            <option value="">Все менеджеры</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
+            ))}
+          </select>
+        )}
         <button type="button" className="ds-btn ds-btn-primary" onClick={apply} disabled={pending}>
           Применить
         </button>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, Phone, MessageSquare, Mail, Video, Maximize2, Minimize2 } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Phone, MessageSquare, Mail, Video } from "lucide-react";
+import { SummaryCell } from "./SummaryCell";
 import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
@@ -36,24 +37,12 @@ function TypeIcon({ type }: { type: string | null }) {
 }
 
 export default async function CallsListPage(props: {
-  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string; expand?: string }>;
+  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string; manager_id?: string }>;
 }) {
   const me = await getSessionUser();
   if (!me) redirect("/login");
   const isManager = me.role === "manager";
   const sp = await props.searchParams;
-  const expanded = sp.expand === "summary";
-
-  // Toggle ?expand=summary в URL без сброса остальных фильтров
-  const toggleQs = new URLSearchParams();
-  if (sp.from) toggleQs.set("from", sp.from);
-  if (sp.to) toggleQs.set("to", sp.to);
-  if (sp.q) toggleQs.set("q", sp.q);
-  if (sp.sentiment) toggleQs.set("sentiment", sp.sentiment);
-  if (sp.status) toggleQs.set("status", sp.status);
-  if (sp.type) toggleQs.set("type", sp.type);
-  if (!expanded) toggleQs.set("expand", "summary");
-  const toggleHref = "/calls" + (toggleQs.toString() ? `?${toggleQs}` : "");
 
   // RLS: tenant + (для manager) фильтр по своему bitrix_manager_id
   const rls = rlsFor(me, { table: "c" });
@@ -63,6 +52,8 @@ export default async function CallsListPage(props: {
   if (sp.status) { where.push("c.status = ?"); params.push(sp.status); }
   if (sp.type)   { where.push("c.interaction_type = ?"); params.push(sp.type); }
   if (sp.sentiment) { where.push("a.sentiment = ?"); params.push(sp.sentiment); }
+  // Фильтр по менеджеру — только для не-manager ролей (у manager RLS уже жёсткая)
+  if (!isManager && sp.manager_id) { where.push("c.manager_id = ?"); params.push(sp.manager_id); }
   if (sp.q) {
     where.push(`c.id IN (SELECT call_id FROM transcripts WHERE text LIKE ?)`);
     params.push(`%${sp.q}%`);
@@ -75,6 +66,21 @@ export default async function CallsListPage(props: {
     where.push("(c.manager_id IS NULL OR c.manager_id NOT IN (SELECT id FROM managers WHERE is_active = 0))");
   }
   const whereSql = `WHERE ${where.join(" AND ")}`;
+
+  // Список менеджеров для фильтра (только для head/admin/owner)
+  const managersList = isManager ? [] : await getDbAsync()
+    .prepare(
+      `SELECT c.manager_id AS id,
+              COALESCE(MAX(c.manager_name), MAX(m.name), '') AS name
+       FROM calls c
+       LEFT JOIN managers m ON m.id = c.manager_id
+       WHERE c.tenant_id = ?
+         AND c.manager_id IS NOT NULL AND c.manager_id != ''
+         AND (m.is_active IS NULL OR m.is_active = 1)
+       GROUP BY c.manager_id
+       ORDER BY name`
+    )
+    .all<{ id: string; name: string }>(me.tenantId);
 
   const rows = await getDbAsync()
     .prepare(
@@ -101,7 +107,7 @@ export default async function CallsListPage(props: {
         </div>
       </div>
 
-      <CallsFilters />
+      <CallsFilters managers={isManager ? undefined : managersList} />
 
       {rows.length === 0 ? (
         <div className="ds-card" style={{ textAlign: "center", padding: 40 }}>
@@ -118,24 +124,7 @@ export default async function CallsListPage(props: {
                 <th style={{ width: 28 }}></th>
                 <th>#</th><th>Дата</th><th>Менеджер</th><th>Клиент</th>
                 <th>Дл.</th><th>Настр.</th><th>Оценка</th>
-                <th style={{ minWidth: expanded ? 600 : 360 }}>
-                  <Link
-                    href={toggleHref}
-                    title={expanded ? "Свернуть колонку" : "Раскрыть всю колонку (показывать полностью)"}
-                    style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "2px 8px",
-                      background: expanded ? "color-mix(in oklch, var(--primary) 15%, transparent)" : "var(--muted)",
-                      color: expanded ? "var(--primary)" : "var(--foreground)",
-                      borderRadius: 4, textDecoration: "none",
-                      fontWeight: 600, fontSize: 12,
-                      border: `1px solid ${expanded ? "var(--primary)" : "var(--border)"}`,
-                    }}
-                  >
-                    Итог
-                    {expanded ? <Minimize2 size={13} strokeWidth={2.5} /> : <Maximize2 size={13} strokeWidth={2.5} />}
-                  </Link>
-                </th>
+                <th style={{ minWidth: 360 }}>Итог</th>
                 <th>Статус</th>
               </tr>
             </thead>
@@ -162,29 +151,10 @@ export default async function CallsListPage(props: {
                   <td><SentimentBadge value={r.sentiment} /></td>
                   <td>{r.manager_score != null ? r.manager_score.toFixed(1) : "—"}</td>
                   <td style={{
-                    maxWidth: expanded ? 600 : 360,
-                    minWidth: expanded ? 600 : 360,
+                    minWidth: 360, maxWidth: 360,
                     verticalAlign: "top", padding: "8px",
                   }}>
-                    {r.summary || r.next_action ? (
-                      <div style={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: expanded ? "unset" : 3,
-                        WebkitBoxOrient: "vertical",
-                        overflow: expanded ? "visible" : "hidden",
-                        lineHeight: 1.4,
-                        fontSize: 13,
-                        wordBreak: "break-word",
-                      } as React.CSSProperties}>
-                        {r.summary && <span>{r.summary}</span>}
-                        {r.next_action && (
-                          <span style={{ color: "var(--muted-foreground)" }}>
-                            {r.summary ? " · " : ""}
-                            <b>След. шаг:</b> {r.next_action}
-                          </span>
-                        )}
-                      </div>
-                    ) : "—"}
+                    <SummaryCell summary={r.summary} nextAction={r.next_action} />
                   </td>
                   <td style={{ verticalAlign: "top", paddingTop: 10 }}><StatusBadge value={r.status} /></td>
                 </tr>
