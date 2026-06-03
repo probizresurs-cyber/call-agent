@@ -37,7 +37,7 @@ export interface NormalizedInteraction {
   managerId?: string | null;
   managerName?: string | null;
 
-  // Контактные данные клиента
+  // Контактные данные заказчика
   clientPhone?: string | null;
   clientName?: string | null;
 
@@ -137,7 +137,7 @@ export async function saveInteraction(n: NormalizedInteraction): Promise<number 
 
 /**
  * Ручная загрузка из UI — без auth/fetch, только save.
- * externalId генерится клиентом (UUID) при создании.
+ * externalId генерится заказчиком (UUID) при создании.
  */
 export class ManualUploadAdapter implements SourceAdapter {
   readonly channel: InteractionChannel = "manual";

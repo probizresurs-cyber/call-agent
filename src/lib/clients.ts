@@ -1,9 +1,9 @@
 /**
- * §4.6 MASTER-TZ — профиль клиента 360.
+ * §4.6 MASTER-TZ — профиль заказчика 360.
  *
- * «Якорь» клиента сейчас — нормализованный телефон (только цифры).
- * Один телефон = один профиль. Если у клиента несколько номеров — это разные профили
- * (будущая итерация: matching через Bitrix contact_id + phone book клиента).
+ * «Якорь» заказчика сейчас — нормализованный телефон (только цифры).
+ * Один телефон = один профиль. Если у заказчика несколько номеров — это разные профили
+ * (будущая итерация: matching через Bitrix contact_id + phone book заказчика).
  *
  * Туда же подтягиваются все типы взаимодействий: звонки, чаты, email, встречи.
  * Хронология — единая, сортировка по started_at DESC.
@@ -34,7 +34,7 @@ function phoneMatchSqlSafe(): string {
 export interface ClientListItem {
   phone: string;              // нормализованный (digits-only)
   display_phone: string;      // как было сохранено в первом звонке (для отображения)
-  name: string | null;        // последнее известное имя клиента
+  name: string | null;        // последнее известное имя заказчика
   total_count: number;
   last_at: string | null;     // ISO timestamp последнего касания
   positive: number;
@@ -65,7 +65,7 @@ export interface ClientProfileSummary {
   lead_ids: string[];
   contact_ids: string[];
 
-  // Менеджеры которые работали с клиентом (для РОПа)
+  // Менеджеры которые работали с заказчиком (для РОПа)
   managers: Array<{ id: string | null; name: string | null; count: number }>;
 }
 
@@ -96,10 +96,10 @@ export interface LooseThread {
   daysAgo: number;
 }
 
-// ───────── Список клиентов ─────────
+// ───────── Список заказчиков ─────────
 
 /**
- * Топ-N клиентов с метриками за весь период.
+ * Топ-N заказчиков с метриками за весь период.
  * Группировка по нормализованному телефону.
  *
  * SQL-сложность: один запрос с GROUP BY normalized_phone. Нормализацию
@@ -196,7 +196,7 @@ export async function listClients(opts: {
   });
 }
 
-// ───────── Профиль клиента 360 ─────────
+// ───────── Профиль заказчика 360 ─────────
 
 export async function getClientProfile(opts: {
   tenantId: number;
@@ -316,7 +316,7 @@ function phoneVariants(normalized: string): string[] {
  *  1. no_next_action — взаимодействие done, длительностью ≥ 60 сек или с текстом > 200 симв,
  *     но next_action пуст или содержит «не определён»
  *  2. promise_overdue — next_action содержит «перезвонить через N дней / в среду / завтра»
- *     и с тех пор прошло больше срока без нового касания этого клиента
+ *     и с тех пор прошло больше срока без нового касания этого заказчика
  *  3. negative_unfollowed — последнее касание было negative более 5 дней назад,
  *     с тех пор тишина
  *  4. long_silence — более 30 дней без касаний при активной истории (был хотя бы 1 разговор done)

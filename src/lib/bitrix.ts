@@ -15,6 +15,25 @@ function baseUrl(): string {
 }
 
 /**
+ * Из webhook URL вида `https://portal.bitrix24.ru/rest/<userId>/<token>/`
+ * вытаскивает базовый origin портала `https://portal.bitrix24.ru`
+ * (без хвоста и слэша). Используется чтобы строить ссылки на CRM-карточки
+ * вида `{portal}/crm/deal/details/123/`.
+ *
+ * Возвращает null если переменная не задана или URL невалиден.
+ */
+export function getBitrixPortalUrl(): string | null {
+  const url = process.env.BITRIX_WEBHOOK_URL?.trim();
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Из URL вида `https://portal.bitrix24.ru/rest/<userId>/<token>/`
  * достаём <token> — он нужен для подстановки в `auth=` параметр
  * прямых ссылок на скачивание файлов из Битрикс-диска.
@@ -356,6 +375,18 @@ export interface Lead {
   DATE_CREATE?: string;
 }
 
+export interface Contact {
+  ID: string;
+  NAME?: string;
+  LAST_NAME?: string;
+  SECOND_NAME?: string;
+  HONORIFIC?: string;
+  POST?: string;        // должность
+  COMPANY_ID?: string;
+  ASSIGNED_BY_ID?: string;
+  DATE_CREATE?: string;
+}
+
 export async function crmDealGet(id: string | number): Promise<Deal | null> {
   try {
     return await call<Deal>("crm.deal.get", { id });
@@ -370,6 +401,20 @@ export async function crmLeadGet(id: string | number): Promise<Lead | null> {
   } catch {
     return null;
   }
+}
+
+export async function crmContactGet(id: string | number): Promise<Contact | null> {
+  try {
+    return await call<Contact>("crm.contact.get", { id });
+  } catch {
+    return null;
+  }
+}
+
+/** Сложить ФИО контакта в формат "Фамилия Имя Отчество" (или что есть) */
+export function formatContactName(c: Contact): string {
+  const parts = [c.LAST_NAME?.trim(), c.NAME?.trim(), c.SECOND_NAME?.trim()].filter(Boolean);
+  return parts.join(" ") || `ID ${c.ID}`;
 }
 
 /** Последние N комментариев таймлайна сущности — выжимка истории сделки */

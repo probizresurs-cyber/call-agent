@@ -7,6 +7,11 @@ import {
   entityTypeStringToId,
   buildCallContext,
   resolveRecordingFromActivity,
+  crmDealGet,
+  crmLeadGet,
+  crmContactGet,
+  formatContactName,
+  getBitrixPortalUrl,
   type DealContext,
 } from "./bitrix";
 import { transcribeFile } from "./transcribe";
@@ -110,6 +115,54 @@ export async function processCall(callId: number): Promise<void> {
       JSON.stringify(context),
       callId
     );
+  }
+
+  // 3.1. Bitrix enrich: догружаем имена сделки/лида/контакта + базовый URL портала.
+  //      Названия сделки/лида берём из уже полученного context если он есть,
+  //      контакт всегда отдельным запросом. Все ошибки — мягкие (null), чтобы
+  //      не валить пайплайн если у webhook нет прав на crm.contact.read.
+  try {
+    const portalUrl = getBitrixPortalUrl();
+
+    let dealTitle: string | null = null;
+    if (row.bitrix_deal_id) {
+      if (context?.kind === "deal" && context.title) {
+        dealTitle = context.title;
+      } else {
+        const d = await crmDealGet(row.bitrix_deal_id);
+        dealTitle = d?.TITLE ?? null;
+      }
+    }
+
+    let leadTitle: string | null = null;
+    if (row.bitrix_lead_id) {
+      if (context?.kind === "lead" && context.title) {
+        leadTitle = context.title;
+      } else {
+        const l = await crmLeadGet(row.bitrix_lead_id);
+        leadTitle = l
+          ? (l.TITLE || [l.NAME, l.LAST_NAME].filter(Boolean).join(" ") || null)
+          : null;
+      }
+    }
+
+    let contactName: string | null = null;
+    if (row.bitrix_contact_id) {
+      const c = await crmContactGet(row.bitrix_contact_id);
+      if (c) contactName = formatContactName(c);
+    }
+
+    await db.prepare(
+      `UPDATE calls SET
+         bitrix_deal_title = ?,
+         bitrix_lead_title = ?,
+         bitrix_contact_name = ?,
+         bitrix_portal_url = ?
+       WHERE id = ?`
+    ).run(dealTitle, leadTitle, contactName, portalUrl, callId);
+  } catch (e) {
+    // Не валим pipeline — enrich это «приятный бонус», без него UI просто покажет ID
+    console.warn(`[pipeline] #${callId} bitrix enrich failed:`, (e as Error).message);
   }
 
   // 4. Определяем продукт + выбираем подходящий скрипт
@@ -326,12 +379,12 @@ async function syncBackToBitrix(row: CallRow, analysis: CallAnalysis) {
 Настроение: ${sentimentLabel}
 Оценка менеджера: ${analysis.manager_score}/10
 Чек-лист QC: ${Math.round((analysis.checklist_compliance || 0) * 100)}%
-${analysis.client_name ? `Клиент: ${analysis.client_name}` : ""}
+${analysis.client_name ? `Заказчик: ${analysis.client_name}` : ""}
 
 [B]Краткое содержание:[/B]
 ${analysis.summary}
 
-[B]Что хочет клиент:[/B] ${analysis.client_intent}
+[B]Что хочет заказчик:[/B] ${analysis.client_intent}
 
 [B]Возражения:[/B]
 ${(analysis.objections || []).map((o) => `- ${o}`).join("\n") || "—"}

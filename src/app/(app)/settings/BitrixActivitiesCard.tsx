@@ -47,7 +47,7 @@ export function BitrixActivitiesCard({ initialLastFetched }: { initialLastFetche
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
         Bitrix хранит письма (TYPE_ID=4) и чаты в Open Lines (WhatsApp, Telegram, VK)
-        как «активности». Этот импорт тянет их, разбирает через AI и подмешивает в профиль клиента 360.
+        как «активности». Этот импорт тянет их, разбирает через AI и подмешивает в профиль заказчика 360.
       </p>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

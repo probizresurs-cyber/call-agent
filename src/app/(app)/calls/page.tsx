@@ -37,7 +37,7 @@ function TypeIcon({ type }: { type: string | null }) {
 }
 
 export default async function CallsListPage(props: {
-  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string; manager_id?: string }>;
+  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string; manager_id?: string; min_duration?: string }>;
 }) {
   const me = await getSessionUser();
   if (!me) redirect("/login");
@@ -60,6 +60,13 @@ export default async function CallsListPage(props: {
   }
   if (sp.from) { where.push("substr(c.started_at,1,10) >= ?"); params.push(sp.from); }
   if (sp.to)   { where.push("substr(c.started_at,1,10) <= ?"); params.push(sp.to); }
+  if (sp.min_duration) {
+    const minDur = parseInt(sp.min_duration, 10);
+    if (Number.isFinite(minDur) && minDur > 0) {
+      where.push("c.duration_sec >= ?");
+      params.push(minDur);
+    }
+  }
   // Скрытые менеджеры не показываются (фильтр настраивается в /settings)
   // Применяется только для head/admin/owner — у manager и так свой ID жёстко
   if (!isManager) {
@@ -122,7 +129,7 @@ export default async function CallsListPage(props: {
             <thead>
               <tr>
                 <th style={{ width: 28 }}></th>
-                <th>#</th><th>Дата</th><th>Менеджер</th><th>Клиент</th>
+                <th>#</th><th>Дата</th><th>Менеджер</th><th>Заказчик</th>
                 <th>Дл.</th><th>Настр.</th><th>Оценка</th>
                 <th style={{ minWidth: 360 }}>Итог</th>
                 <th>Статус</th>

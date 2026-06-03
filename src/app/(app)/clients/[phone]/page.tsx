@@ -1,5 +1,5 @@
 /**
- * §4.6 MASTER-TZ — профиль клиента 360.
+ * §4.6 MASTER-TZ — профиль заказчика 360.
  *
  * URL = нормализованный телефон (digits-only). Один телефон = один профиль.
  *
@@ -8,7 +8,7 @@
  *   2. Связанные CRM-сущности (если есть deal/lead/contact)
  *   3. ⚠ Оборванные нити — выделенный блок сверху для РОПа
  *   4. Хронология — лента всех взаимодействий с краткими карточками
- *   5. Менеджеры — кто работал с клиентом
+ *   5. Менеджеры — кто работал с заказчиком
  */
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -45,7 +45,7 @@ export default async function ClientProfilePage(props: { params: Promise<{ phone
   return (
     <>
       <Link href="/clients" style={{ color: "var(--primary)", fontSize: 13, marginBottom: 12, display: "inline-block" }}>
-        ← К списку клиентов
+        ← К списку заказчиков
       </Link>
 
       {/* Шапка */}

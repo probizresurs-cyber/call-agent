@@ -231,7 +231,7 @@ const ACHIEVEMENTS: AchievementRule[] = [
   {
     id: "first_positive",
     title: "Тёплый звонок",
-    description: "Первый разговор с позитивным настроением клиента",
+    description: "Первый разговор с позитивным настроением заказчика",
     check: (s) => s.positive_count >= 1,
   },
   {

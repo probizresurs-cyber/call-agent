@@ -91,7 +91,7 @@ export function SendToCrmButton({ callId }: { callId: number }) {
             }}>
               <b>⚠ Это была симуляция.</b> Реально в Bitrix ничего не отправлено — включён DRY_RUN.
               Переключите в <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках → Системные флаги</a>,
-              когда будете готовы писать в продакшен-CRM клиента.
+              когда будете готовы писать в продакшен-CRM заказчика.
             </div>
           )}
         </div>

@@ -137,10 +137,10 @@ export function UploadForm() {
         </Field>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Телефон клиента">
+        <Field label="Телефон заказчика">
           <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="79161234567" className="ds-input" style={inputStyle} />
         </Field>
-        <Field label="Имя клиента (опционально)">
+        <Field label="Имя заказчика (опционально)">
           <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Иван Петров" className="ds-input" style={inputStyle} />
         </Field>
       </div>
@@ -167,8 +167,8 @@ export function UploadForm() {
               type === "email"
                 ? "Скопируйте содержимое письма (можно с заголовками From/To)"
                 : type === "chat"
-                ? "Менеджер: Здравствуйте...\nКлиент: Добрый день..."
-                : "Менеджер: ...\nКлиент: ..."
+                ? "Менеджер: Здравствуйте...\nЗаказчик:Добрый день..."
+                : "Менеджер: ...\nЗаказчик:..."
             }
             className="ds-input"
             style={{ ...inputStyle, fontFamily: "monospace", fontSize: 13, resize: "vertical" }}

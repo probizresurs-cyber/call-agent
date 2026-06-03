@@ -84,8 +84,26 @@ export interface DashboardData {
   topTopics: Array<{ title: string; count: number }>;
   productStats: ProductStatsRow[];
   checklistStats: Array<{ id: string; title: string; avg: number; n: number }>;
+  /**
+   * Детальный разрез по пунктам чек-листа: средний score, % выполнения
+   * (score >= 0.7), кол-во оценок. Учитывает все активные фильтры дашборда
+   * (период / менеджер / with_crm). Отсортирован по pass_rate ASC — сверху
+   * худшие.
+   */
+  checklistItemsBreakdown: Array<{
+    id: string;
+    title: string;
+    avg_score: number;
+    pass_rate: number;
+    count: number;
+  }>;
   /** Список менеджеров тенанта — для фильтра. Пустой в RLS-режиме менеджера. */
   managersList: Array<{ id: string; name: string }>;
+  /**
+   * ФИО менеджера, выбранного фильтром (или RLS-менеджера в режиме manager).
+   * `null`, если выбрана вся команда.
+   */
+  selectedManagerName: string | null;
 }
 
 export async function loadDashboardData(opts: DashboardDataOpts): Promise<DashboardData> {
@@ -288,21 +306,25 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
        sub.calls DESC`
   ).all<ProductStatsRow>(...params);
 
-  // ── Слабые места в скрипте ──
+  // ── Чек-лист: агрегация по пунктам (id+title → avg score, pass_rate, n) ──
+  // SQL уже учитывает все фильтры дашборда через andSql (включая managerId).
+  // Поэтому когда выбран менеджер — статистика считается только по его звонкам.
   const rawChecklist = await db.prepare(
     `SELECT a.checklist_scores_json FROM analyses a JOIN calls c ON c.id = a.call_id
      WHERE a.checklist_scores_json IS NOT NULL ${andSql}`
   ).all<{ checklist_scores_json: string }>(...params);
-  const itemStats = new Map<string, { title: string; sum: number; n: number }>();
+  const PASS_THRESHOLD = 0.7;
+  const itemStats = new Map<string, { title: string; sum: number; n: number; passed: number }>();
   for (const r of rawChecklist) {
     try {
       const arr = JSON.parse(r.checklist_scores_json) as Array<{ id: string; title: string; score: number }>;
       for (const it of arr || []) {
         const key = it.id || it.title;
         if (!key) continue;
-        const cur = itemStats.get(key) ?? { title: it.title || key, sum: 0, n: 0 };
+        const cur = itemStats.get(key) ?? { title: it.title || key, sum: 0, n: 0, passed: 0 };
         cur.sum += it.score;
         cur.n += 1;
+        if (it.score >= PASS_THRESHOLD) cur.passed += 1;
         itemStats.set(key, cur);
       }
     } catch {}
@@ -310,6 +332,29 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
   const checklistStats = [...itemStats.entries()]
     .map(([id, s]) => ({ id, title: s.title, avg: s.n ? s.sum / s.n : 0, n: s.n }))
     .sort((a, b) => a.avg - b.avg);
+  // Детальный разрез — отдельный массив с pass_rate, отсортированный по нему ASC
+  const checklistItemsBreakdown = [...itemStats.entries()]
+    .map(([id, s]) => ({
+      id,
+      title: s.title,
+      avg_score: s.n ? s.sum / s.n : 0,
+      pass_rate: s.n ? s.passed / s.n : 0,
+      count: s.n,
+    }))
+    .sort((a, b) => a.pass_rate - b.pass_rate);
+
+  // ── Имя выбранного менеджера (для подзаголовков блоков) ──
+  let selectedManagerName: string | null = null;
+  const selectedMgrId = opts.managerBitrixId || opts.managerId;
+  if (selectedMgrId) {
+    const row = await db.prepare(
+      `SELECT COALESCE(MAX(c.manager_name), MAX(m.name), '') AS name
+       FROM calls c
+       LEFT JOIN managers m ON m.id = c.manager_id
+       WHERE c.tenant_id = ? AND c.manager_id = ?`
+    ).get<{ name: string }>(opts.tenantId, selectedMgrId);
+    selectedManagerName = (row?.name && row.name.trim()) || `ID ${selectedMgrId}`;
+  }
 
   return {
     contactThreshold,
@@ -325,6 +370,8 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
     topTopics,
     productStats,
     checklistStats,
+    checklistItemsBreakdown,
     managersList,
+    selectedManagerName,
   };
 }

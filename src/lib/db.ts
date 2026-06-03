@@ -78,6 +78,14 @@ function applyAlterMigrations(db: Database.Database) {
   // user_id у platform-пользователей кто может видеть звонок (linked manager)
   ensureColumn("calls", "user_id", "INTEGER"); // NULL = не привязан к пользователю платформы
 
+  // ─────── Bitrix enrich: имена сделки/лида/контакта + базовый URL портала ───────
+  // Догружаются в pipeline.processCall после получения deal_id/lead_id/contact_id,
+  // используются для построения ссылок на CRM-карточки в UI карточки звонка.
+  ensureColumn("calls", "bitrix_deal_title", "TEXT");
+  ensureColumn("calls", "bitrix_lead_title", "TEXT");
+  ensureColumn("calls", "bitrix_contact_name", "TEXT");
+  ensureColumn("calls", "bitrix_portal_url", "TEXT");
+
   // На существующей sessions таблице добавляем user_id/tenant_id если их нет.
   // (В CREATE TABLE они уже есть, но БД из прошлой версии существует со старой схемой.)
   ensureColumn("sessions", "user_id", "INTEGER");
@@ -279,6 +287,11 @@ export interface CallRow {
   bitrix_lead_id: string | null;
   bitrix_contact_id: string | null;
   bitrix_activity_id: string | null;
+  // Bitrix enrich: догружаемые названия CRM-сущностей + базовый URL портала
+  bitrix_deal_title: string | null;
+  bitrix_lead_title: string | null;
+  bitrix_contact_name: string | null;
+  bitrix_portal_url: string | null;
   manager_id: string | null;
   manager_name: string | null;
   client_phone: string | null;

@@ -1,9 +1,9 @@
 /**
- * §4.6 MASTER-TZ — список клиентов с метриками и индикатором loose-threads.
+ * §4.6 MASTER-TZ — список заказчиков с метриками и индикатором loose-threads.
  *
  * Доступ:
- *   - owner/admin/head — все клиенты тенанта
- *   - manager — только клиенты с которыми сам взаимодействовал (фильтр по bitrixManagerId)
+ *   - owner/admin/head — все заказчики тенанта
+ *   - manager — только заказчики с которыми сам взаимодействовал (фильтр по bitrixManagerId)
  */
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -32,7 +32,7 @@ export default async function ClientsListPage(props: {
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Users size={22} strokeWidth={2} /> Клиенты
+          <Users size={22} strokeWidth={2} /> Заказчики
         </h1>
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
           Найдено: <b>{clients.length}</b>{clients.length === 100 ? " (топ 100)" : ""}
@@ -41,7 +41,7 @@ export default async function ClientsListPage(props: {
 
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 16 }}>
         Все люди с которыми велась коммуникация — звонки, чаты, email, встречи в одной картине.
-        Клик по строке → полная история по клиенту.
+        Клик по строке → полная история по заказчику.
       </p>
 
       <ClientsSearch initial={sp.q || ""} />
@@ -49,7 +49,7 @@ export default async function ClientsListPage(props: {
       {clients.length === 0 ? (
         <div className="ds-card" style={{ textAlign: "center", padding: 40 }}>
           <div className="ds-body" style={{ color: "var(--muted-foreground)" }}>
-            Нет клиентов. Звонки и взаимодействия появятся здесь автоматически после обработки.
+            Нет заказчиков. Звонки и взаимодействия появятся здесь автоматически после обработки.
           </div>
         </div>
       ) : (
@@ -57,7 +57,7 @@ export default async function ClientsListPage(props: {
           <table className="ds-table">
             <thead>
               <tr>
-                <th>Клиент</th>
+                <th>Заказчик</th>
                 <th style={{ width: 100, textAlign: "center" }}>Касаний</th>
                 <th style={{ width: 130, textAlign: "center" }}>Настроение</th>
                 <th style={{ width: 130 }}>Последнее</th>

@@ -33,6 +33,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   const statusParam = search.get("status") || "";
   const typeParam = search.get("type") || "";
   const managerParam = search.get("manager_id") || "";
+  const minDurationParam = search.get("min_duration") || "";
 
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
@@ -41,6 +42,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   const [status, setStatus] = useState(statusParam);
   const [type, setType] = useState(typeParam);
   const [managerId, setManagerId] = useState(managerParam);
+  const [minDuration, setMinDuration] = useState(minDurationParam);
 
   function navigate(next: Record<string, string>) {
     const params = new URLSearchParams();
@@ -51,27 +53,27 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   }
 
   function apply() {
-    navigate({ from, to, q, sentiment, status, type, manager_id: managerId });
+    navigate({ from, to, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
   function reset() {
-    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType(""); setManagerId("");
+    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType(""); setManagerId(""); setMinDuration("");
     startTransition(() => router.push("/calls"));
   }
   function presetToday() {
     const t = todayIso();
     setFrom(t); setTo(t);
-    navigate({ from: t, to: t, q, sentiment, status, type, manager_id: managerId });
+    navigate({ from: t, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
   function presetYesterday() {
     const y = yesterdayIso();
     setFrom(y); setTo(y);
-    navigate({ from: y, to: y, q, sentiment, status, type, manager_id: managerId });
+    navigate({ from: y, to: y, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
   function presetLast7() {
     const d = new Date(); d.setDate(d.getDate() - 6);
     const f = isoDate(d), t = todayIso();
     setFrom(f); setTo(t);
-    navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId });
+    navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
   function shiftDay(delta: number) {
     const base = from || todayIso();
@@ -79,7 +81,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
     d.setDate(d.getDate() + delta);
     const ds = isoDate(d);
     setFrom(ds); setTo(ds);
-    navigate({ from: ds, to: ds, q, sentiment, status, type, manager_id: managerId });
+    navigate({ from: ds, to: ds, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
 
   return (
@@ -93,7 +95,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
         <DateRangePicker
           from={from}
           to={to}
-          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId }); }}
+          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration }); }}
           maxDate={todayIso()}
         />
         <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(+1)} title="Вперёд день"
@@ -123,31 +125,52 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
           onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
           style={{ flex: "1 1 280px", minWidth: 200 }}
         />
-        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value, manager_id: managerId }); }} style={{ width: 150 }}>
+        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value, manager_id: managerId, min_duration: minDuration }); }} style={{ width: 150 }}>
           <option value="">Все типы</option>
           <option value="call">Звонки</option>
           <option value="chat">Чаты</option>
           <option value="email">Email</option>
           <option value="meeting">Встречи</option>
         </select>
-        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type, manager_id: managerId }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type, manager_id: managerId, min_duration: minDuration }); }} style={{ width: 170 }}>
           <option value="">Все настроения</option>
           <option value="positive">Позитив</option>
           <option value="neutral">Нейтрально</option>
           <option value="negative">Негатив</option>
         </select>
-        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type, manager_id: managerId }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type, manager_id: managerId, min_duration: minDuration }); }} style={{ width: 170 }}>
           <option value="">Все статусы</option>
           <option value="done">Готово</option>
           <option value="pending">В очереди</option>
           <option value="no_recording">Без записи</option>
           <option value="failed">Ошибка</option>
         </select>
+        <select
+          className="ds-input"
+          value={minDuration}
+          onChange={(e) => { setMinDuration(e.target.value); navigate({ from, to, q, sentiment, status, type, manager_id: managerId, min_duration: e.target.value }); }}
+          title="Минимальная длительность"
+          style={{
+            width: 160,
+            background: minDuration ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : undefined,
+            borderColor: minDuration ? "var(--primary)" : undefined,
+            color: minDuration ? "var(--primary)" : undefined,
+          }}
+        >
+          <option value="">Длительность: любая</option>
+          <option value="15">от 15с</option>
+          <option value="30">от 30с</option>
+          <option value="60">от 1мин</option>
+          <option value="90">от 1.5мин</option>
+          <option value="180">от 3мин</option>
+          <option value="300">от 5мин</option>
+          <option value="600">от 10мин</option>
+        </select>
         {managers && managers.length > 0 && (
           <select
             className="ds-input"
             value={managerId}
-            onChange={(e) => { setManagerId(e.target.value); navigate({ from, to, q, sentiment, status, type, manager_id: e.target.value }); }}
+            onChange={(e) => { setManagerId(e.target.value); navigate({ from, to, q, sentiment, status, type, manager_id: e.target.value, min_duration: minDuration }); }}
             title="Фильтр по менеджеру"
             style={{
               width: 180,

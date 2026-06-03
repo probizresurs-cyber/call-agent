@@ -25,7 +25,7 @@ interface Script {
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
   { id: "greeting", title: "Приветствие и представление", weight: 2, description: "Менеджер представился, назвал компанию" },
-  { id: "needs", title: "Выявление потребности", weight: 5, description: "Задал открытые вопросы, понял задачу клиента" },
+  { id: "needs", title: "Выявление потребности", weight: 5, description: "Задал открытые вопросы, понял задачу заказчика" },
   { id: "pitch", title: "Презентация выгод", weight: 4, description: "Рассказал именно про выгоды, а не функции" },
   { id: "objections", title: "Отработка возражений", weight: 4, description: "Не игнорировал «дорого/подумаю», работал по технике" },
   { id: "next_step", title: "Договорённость о следующем шаге", weight: 5, description: "Конкретный шаг с датой/временем" },

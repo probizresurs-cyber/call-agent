@@ -149,7 +149,7 @@ export async function createReminderFromAnalysis(args: {
     .get<{ id: number }>(args.callId);
   if (existing) return null;
 
-  const who = args.clientName || args.clientPhone || "клиентом";
+  const who = args.clientName || args.clientPhone || "заказчиком";
   const title = `${truncate(args.nextAction, 80)} (с ${who})`;
   const dueAtStr = dueAt.toISOString().replace("T", " ").slice(0, 19);
 

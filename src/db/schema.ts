@@ -140,6 +140,12 @@ export const calls = pgTable(
     bitrixLeadId: varchar("bitrix_lead_id", { length: 64 }),
     bitrixContactId: varchar("bitrix_contact_id", { length: 64 }),
     bitrixActivityId: varchar("bitrix_activity_id", { length: 64 }),
+    // Bitrix enrich: догружаемые названия CRM-сущностей + базовый URL портала.
+    // Заполняются в pipeline после получения deal_id/lead_id/contact_id.
+    bitrixDealTitle: text("bitrix_deal_title"),
+    bitrixLeadTitle: text("bitrix_lead_title"),
+    bitrixContactName: text("bitrix_contact_name"),
+    bitrixPortalUrl: text("bitrix_portal_url"),
 
     // Менеджер (из Bitrix)
     managerId: varchar("manager_id", { length: 64 }),

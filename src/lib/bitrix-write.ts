@@ -108,7 +108,7 @@ function buildSummaryMarkdown(call: CallForCrm, a: AnalysisForCrm): string {
   if (metricsParts.length) {
     lines.push("[B]Метрики:[/B] " + metricsParts.join(" · "));
   }
-  if (a.client_name) lines.push("[B]Клиент представился:[/B] " + a.client_name);
+  if (a.client_name) lines.push("[B]Заказчик представился:[/B] " + a.client_name);
   if (a.detected_product) lines.push("[B]Продукт:[/B] " + a.detected_product);
   if (objections.length) lines.push("[B]Возражения:[/B] " + objections.join(", "));
   if (topics.length) lines.push("[B]Темы:[/B] " + topics.join(", "));

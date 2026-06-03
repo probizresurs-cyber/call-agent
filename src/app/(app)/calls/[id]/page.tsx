@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft, Star, ClipboardList, User, FileAudio, Info,
   CheckCircle2, XCircle, CircleDot, MessageSquare, Tag,
-  Phone, ArrowDownLeft, ArrowUpRight,
+  Phone, ArrowDownLeft, ArrowUpRight, MinusCircle,
+  Briefcase, UserPlus, ExternalLink,
 } from "lucide-react";
 import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
@@ -17,6 +18,11 @@ type Call = {
   bitrix_call_id: string | null;
   bitrix_deal_id: string | null;
   bitrix_lead_id: string | null;
+  bitrix_contact_id: string | null;
+  bitrix_deal_title: string | null;
+  bitrix_lead_title: string | null;
+  bitrix_contact_name: string | null;
+  bitrix_portal_url: string | null;
   manager_name: string | null;
   manager_id: string | null;
   client_phone: string | null;
@@ -124,14 +130,14 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <Row label="ID источника" value={call.bitrix_call_id || "—"} />
           <Row label="Дата" value={formatDate(call.started_at)} />
           <Row label="Менеджер" value={call.manager_name || call.manager_id || "—"} />
-          <Row label="Клиент" value={
+          <Row label="Заказчик" value={
             call.client_phone ? (
               <Link href={`/clients/${call.client_phone.replace(/\D/g, "").replace(/^8/, "7")}`} style={{ color: "var(--primary)" }}>
                 {call.client_phone} →
               </Link>
             ) : "—"
           } />
-          <Row label="Имя клиента (из разговора)" value={analysis?.client_name || "—"} />
+          <Row label="Имя заказчика (из разговора)" value={analysis?.client_name || "—"} />
           <Row
             label="Направление"
             value={
@@ -147,10 +153,6 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
             }
           />
           <Row label="Длительность" value={`${Math.floor(call.duration_sec / 60)}:${String(call.duration_sec % 60).padStart(2, "0")}`} />
-          <Row label="Связь с CRM" value={
-            call.bitrix_deal_id ? `Сделка #${call.bitrix_deal_id}` :
-            call.bitrix_lead_id ? `Лид #${call.bitrix_lead_id}` : "—"
-          } />
           <Row label="Статус" value={call.status} />
         </div>
 
@@ -167,6 +169,47 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           )}
         </div>
       </div>
+
+      {/* CRM-блок: ссылки на карточки Bitrix24 (сделка/лид/контакт) */}
+      {(call.bitrix_deal_id || call.bitrix_lead_id || call.bitrix_contact_id) && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Briefcase size={16} strokeWidth={2} /> CRM
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {call.bitrix_deal_id && (
+              <CrmLink
+                icon={<Briefcase size={14} color="var(--primary)" />}
+                kindLabel="Сделка"
+                id={call.bitrix_deal_id}
+                title={call.bitrix_deal_title}
+                portalUrl={call.bitrix_portal_url}
+                path={`crm/deal/details/${call.bitrix_deal_id}/`}
+              />
+            )}
+            {call.bitrix_lead_id && (
+              <CrmLink
+                icon={<UserPlus size={14} color="var(--primary)" />}
+                kindLabel="Лид"
+                id={call.bitrix_lead_id}
+                title={call.bitrix_lead_title}
+                portalUrl={call.bitrix_portal_url}
+                path={`crm/lead/details/${call.bitrix_lead_id}/`}
+              />
+            )}
+            {call.bitrix_contact_id && (
+              <CrmLink
+                icon={<User size={14} color="var(--primary)" />}
+                kindLabel="Контакт"
+                id={call.bitrix_contact_id}
+                title={call.bitrix_contact_name}
+                portalUrl={call.bitrix_portal_url}
+                path={`crm/contact/details/${call.bitrix_contact_id}/`}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {analysis && (
         <div className="ds-card" style={{ marginBottom: 16 }}>
@@ -249,10 +292,24 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
       )}
 
       {checklistScores.length > 0 && (
-        <div className="ds-card" style={{ marginBottom: 16 }}>
-          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <ClipboardList size={16} strokeWidth={2} /> Чек-лист (по пунктам)
-          </h2>
+        <div className="ds-card" style={{ marginBottom: 16, padding: 14 }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 10, gap: 8,
+          }}>
+            <h2 className="ds-h3" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+              <ClipboardList size={16} strokeWidth={2} /> Чек-лист
+              <span className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>
+                · {checklistScores.length} пунктов
+              </span>
+            </h2>
+            {(() => {
+              const total = checklistScores.reduce((s, x) => s + (x.score || 0), 0);
+              const pct = Math.round((total / checklistScores.length) * 100);
+              const color = pct >= 80 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--destructive)";
+              return <span style={{ color, fontSize: 13, fontWeight: 600 }}>Итог {pct}%</span>;
+            })()}
+          </div>
           {(() => {
             // Группируем по блокам с сохранением порядка
             const blocks: { name: string; items: ChecklistScore[] }[] = [];
@@ -267,37 +324,66 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
               const pct = Math.round(avgScore * 100);
               const blockColor = pct >= 80 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--destructive)";
               return (
-                <div key={blk.name} style={{ marginBottom: 14 }}>
-                  <div style={{
+                <details key={blk.name} open style={{ marginBottom: 6 }}>
+                  <summary style={{
                     display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "8px 12px", marginBottom: 6,
-                    background: "var(--muted)", borderRadius: 6,
-                    fontWeight: 600, fontSize: 14,
+                    padding: "4px 8px", background: "var(--muted)", borderRadius: 4,
+                    fontWeight: 600, fontSize: 12, cursor: "pointer",
+                    listStyle: "none", userSelect: "none",
                   }}>
-                    <span>{blk.name}</span>
-                    <span style={{ color: blockColor, fontSize: 13 }}>{pct}%</span>
+                    <span>{blk.name} <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>· {blk.items.length}</span></span>
+                    <span style={{ color: blockColor, fontSize: 12 }}>{pct}%</span>
+                  </summary>
+                  <div style={{ marginTop: 2 }}>
+                    {blk.items.map((c) => {
+                      const itemPct = Math.round(Math.max(0, Math.min(1, c.score)) * 100);
+                      const status: "ok" | "partial" | "fail" =
+                        itemPct >= 80 ? "ok" : itemPct >= 40 ? "partial" : "fail";
+                      const statusIcon =
+                        status === "ok"      ? <CheckCircle2 size={14} color="var(--success)" /> :
+                        status === "partial" ? <MinusCircle  size={14} color="var(--warning)" /> :
+                                               <XCircle      size={14} color="var(--destructive)" />;
+                      const itemColor =
+                        status === "ok"      ? "var(--success)" :
+                        status === "partial" ? "var(--warning)" : "var(--destructive)";
+                      const hasNotes = !!(c.notes && c.notes.trim() && c.notes !== "—");
+                      return (
+                        <details key={c.id} style={{ borderTop: "1px solid var(--border)" }}>
+                          <summary style={{
+                            display: "grid",
+                            gridTemplateColumns: "16px 1fr 42px",
+                            alignItems: "center", gap: 8,
+                            padding: "4px 8px", fontSize: 13,
+                            cursor: hasNotes ? "pointer" : "default",
+                            listStyle: "none",
+                          }}>
+                            {statusIcon}
+                            <span style={{
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }} title={c.title}>
+                              {c.title}
+                              {hasNotes && (
+                                <span className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginLeft: 4 }}>·</span>
+                              )}
+                            </span>
+                            <span style={{
+                              fontSize: 12, fontWeight: 600, textAlign: "right", color: itemColor,
+                            }}>{itemPct}%</span>
+                          </summary>
+                          {hasNotes && (
+                            <div className="ds-body-sm" style={{
+                              padding: "4px 8px 8px 32px",
+                              color: "var(--muted-foreground)",
+                              lineHeight: 1.45,
+                            }}>
+                              {c.notes}
+                            </div>
+                          )}
+                        </details>
+                      );
+                    })}
                   </div>
-                  <table className="ds-table" style={{ marginBottom: 0 }}>
-                    <thead>
-                      <tr>
-                        <th>Критерий</th>
-                        <th style={{ width: 130 }}>Оценка</th>
-                        <th>Комментарий AI</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {blk.items.map((c) => (
-                        <tr key={c.id}>
-                          <td>{c.title}</td>
-                          <td><ScoreBar value={c.score} /></td>
-                          <td className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-                            {c.notes || "—"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                </details>
               );
             });
           })()}
@@ -329,7 +415,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
                     border: "1px solid var(--border)",
                   }}>
                     <div className="ds-caption" style={{ marginBottom: 4 }}>
-                      {isManager ? "Менеджер" : isClient ? "Клиент" : "?"}
+                      {isManager ? "Менеджер" : isClient ? "Заказчик" : "?"}
                     </div>
                     <div className="ds-body-sm" style={{ whiteSpace: "pre-wrap" }}>{turn.text}</div>
                   </div>
@@ -423,6 +509,58 @@ function ScoreBar({ value }: { value: number }) {
         <div style={{ width: `${pct}%`, height: "100%", background: color }} />
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, minWidth: 32, textAlign: "right" }}>{Math.round(pct)}%</span>
+    </div>
+  );
+}
+
+/**
+ * Строка CRM-блока: иконка + тип + название/ID + ссылка «открыть в Bitrix».
+ * Если portalUrl null — рендерим только текст без ссылки (webhook URL не задан).
+ */
+function CrmLink({
+  icon, kindLabel, id, title, portalUrl, path,
+}: {
+  icon: React.ReactNode;
+  kindLabel: string;
+  id: string;
+  title: string | null;
+  portalUrl: string | null;
+  path: string;
+}) {
+  const href = portalUrl ? `${portalUrl}/${path}` : null;
+  const displayTitle = (title && title.trim()) || `#${id}`;
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+      padding: "8px 10px", background: "var(--muted)", borderRadius: 6,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        {icon}
+        <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>{kindLabel}:</span>
+        <span style={{
+          fontWeight: 500, fontSize: 14, overflow: "hidden",
+          textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {displayTitle}
+        </span>
+        {title && (
+          <span className="ds-caption" style={{ color: "var(--muted-foreground)" }}>#{id}</span>
+        )}
+      </div>
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="ds-body-sm"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            color: "var(--primary)", whiteSpace: "nowrap",
+          }}
+        >
+          Открыть в Bitrix <ExternalLink size={12} />
+        </a>
+      )}
     </div>
   );
 }

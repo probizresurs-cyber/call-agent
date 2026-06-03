@@ -15,7 +15,7 @@
  *   direction:    "in" | "out" | null
  *   manager_id:   опционально, Bitrix user ID
  *   client_phone: опционально, нормализованный номер
- *   client_name:  опционально, имя клиента
+ *   client_name:  опционально, имя заказчика
  *   started_at:   ISO timestamp (если не передан — now)
  *   content_text: для chat/email/meeting-text — обязательно
  *   file:         для meeting с аудио — application/octet-stream

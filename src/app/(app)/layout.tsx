@@ -51,7 +51,7 @@ export default async function AuthedLayout({ children }: { children: React.React
             <Phone size={16} strokeWidth={2} /> {callsLabel}
           </Link>
           <Link className="nav-link" href="/clients">
-            <Users size={16} strokeWidth={2} /> Клиенты
+            <Users size={16} strokeWidth={2} /> Заказчики
           </Link>
           {user.role === "manager" && (
             <Link className="nav-link" href="/my">

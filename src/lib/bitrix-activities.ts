@@ -1,7 +1,7 @@
 /**
  * §3.2-§3.3 + §4.6 MASTER-TZ — забор email и чатов (Open Lines) из Bitrix24.
  *
- * Bitrix хранит ВСЕ касания клиента как «активности» — звонки, email, чаты,
+ * Bitrix хранит ВСЕ касания заказчика как «активности» — звонки, email, чаты,
  * встречи, задачи. Метод `crm.activity.list` возвращает их единым списком,
  * фильтруем по TYPE_ID и PROVIDER_ID.
  *
@@ -92,9 +92,9 @@ function normalizeActivity(raw: BitrixActivityRaw, tenantId: number): Normalized
     interactionType = "email";
     channel = "email_imap";
   } else if (providerId.startsWith("IMOL_")) {
-    // ВАЖНО: только PROVIDER_ID 'IMOL_*' = реальные клиентские чаты в Open Lines.
+    // ВАЖНО: только PROVIDER_ID 'IMOL_*' = реальные заказчикские чаты в Open Lines.
     // TYPE_ID=6 включает также CRM_TODO/CRM_TASKS_TASK (внутренние задачи менеджеров),
-    // их игнорируем — это не коммуникации с клиентами.
+    // их игнорируем — это не коммуникации с заказчиками.
     interactionType = "chat";
     if (providerId.includes("WHATSAPP")) channel = "whatsapp";
     else if (providerId.includes("TELEGRAM")) channel = "telegram";
