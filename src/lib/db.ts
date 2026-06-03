@@ -265,6 +265,7 @@ export type InteractionChannel =
   | "manual"
   | "zoom"
   | "yandex_telemost"
+  | "dictaphone"
   | "other";
 
 export interface CallRow {

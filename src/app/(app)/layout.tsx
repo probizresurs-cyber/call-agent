@@ -65,7 +65,7 @@ export default async function AuthedLayout({ children }: { children: React.React
           )}
           {showSettings && (
             <Link className="nav-link" href="/interactions/upload">
-              <FilePlus2 size={16} strokeWidth={2} /> Загрузить
+              <FilePlus2 size={16} strokeWidth={2} /> Загрузить запись
             </Link>
           )}
           {showSettings && (

@@ -1,40 +1,34 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Mail, Video, ArrowDownLeft, ArrowUpRight, FileText, Loader2 } from "lucide-react";
+import { Video, ArrowDownLeft, ArrowUpRight, FileText, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-type Type = "chat" | "email" | "meeting";
-type Channel = "whatsapp" | "telegram" | "email_imap" | "zoom" | "yandex_telemost" | "other" | "manual";
+type Type = "meeting";
+type Channel = "zoom" | "yandex_telemost" | "dictaphone" | "other" | "manual";
 type Direction = "in" | "out";
 
 const CHANNELS_BY_TYPE: Record<Type, Array<{ value: Channel; label: string }>> = {
-  chat: [
-    { value: "whatsapp", label: "WhatsApp" },
-    { value: "telegram", label: "Telegram" },
-    { value: "other",    label: "Другой мессенджер" },
-  ],
-  email: [
-    { value: "email_imap", label: "Email" },
-    { value: "other",      label: "Другое" },
-  ],
   meeting: [
     { value: "zoom",            label: "Zoom" },
     { value: "yandex_telemost", label: "Яндекс Телемост" },
+    { value: "dictaphone",      label: "Диктофон / голосовая запись" },
     { value: "other",           label: "Другая платформа" },
   ],
 };
 
 const TYPE_LABELS: Record<Type, { label: string; icon: React.ReactNode; hint: string }> = {
-  chat:    { label: "Чат",     icon: <MessageSquare size={16} />, hint: "Переписка в мессенджере. Можно вставить копипастом" },
-  email:   { label: "Email",   icon: <Mail size={16} />,           hint: "Письмо или цепочка писем. Скопируйте из почтового клиента" },
-  meeting: { label: "Встреча", icon: <Video size={16} />,          hint: "Запись Zoom / Яндекс Телемост. Файл (audio/video) — будет транскрибирован" },
+  meeting: {
+    label: "Встреча / запись",
+    icon: <Video size={16} />,
+    hint: "Загрузите аудио или видео — Zoom, Яндекс Телемост, запись с диктофона (.mp3 / .m4a / .wav / .ogg / .aac). Файл пройдёт транскрипцию и AI-разбор.",
+  },
 };
 
 export function UploadForm() {
   const router = useRouter();
-  const [type, setType] = useState<Type>("chat");
-  const [channel, setChannel] = useState<Channel>("whatsapp");
+  const [type, setType] = useState<Type>("meeting");
+  const [channel, setChannel] = useState<Channel>("zoom");
   const [direction, setDirection] = useState<Direction | "">("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientName, setClientName] = useState("");
@@ -96,37 +90,27 @@ export function UploadForm() {
   }
 
   const channels = CHANNELS_BY_TYPE[type];
-  const showFileInput = type === "meeting";
-  const showTextInput = type === "chat" || type === "email" || type === "meeting";
+  const showFileInput = true;   // для встреч/диктофона — всегда показываем загрузку файла
+  const showTextInput = true;   // также можно вставить готовый транскрипт текстом
 
   return (
     <form onSubmit={submit} className="ds-card" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800 }}>
-      {/* Тип */}
-      <Field label="Тип взаимодействия">
-        <div style={{ display: "flex", gap: 8 }}>
-          {(Object.keys(TYPE_LABELS) as Type[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => onTypeChange(t)}
-              className="ds-button"
-              style={{
-                flex: 1,
-                background: type === t ? "var(--primary)" : "transparent",
-                color: type === t ? "white" : "var(--foreground)",
-                border: `1px solid ${type === t ? "var(--primary)" : "var(--border)"}`,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "10px",
-              }}
-            >
-              {TYPE_LABELS[t].icon} {TYPE_LABELS[t].label}
-            </button>
-          ))}
+      {/* Заголовок типа — теперь только встреча/диктофон, выбор убран */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px",
+        background: "color-mix(in oklch, var(--primary) 8%, transparent)",
+        border: "1px solid color-mix(in oklch, var(--primary) 25%, transparent)",
+        borderRadius: 6,
+      }}>
+        <Video size={18} color="var(--primary)" />
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{TYPE_LABELS.meeting.label}</div>
+          <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginTop: 2 }}>
+            {TYPE_LABELS.meeting.hint}
+          </div>
         </div>
-        <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, marginTop: 4 }}>
-          {TYPE_LABELS[type].hint}
-        </div>
-      </Field>
+      </div>
 
       {/* Канал + направление */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
@@ -193,10 +177,10 @@ export function UploadForm() {
       )}
 
       {showFileInput && (
-        <Field label="Или файл записи (.mp3 / .mp4 / .wav / .m4a)">
+        <Field label="Файл записи (audio / video — .mp3 / .m4a / .wav / .ogg / .aac / .mp4)">
           <input
             type="file"
-            accept="audio/*,video/*,.mp3,.mp4,.wav,.m4a"
+            accept="audio/*,video/*,.mp3,.mp4,.wav,.m4a,.ogg,.aac,.opus,.webm"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="ds-input"
             style={inputStyle}

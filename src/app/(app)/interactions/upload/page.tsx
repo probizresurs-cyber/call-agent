@@ -18,10 +18,11 @@ export default async function UploadPage() {
   return (
     <>
       <h1 className="ds-h1" style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 10 }}>
-        <Upload size={22} strokeWidth={2} /> Загрузить взаимодействие
+        <Upload size={22} strokeWidth={2} /> Загрузить запись встречи / диктофона
       </h1>
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 20 }}>
-        Чат, email или запись встречи — пройдут через тот же AI-анализ что и звонки.
+        Запись Zoom, Яндекс Телемост или голосовая запись с телефона/диктофона —
+        пройдёт через транскрипцию (Whisper) и тот же AI-анализ что и звонки.
         Результат появится в <a href="/call-agent/calls" style={{ color: "var(--primary)" }}>списке взаимодействий</a> через 30-60 секунд.
       </p>
 

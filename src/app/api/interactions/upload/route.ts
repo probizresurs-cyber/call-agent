@@ -39,7 +39,7 @@ const RECORDINGS_DIR = process.env.RECORDINGS_DIR
 
 const VALID_TYPES: InteractionType[] = ["chat", "email", "meeting"];
 const VALID_CHANNELS: InteractionChannel[] = [
-  "whatsapp", "telegram", "email_imap", "zoom", "yandex_telemost", "other", "manual",
+  "whatsapp", "telegram", "email_imap", "zoom", "yandex_telemost", "other", "manual", "dictaphone",
 ];
 
 export async function POST(req: NextRequest) {
