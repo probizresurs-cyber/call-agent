@@ -216,7 +216,9 @@ export async function analyzeCall(args: {
     system: SYSTEM_PROMPT,
     user: userPrompt({ ...args, interactionType: args.interactionType }),
     modelTier: "premium",
-    maxTokens: 4000,
+    // 12000 = с запасом на dialogue для длинных звонков (10+ мин). GPT-4o max = 16384.
+    // 4000 не хватало на 7-минутные разговоры — получали Unterminated string в JSON.
+    maxTokens: 12000,
     tenantId: args.tenantId,
     callId: args.callId,
   });

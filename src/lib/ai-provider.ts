@@ -195,7 +195,11 @@ async function callOpenAi<T>(args: ToolCallArgs, model: string): Promise<ToolCal
   try {
     parsed = JSON.parse(toolCall.function.arguments) as T;
   } catch (e) {
-    throw new Error(`OpenAI вернул невалидный JSON в tool ${args.toolName}: ${(e as Error).message}`);
+    const finishReason = choice?.finish_reason;
+    const hint = finishReason === "length"
+      ? "Ответ обрезан по лимиту max_tokens — увеличьте maxTokens в callWithTool"
+      : "Возможно модель вернула битый JSON — попробуйте retry";
+    throw new Error(`OpenAI вернул невалидный JSON в tool ${args.toolName} (finish_reason=${finishReason}). ${hint}. Original error: ${(e as Error).message}`);
   }
 
   return {
