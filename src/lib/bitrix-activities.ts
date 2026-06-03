@@ -88,16 +88,19 @@ function normalizeActivity(raw: BitrixActivityRaw, tenantId: number): Normalized
   let interactionType: NormalizedInteraction["type"];
   let channel: NormalizedInteraction["channel"];
 
-  if (typeId === "4") {
+  if (typeId === "4" || providerId === "CRM_EMAIL") {
     interactionType = "email";
     channel = "email_imap";
-  } else if (providerId.startsWith("IMOL_") || typeId === "6") {
+  } else if (providerId.startsWith("IMOL_")) {
+    // ВАЖНО: только PROVIDER_ID 'IMOL_*' = реальные клиентские чаты в Open Lines.
+    // TYPE_ID=6 включает также CRM_TODO/CRM_TASKS_TASK (внутренние задачи менеджеров),
+    // их игнорируем — это не коммуникации с клиентами.
     interactionType = "chat";
     if (providerId.includes("WHATSAPP")) channel = "whatsapp";
     else if (providerId.includes("TELEGRAM")) channel = "telegram";
     else channel = "openlines";
   } else {
-    return null;  // не email / не чат — игнорируем
+    return null;
   }
 
   const direction = raw.DIRECTION === "1" ? "in" : raw.DIRECTION === "2" ? "out" : null;
@@ -153,8 +156,10 @@ function normalizeActivity(raw: BitrixActivityRaw, tenantId: number): Normalized
 
 export interface FetchOptions {
   tenantId: number;
-  since?: string;       // ISO timestamp — последний known activity
-  limit?: number;       // макс activities за один прогон (default 200)
+  /** ISO timestamp — последний known activity. Если null/undefined — fetch без фильтра (вся история). */
+  since?: string | null;
+  /** Макс activities за один прогон (default 200) */
+  limit?: number;
 }
 
 export interface FetchResult {
@@ -182,12 +187,18 @@ export async function fetchEmailAndChats(opts: FetchOptions): Promise<FetchResul
   let start = 0;
   let processed = 0;
 
-  // Фильтр по TYPE_ID — Bitrix не поддерживает IN в crm.activity.list, поэтому
-  // делаем 2 отдельных запроса.
+  // Два отдельных запроса: TYPE_ID=4 (email) и TYPE_ID=6 (всё что Bitrix считает прочим —
+  // потом фильтруем на нашей стороне через normalizeActivity: только PROVIDER_ID IMOL_*).
   for (const typeId of ["4", "6"]) {
     while (processed < limit) {
       const filter: Record<string, unknown> = { TYPE_ID: typeId };
       if (opts.since) filter[">=CREATED"] = opts.since;
+      // Для TYPE_ID=6 ограничиваем PROVIDER_ID — иначе тянем кучу CRM_TODO/CRM_TASKS_TASK
+      // (внутренние задачи менеджеров). Bitrix принимает % wildcard через специальный синтаксис.
+      if (typeId === "6") {
+        // Bitrix не умеет LIKE по PROVIDER_ID в filter — придётся отфильтровать в normalizeActivity
+        // (что уже сделано: PROVIDER_ID.startsWith('IMOL_'))
+      }
 
       const page = await callBitrixApi<BitrixActivityRaw[]>("crm.activity.list", {
         filter,

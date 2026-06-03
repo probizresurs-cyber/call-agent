@@ -27,8 +27,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "BITRIX_WEBHOOK_URL не задан" }, { status: 400 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { since?: string; limit?: number };
-  const since = body.since || (await getLastFetchedAt()) || undefined;
+  const body = (await req.json().catch(() => ({}))) as {
+    since?: string;
+    limit?: number;
+    fullHistory?: boolean;
+  };
+  // fullHistory=true → игнорируем last_fetched, тянем всё
+  const since = body.fullHistory
+    ? null
+    : (body.since || (await getLastFetchedAt()) || null);
 
   try {
     const result = await fetchEmailAndChats({
@@ -36,7 +43,7 @@ export async function POST(req: NextRequest) {
       since,
       limit: body.limit ?? 500,
     });
-    return NextResponse.json({ ok: true, result, since: since ?? null });
+    return NextResponse.json({ ok: true, result, since });
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
   }

@@ -25,8 +25,7 @@ export function BitrixActivitiesCard({ initialLastFetched }: { initialLastFetche
   async function run(fullHistory: boolean) {
     setBusy(true); setResult(null); setErr(null);
     try {
-      const body: Record<string, unknown> = {};
-      if (fullHistory) body.since = undefined;  // без since = с самого начала
+      const body: Record<string, unknown> = fullHistory ? { fullHistory: true } : {};
       const r = await fetch("/call-agent/api/bitrix-activities", {
         method: "POST",
         headers: { "content-type": "application/json" },
