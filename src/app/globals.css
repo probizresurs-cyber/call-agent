@@ -238,4 +238,13 @@ html, body {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
+
+/* details/summary — убираем дефолтный маркер в Safari + плавный поворот шеврона */
+summary::-webkit-details-marker { display: none; }
+.ds-chevron {
+  transition: transform 0.15s ease;
+}
+details[open] > summary .ds-chevron {
+  transform: rotate(180deg);
+}
 @keyframes spin { to { transform: rotate(360deg); } }

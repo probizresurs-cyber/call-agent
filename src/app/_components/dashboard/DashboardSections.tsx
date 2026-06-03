@@ -8,7 +8,7 @@
 import {
   Phone, CheckCircle2, XCircle, CircleDot, Clock, AlertTriangle,
   Star, ClipboardList, MessageSquare, Tag, Timer, ArrowDownLeft,
-  TrendingUp, AlertOctagon, Users, FileX, Package, ListChecks, type LucideIcon,
+  TrendingUp, AlertOctagon, Users, FileX, Package, ListChecks, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import type { DashboardData } from "@/lib/dashboard-data";
 
@@ -129,87 +129,94 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
         </div>
       )}
 
-      {/* ───── Чек-лист: выполнение пунктов ───── */}
-      <div className="ds-card" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, gap: 12, flexWrap: "wrap" }}>
-          <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {/* ───── Чек-лист: выполнение пунктов (свёрнуто по умолчанию) ───── */}
+      <details className="ds-card" style={{ marginBottom: 16, padding: 0 }}>
+        <summary style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 12, flexWrap: "wrap",
+          padding: 14, cursor: "pointer", listStyle: "none", userSelect: "none",
+        }}>
+          <h2 className="ds-h3" style={{ display: "flex", alignItems: "center", gap: 8, margin: 0 }}>
             <ListChecks size={16} strokeWidth={2} /> Чек-лист — выполнение пунктов
             <span className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontWeight: 400, marginLeft: 6 }}>
               · {selectedManagerName ? `по менеджеру: ${selectedManagerName}` : "по всей команде"}
             </span>
           </h2>
-          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)", display: "inline-flex", alignItems: "center", gap: 6 }}>
             пунктов: {checklistItemsBreakdown.length}
+            <ChevronDown size={14} className="ds-chevron" />
           </span>
-        </div>
-        {checklistItemsBreakdown.length === 0 ? (
-          <Empty hint="Чек-лист ещё не оценивался" />
-        ) : (
-          <>
-            <div style={{ overflowX: "auto" }}>
-              <table className="ds-table">
-                <thead>
-                  <tr>
-                    <th>Пункт чек-листа</th>
-                    <th style={{ width: 200 }}>Средний score</th>
-                    <th style={{ width: 140, textAlign: "center" }}>% выполнения</th>
-                    <th style={{ width: 110, textAlign: "center" }}>Оценок</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {checklistItemsBreakdown.map((it, idx) => {
-                    const isTopProblem = idx < 3;
-                    const passPct = Math.round(it.pass_rate * 100);
-                    const passColor =
-                      passPct >= 80 ? "var(--success)" :
-                      passPct >= 40 ? "var(--warning)" : "var(--destructive)";
-                    return (
-                      <tr
-                        key={it.id}
-                        style={{
-                          background: isTopProblem ? "color-mix(in srgb, var(--destructive) 10%, transparent)" : undefined,
-                        }}
-                      >
-                        <td style={{ fontWeight: isTopProblem ? 600 : 400 }}>
-                          {isTopProblem && (
-                            <AlertOctagon
-                              size={12}
-                              color="var(--destructive)"
-                              style={{ verticalAlign: "middle", marginRight: 6 }}
-                            />
-                          )}
-                          {it.title}
-                        </td>
-                        <td>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ flex: 1 }}>
-                              <Bar value={it.avg_score} />
+        </summary>
+        <div style={{ padding: "0 14px 14px" }}>
+          {checklistItemsBreakdown.length === 0 ? (
+            <Empty hint="Чек-лист ещё не оценивался" />
+          ) : (
+            <>
+              <div style={{ overflowX: "auto" }}>
+                <table className="ds-table">
+                  <thead>
+                    <tr>
+                      <th>Пункт чек-листа</th>
+                      <th style={{ width: 200 }}>Средний score</th>
+                      <th style={{ width: 140, textAlign: "center" }}>% выполнения</th>
+                      <th style={{ width: 110, textAlign: "center" }}>Оценок</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checklistItemsBreakdown.map((it, idx) => {
+                      const isTopProblem = idx < 3;
+                      const passPct = Math.round(it.pass_rate * 100);
+                      const passColor =
+                        passPct >= 80 ? "var(--success)" :
+                        passPct >= 40 ? "var(--warning)" : "var(--destructive)";
+                      return (
+                        <tr
+                          key={it.id}
+                          style={{
+                            background: isTopProblem ? "color-mix(in srgb, var(--destructive) 10%, transparent)" : undefined,
+                          }}
+                        >
+                          <td style={{ fontWeight: isTopProblem ? 600 : 400 }}>
+                            {isTopProblem && (
+                              <AlertOctagon
+                                size={12}
+                                color="var(--destructive)"
+                                style={{ verticalAlign: "middle", marginRight: 6 }}
+                              />
+                            )}
+                            {it.title}
+                          </td>
+                          <td>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ flex: 1 }}>
+                                <Bar value={it.avg_score} />
+                              </div>
+                              <span style={{ minWidth: 42, textAlign: "right", fontSize: 12, fontWeight: 600 }}>
+                                {Math.round(it.avg_score * 100)}%
+                              </span>
                             </div>
-                            <span style={{ minWidth: 42, textAlign: "right", fontSize: 12, fontWeight: 600 }}>
-                              {Math.round(it.avg_score * 100)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          <span style={{ color: passColor, fontWeight: 600 }}>{passPct}%</span>
-                        </td>
-                        <td style={{ textAlign: "center", color: "var(--muted-foreground)" }}>
-                          {it.count}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
-              <b>% выполнения</b> — доля звонков, где пункт оценён ≥ 70% (score &ge; 0.7).
-              Top-3 проблемных пунктов подсвечены — туда фокус внимания.
-              Сортировка: от худшего к лучшему по % выполнения.
-            </div>
-          </>
-        )}
-      </div>
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <span style={{ color: passColor, fontWeight: 600 }}>{passPct}%</span>
+                          </td>
+                          <td style={{ textAlign: "center", color: "var(--muted-foreground)" }}>
+                            {it.count}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
+                <b>% выполнения</b> — доля звонков, где пункт оценён ≥ 70% (score &ge; 0.7).
+                Top-3 проблемных пунктов подсвечены — туда фокус внимания.
+                Сортировка: от худшего к лучшему по % выполнения.
+              </div>
+            </>
+          )}
+        </div>
+      </details>
 
       {/* ───── Динамика по дням ───── */}
       <div className="ds-card" style={{ marginBottom: 16 }}>
