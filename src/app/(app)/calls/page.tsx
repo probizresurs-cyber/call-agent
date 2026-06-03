@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowDownLeft, ArrowUpRight, Phone, MessageSquare, Mail, Video } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Phone, MessageSquare, Mail, Video, Maximize2, Minimize2 } from "lucide-react";
 import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
@@ -22,6 +22,7 @@ type Row = {
   duration_sec: number;
   status: string;
   summary: string | null;
+  next_action: string | null;
   sentiment: string | null;
   manager_score: number | null;
 };
@@ -35,12 +36,24 @@ function TypeIcon({ type }: { type: string | null }) {
 }
 
 export default async function CallsListPage(props: {
-  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string }>;
+  searchParams: Promise<{ status?: string; sentiment?: string; q?: string; from?: string; to?: string; type?: string; expand?: string }>;
 }) {
   const me = await getSessionUser();
   if (!me) redirect("/login");
   const isManager = me.role === "manager";
   const sp = await props.searchParams;
+  const expanded = sp.expand === "summary";
+
+  // Toggle ?expand=summary в URL без сброса остальных фильтров
+  const toggleQs = new URLSearchParams();
+  if (sp.from) toggleQs.set("from", sp.from);
+  if (sp.to) toggleQs.set("to", sp.to);
+  if (sp.q) toggleQs.set("q", sp.q);
+  if (sp.sentiment) toggleQs.set("sentiment", sp.sentiment);
+  if (sp.status) toggleQs.set("status", sp.status);
+  if (sp.type) toggleQs.set("type", sp.type);
+  if (!expanded) toggleQs.set("expand", "summary");
+  const toggleHref = "/calls" + (toggleQs.toString() ? `?${toggleQs}` : "");
 
   // RLS: tenant + (для manager) фильтр по своему bitrix_manager_id
   const rls = rlsFor(me, { table: "c" });
@@ -68,7 +81,7 @@ export default async function CallsListPage(props: {
       `SELECT c.id, c.bitrix_call_id, c.interaction_type, c.channel,
               c.manager_name, c.manager_id, c.client_phone,
               c.direction, c.started_at, c.duration_sec, c.status,
-              a.summary, a.sentiment, a.manager_score
+              a.summary, a.next_action, a.sentiment, a.manager_score
        FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
        ${whereSql}
        ORDER BY c.id DESC LIMIT 200`
@@ -104,7 +117,17 @@ export default async function CallsListPage(props: {
               <tr>
                 <th style={{ width: 28 }}></th>
                 <th>#</th><th>Дата</th><th>Менеджер</th><th>Клиент</th>
-                <th>Дл.</th><th>Настр.</th><th>Оценка</th><th>Итог</th><th>Статус</th>
+                <th>Дл.</th><th>Настр.</th><th>Оценка</th>
+                <th style={{ minWidth: expanded ? 600 : 360 }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    Итог
+                    <Link href={toggleHref} title={expanded ? "Свернуть колонку" : "Раскрыть всю колонку"}
+                      style={{ color: "var(--muted-foreground)", display: "inline-flex" }}>
+                      {expanded ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+                    </Link>
+                  </span>
+                </th>
+                <th>Статус</th>
               </tr>
             </thead>
             <tbody>
@@ -129,10 +152,32 @@ export default async function CallsListPage(props: {
                   <td>{formatDuration(r.duration_sec)}</td>
                   <td><SentimentBadge value={r.sentiment} /></td>
                   <td>{r.manager_score != null ? r.manager_score.toFixed(1) : "—"}</td>
-                  <td style={{ maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {r.summary || "—"}
+                  <td style={{
+                    maxWidth: expanded ? 600 : 360,
+                    minWidth: expanded ? 600 : 360,
+                    verticalAlign: "top", padding: "8px",
+                  }}>
+                    {r.summary || r.next_action ? (
+                      <div style={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: expanded ? "unset" : 3,
+                        WebkitBoxOrient: "vertical",
+                        overflow: expanded ? "visible" : "hidden",
+                        lineHeight: 1.4,
+                        fontSize: 13,
+                        wordBreak: "break-word",
+                      } as React.CSSProperties}>
+                        {r.summary && <span>{r.summary}</span>}
+                        {r.next_action && (
+                          <span style={{ color: "var(--muted-foreground)" }}>
+                            {r.summary ? " · " : ""}
+                            <b>След. шаг:</b> {r.next_action}
+                          </span>
+                        )}
+                      </div>
+                    ) : "—"}
                   </td>
-                  <td><StatusBadge value={r.status} /></td>
+                  <td style={{ verticalAlign: "top", paddingTop: 10 }}><StatusBadge value={r.status} /></td>
                 </tr>
               ))}
             </tbody>

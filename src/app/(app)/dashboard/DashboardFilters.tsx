@@ -2,7 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { DateRangePicker } from "@/app/_components/DateRangePicker";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -83,7 +84,12 @@ const PRESETS: Preset[] = [
   },
 ];
 
-export function DashboardFilters() {
+interface ManagerOption {
+  id: string;
+  name: string;
+}
+
+export function DashboardFilters({ managers }: { managers?: ManagerOption[] }) {
   const router = useRouter();
   const search = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -91,16 +97,21 @@ export function DashboardFilters() {
   const fromParam = search.get("from") || "";
   const toParam = search.get("to") || "";
   const withCrm = search.get("with_crm") === "true";
+  const managerParam = search.get("manager_id") || "";
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
+  const [managerId, setManagerId] = useState(managerParam);
 
-  function navigate(next: { from: string; to: string; withCrm?: boolean }) {
+  function navigate(next: { from: string; to: string; withCrm?: boolean; managerId?: string }) {
     setFrom(next.from); setTo(next.to);
+    if (next.managerId !== undefined) setManagerId(next.managerId);
     const params = new URLSearchParams();
     if (next.from) params.set("from", next.from);
     if (next.to)   params.set("to",   next.to);
     const crm = next.withCrm !== undefined ? next.withCrm : withCrm;
     if (crm) params.set("with_crm", "true");
+    const mgr = next.managerId !== undefined ? next.managerId : managerId;
+    if (mgr) params.set("manager_id", mgr);
     startTransition(() => router.push("/dashboard" + (params.toString() ? `?${params}` : "")));
   }
 
@@ -109,11 +120,11 @@ export function DashboardFilters() {
   }
 
   function applyPreset(p: Preset) {
-    navigate(p.range());
+    navigate({ ...p.range() });
   }
 
   function reset() {
-    setFrom(""); setTo("");
+    setFrom(""); setTo(""); setManagerId("");
     startTransition(() => router.push("/dashboard"));
   }
 
@@ -122,6 +133,10 @@ export function DashboardFilters() {
     const d = new Date(base); d.setDate(d.getDate() + delta);
     const s = isoDate(d);
     navigate({ from: s, to: s });
+  }
+
+  function onManagerChange(id: string) {
+    navigate({ from, to, managerId: id });
   }
 
   // Определяем какой пресет сейчас активен (для подсветки)
@@ -193,32 +208,38 @@ export function DashboardFilters() {
         </button>
       </div>
 
-      {/* Правая часть: ручные даты и стрелки */}
+      {/* Правая часть: фильтр менеджеров + ручные даты и стрелки */}
       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        {managers && managers.length > 0 && (
+          <select
+            value={managerId}
+            onChange={(e) => onManagerChange(e.target.value)}
+            disabled={pending}
+            title="Фильтр по менеджеру"
+            style={{
+              height: 30, padding: "0 8px", fontSize: 13,
+              background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
+              border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
+              color: managerId ? "var(--primary)" : "var(--foreground)",
+              borderRadius: 4, minWidth: 150,
+            }}
+          >
+            <option value="">Все менеджеры</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
+            ))}
+          </select>
+        )}
         <button type="button" className="ds-btn ds-btn-secondary"
           onClick={() => shiftDay(-1)} title="На день назад"
           style={{ width: 30, height: 30, padding: 0 }}>
           <ChevronLeft size={14} />
         </button>
-        <input
-          type="date"
-          className="ds-input"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          onBlur={() => from && navigate({ from, to: to || from })}
-          max={to || isoDate(today())}
-          style={{ width: 140, height: 30 }}
-        />
-        <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>—</span>
-        <input
-          type="date"
-          className="ds-input"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          onBlur={() => to && navigate({ from: from || to, to })}
-          min={from || undefined}
-          max={isoDate(today())}
-          style={{ width: 140, height: 30 }}
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={(f, t) => navigate({ from: f, to: t })}
+          maxDate={isoDate(today())}
         />
         <button type="button" className="ds-btn ds-btn-secondary"
           onClick={() => shiftDay(+1)} title="На день вперёд"

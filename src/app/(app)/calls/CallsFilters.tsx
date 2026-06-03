@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
+import { DateRangePicker } from "@/app/_components/DateRangePicker";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -80,31 +81,17 @@ export function CallsFilters() {
       {/* Верхняя строка: дата-навигация */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(-1)} title="Назад день"
-          style={{ width: 36, padding: 0 }}>
+          style={{ width: 30, height: 30, padding: 0 }}>
           <ChevronLeft size={16} />
         </button>
-        <input
-          type="date"
-          className="ds-input"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          onBlur={apply}
-          max={to || todayIso()}
-          style={{ width: 160 }}
-        />
-        <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>—</span>
-        <input
-          type="date"
-          className="ds-input"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          onBlur={apply}
-          min={from || undefined}
-          max={todayIso()}
-          style={{ width: 160 }}
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type }); }}
+          maxDate={todayIso()}
         />
         <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(+1)} title="Вперёд день"
-          style={{ width: 36, padding: 0 }}>
+          style={{ width: 30, height: 30, padding: 0 }}>
           <ChevronRight size={16} />
         </button>
 
@@ -116,7 +103,7 @@ export function CallsFilters() {
         </button>
         <button type="button" className="ds-btn ds-btn-secondary" onClick={presetLast7}>7 дней</button>
         <button type="button" className="ds-btn ds-btn-ghost" onClick={reset} style={{ marginLeft: "auto" }}>
-          Сбросить
+          Сбросить всё
         </button>
       </div>
 

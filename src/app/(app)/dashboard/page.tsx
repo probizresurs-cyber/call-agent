@@ -26,7 +26,7 @@ interface DailyRow {
 }
 
 export default async function DashboardPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; with_crm?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; with_crm?: string; manager_id?: string }>;
 }) {
   const me = await getSessionUser();
   if (!me) redirect("/login");
@@ -43,11 +43,31 @@ export default async function DashboardPage(props: {
   // RLS — фильтр по tenant_id + (для manager) по его bitrix_manager_id
   const rls = rlsFor(me, { table: "c" });
 
-  // Базовый WHERE: tenant + дата + опционально только с CRM
+  // Список менеджеров для фильтра (только для head/admin/owner)
+  const managersList = isManager ? [] : await db
+    .prepare(
+      `SELECT c.manager_id AS id,
+              COALESCE(MAX(c.manager_name), MAX(m.name), '') AS name
+       FROM calls c
+       LEFT JOIN managers m ON m.id = c.manager_id
+       WHERE c.tenant_id = ?
+         AND c.manager_id IS NOT NULL AND c.manager_id != ''
+         AND (m.is_active IS NULL OR m.is_active = 1)
+       GROUP BY c.manager_id
+       ORDER BY name`
+    )
+    .all<{ id: string; name: string }>(me.tenantId);
+
+  // Базовый WHERE: tenant + дата + менеджер + опционально только с CRM
   const dateWhere: string[] = [rls.sql];
   const dateParams: unknown[] = [...rls.params];
   if (sp.from) { dateWhere.push("substr(c.started_at,1,10) >= ?"); dateParams.push(sp.from); }
   if (sp.to)   { dateWhere.push("substr(c.started_at,1,10) <= ?"); dateParams.push(sp.to); }
+  // Фильтр по менеджеру — только для не-manager ролей (у manager уже стоит RLS на свой ID)
+  if (!isManager && sp.manager_id) {
+    dateWhere.push("c.manager_id = ?");
+    dateParams.push(sp.manager_id);
+  }
   if (withCrmOnly) {
     dateWhere.push(
       "(c.bitrix_deal_id IS NOT NULL OR c.bitrix_lead_id IS NOT NULL OR c.bitrix_contact_id IS NOT NULL OR (c.bitrix_activity_id IS NOT NULL AND c.bitrix_activity_id != '0'))"
@@ -311,7 +331,7 @@ export default async function DashboardPage(props: {
         </span>
       </div>
 
-      <DashboardFilters />
+      <DashboardFilters managers={isManager ? undefined : managersList} />
 
       {/* ───── KPI ───── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12, marginBottom: 16 }}>
