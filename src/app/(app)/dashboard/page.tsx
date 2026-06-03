@@ -10,6 +10,8 @@ import { getSessionUser } from "@/lib/auth";
 import { rlsFor } from "@/lib/rls";
 import { DashboardFilters } from "./DashboardFilters";
 import { CoachInsights } from "./CoachInsights";
+import { ShareDashboardButton } from "./ShareDashboardButton";
+import { getDashboardToken } from "@/lib/dashboard-share";
 
 const DEFAULT_CONTACT_THRESHOLD = 15; // секунд
 
@@ -315,9 +317,13 @@ export default async function DashboardPage(props: {
     .map(([id, s]) => ({ id, title: s.title, avg: s.n ? s.sum / s.n : 0, n: s.n }))
     .sort((a, b) => a.avg - b.avg); // от слабых к сильным
 
+  // Токен публичной ссылки — только для не-manager (manager не должен шарить дашборд)
+  const dashboardShareToken = isManager ? null : await getDashboardToken(me.tenantId);
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://marketradar24.ru";
+
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+      <div className="page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, gap: 12, flexWrap: "wrap" }}>
         <h1 className="ds-h1">
           {isManager ? "Мой кабинет" : "Дашборд"}
           {isManager && me.name && (
@@ -326,9 +332,14 @@ export default async function DashboardPage(props: {
             </span>
           )}
         </h1>
-        <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-          Период: <b style={{ color: "var(--foreground)" }}>{periodLabel}</b>
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
+            Период: <b style={{ color: "var(--foreground)" }}>{periodLabel}</b>
+          </span>
+          {!isManager && (
+            <ShareDashboardButton initialToken={dashboardShareToken} baseUrl={baseUrl} />
+          )}
+        </div>
       </div>
 
       <DashboardFilters managers={isManager ? undefined : managersList} />
