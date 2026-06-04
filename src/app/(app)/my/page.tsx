@@ -13,9 +13,11 @@ import {
   User, Bell, AlertTriangle, Trophy, Flame, CheckCircle2, Target, Award,
 } from "lucide-react";
 import { getSessionUser } from "@/lib/auth";
+import { getDbAsync } from "@/lib/db-compat";
 import { listReminders } from "@/lib/reminders";
 import { getLeaderboard, getManagerStreak, getAchievementsFor, getWeeklyChallenge } from "@/lib/gamification";
 import { ReminderRow } from "./ReminderRow";
+import { DiscrepancyInbox, type CardDiscrepancyRow } from "./DiscrepancyInbox";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +38,26 @@ export default async function MyPage() {
     );
   }
 
-  const [reminders, streak, achievements, leaderboard, challenge] = await Promise.all([
+  const db = getDbAsync();
+
+  const [reminders, streak, achievements, leaderboard, challenge, discrepancies] = await Promise.all([
     listReminders({ tenantId: me.tenantId, bitrixManagerId: bxId, status: "pending", limit: 20 }),
     getManagerStreak({ tenantId: me.tenantId, bitrixManagerId: bxId }),
     getAchievementsFor({ tenantId: me.tenantId, bitrixManagerId: bxId }),
     getLeaderboard({ tenantId: me.tenantId, myManagerId: bxId, anonymize: true, daysBack: 30 }),
     getWeeklyChallenge({ tenantId: me.tenantId }),
+    db
+      .prepare(
+        `SELECT cd.*, c.started_at, c.manager_name
+         FROM card_discrepancies cd
+         JOIN calls c ON c.id = cd.call_id
+         WHERE cd.tenant_id = ?
+           AND cd.routed_to_user_id = ?
+           AND cd.status = 'pending'
+         ORDER BY cd.created_at DESC
+         LIMIT 20`
+      )
+      .all<CardDiscrepancyRow>(me.tenantId, me.id),
   ]);
 
   const my = leaderboard.find((l) => l.is_me);
@@ -93,6 +109,9 @@ export default async function MyPage() {
           hint={`${challenge.pct.toFixed(0)}% выполнено командой`}
         />
       </div>
+
+      {/* Расхождения */}
+      <DiscrepancyInbox items={discrepancies} />
 
       {/* Напоминания */}
       <div className="ds-card" style={{ marginBottom: 16 }}>

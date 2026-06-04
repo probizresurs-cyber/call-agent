@@ -470,6 +470,46 @@ async function saveAndRoute(
  * Ошибки НЕ пробрасываются наружу — модуль не должен ломать
  * основной пайплайн. Все сбои логируются через console.warn/error.
  */
+// ──────────────────────────────────────────────────────────────
+// 6. Применение принятого расхождения в Bitrix CRM
+
+/**
+ * Применяет принятое расхождение к карточке Bitrix24:
+ * обновляет поле field_name значением suggested_value через crm.deal.update / crm.lead.update.
+ *
+ * Вызывается из resolve-route когда tenant.discrepancy_action_mode = 'auto_approve'.
+ * Ошибки пробрасываются — вызывающий код должен их перехватить.
+ */
+export async function applyDiscrepancyToBitrix(
+  discrepancy: import("@/lib/discrepancy-types").CardDiscrepancy
+): Promise<void> {
+  const { entity_type, entity_id, field_name, suggested_value } = discrepancy;
+
+  if (!entity_id || !suggested_value) {
+    console.warn(
+      `[discrepancy] applyToBitrix: пропускаем #${discrepancy.id} — нет entity_id или suggested_value`
+    );
+    return;
+  }
+
+  const fields = { [field_name]: suggested_value };
+
+  if (entity_type === "deal") {
+    await callBitrixApi("crm.deal.update", { id: entity_id, fields });
+    console.log(`[discrepancy] deal.update(${entity_id}) ${field_name} = "${suggested_value}"`);
+  } else if (entity_type === "lead") {
+    await callBitrixApi("crm.lead.update", { id: entity_id, fields });
+    console.log(`[discrepancy] lead.update(${entity_id}) ${field_name} = "${suggested_value}"`);
+  } else {
+    console.warn(
+      `[discrepancy] applyToBitrix: entity_type="${entity_type}" не поддерживается — пропускаем #${discrepancy.id}`
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// 5. Главная функция
+
 export async function detectDiscrepancies(callId: number): Promise<number> {
   try {
     const db = getDbAsync();

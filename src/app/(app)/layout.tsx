@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon, Activity, Upload, FilePlus2, Users, Trophy, Bell } from "lucide-react";
+import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
+import { getDbAsync } from "@/lib/db-compat";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   owner: "Владелец",
@@ -24,6 +25,24 @@ export default async function AuthedLayout({ children }: { children: React.React
   const showSettings = canManage(user.role) || user.role === "head";
   const callsLabel = user.role === "manager" ? "Мои звонки" : "Звонки";
   const dashboardLabel = user.role === "manager" ? "Мой кабинет" : "Дашборд";
+
+  // Показывать «Расхождения» только для owner/admin/head
+  const showDiscrepancies = canViewTeam(user.role);
+
+  // Число pending-расхождений для бейджа в навигации
+  let pendingDiscrepanciesCount = 0;
+  if (showDiscrepancies) {
+    try {
+      const row = await getDbAsync()
+        .prepare(
+          `SELECT COUNT(*) AS n FROM card_discrepancies WHERE tenant_id = ? AND status = 'pending'`
+        )
+        .get<{ n: number }>(user.tenantId);
+      pendingDiscrepanciesCount = row?.n ?? 0;
+    } catch {
+      // table may not exist yet — ignore
+    }
+  }
 
   return (
     <div className="shell">
@@ -76,6 +95,36 @@ export default async function AuthedLayout({ children }: { children: React.React
           {showSettings && (
             <Link className="nav-link" href="/crm-log">
               <Upload size={16} strokeWidth={2} /> CRM-журнал
+            </Link>
+          )}
+          {showDiscrepancies && (
+            <Link
+              className="nav-link"
+              href="/discrepancies"
+              style={{ position: "relative" }}
+            >
+              <Scale size={16} strokeWidth={2} /> Расхождения
+              {pendingDiscrepanciesCount > 0 && (
+                <span
+                  style={{
+                    marginLeft: "auto",
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    background: "var(--destructive)",
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 5px",
+                    lineHeight: 1,
+                  }}
+                >
+                  {pendingDiscrepanciesCount > 99 ? "99+" : pendingDiscrepanciesCount}
+                </span>
+              )}
             </Link>
           )}
           {showSettings && (
