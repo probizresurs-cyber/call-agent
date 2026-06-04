@@ -18,6 +18,7 @@ import { transcribeFile } from "./transcribe";
 import { analyzeCall, type CallAnalysis } from "./analyzer";
 import { createReminderFromAnalysis } from "./reminders";
 import { detectProduct, type ProductCandidate } from "./product-detector";
+import { detectDiscrepancies } from "./discrepancy-detector";
 
 const RECORDINGS_DIR = process.env.RECORDINGS_DIR
   ? path.resolve(process.env.RECORDINGS_DIR)
@@ -253,6 +254,9 @@ export async function processCall(callId: number): Promise<void> {
   } catch (e) {
     console.warn(`[reminders] auto-create failed for call #${callId}:`, (e as Error).message);
   }
+
+  // 6.6. §Фаза-2 CRM-карточка: запускаем async, не ждём — не блокируем основной пайплайн
+  detectDiscrepancies(callId).catch((e) => console.error("[discrepancy]", e));
 
   // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL
   await setCallStatus(callId, "syncing");

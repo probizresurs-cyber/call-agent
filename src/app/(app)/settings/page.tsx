@@ -120,6 +120,25 @@ export default async function SettingsPage() {
         role: r.role,
         name: r.name,
       }));
+
+      // Гарантируем что текущий пользователь (owner/admin/head) всегда в списке,
+      // даже если его не оказалось в таблице users по каким-либо причинам
+      // (например, аккаунт owner был засеян другим путём или миграция не догнала).
+      const meRole = me.role as "owner" | "admin" | "head" | "manager";
+      if (
+        (meRole === "owner" || meRole === "admin" || meRole === "head") &&
+        !discrepancyRecipients.some((r) => r.id === me.id)
+      ) {
+        discrepancyRecipients = [
+          {
+            id: me.id,
+            login: me.login,
+            role: meRole as "owner" | "admin" | "head",
+            name: me.name,
+          },
+          ...discrepancyRecipients,
+        ];
+      }
     } catch (e) {
       // Скорее всего миграция discrepancy_* колонок ещё не накатилась.
       // Тихо отдаём дефолты, чтобы /settings не падал.

@@ -156,6 +156,8 @@ export async function POST(req: NextRequest) {
   if (recipientMode === "manager") adminUserIds = [];
 
   // Проверим что выбранные адресаты — реально пользователи этого тенанта с подходящей ролью.
+  // Исключение: сам текущий пользователь (owner/admin/head) всегда считается валидным,
+  // даже если его id вдруг не найден в users (аккаунт из .env, засеянный вне основного пути).
   const db = getDbAsync();
   if (recipientMode === "admins" && adminUserIds.length > 0) {
     const placeholders = adminUserIds.map(() => "?").join(",");
@@ -168,6 +170,10 @@ export async function POST(req: NextRequest) {
       )
       .all<{ id: number }>(me.tenantId, ...adminUserIds);
     const validSet = new Set(valid.map((r) => Number(r.id)));
+    // Текущий пользователь всегда валиден если у него подходящая роль
+    if (me.role === "owner" || me.role === "admin" || me.role === "head") {
+      validSet.add(me.id);
+    }
     adminUserIds = adminUserIds.filter((id) => validSet.has(id));
   }
 
