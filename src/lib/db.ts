@@ -91,6 +91,47 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("sessions", "user_id", "INTEGER");
   ensureColumn("sessions", "tenant_id", "INTEGER");
 
+  // ─────── Модуль «AI-проверка карточки CRM» (discrepancy detector) ───────
+  // Per-tenant настройки модуля: включён ли, кому слать находки,
+  // что делать (вручную/auto-approve), какие UF_CRM_* поля проверять,
+  // и какой минимальный порог severity показывать.
+  ensureColumn("tenants", "discrepancy_enabled", "INTEGER DEFAULT 0");
+  ensureColumn("tenants", "discrepancy_recipient_mode", "TEXT DEFAULT 'manager'");
+  ensureColumn("tenants", "discrepancy_admin_user_ids", "TEXT DEFAULT NULL");
+  ensureColumn("tenants", "discrepancy_action_mode", "TEXT DEFAULT 'manual'");
+  ensureColumn("tenants", "discrepancy_custom_fields", "TEXT DEFAULT NULL");
+  ensureColumn("tenants", "discrepancy_severity_min", "TEXT DEFAULT 'medium'");
+
+  // Таблица найденных расхождений между карточкой CRM и стенограммой звонка.
+  // Идемпотентная — CREATE IF NOT EXISTS, индексы тоже.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS card_discrepancies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id INTEGER NOT NULL,
+      call_id INTEGER NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+      entity_type TEXT,                       -- 'deal'|'lead'|'contact'
+      entity_id TEXT,
+      field_name TEXT NOT NULL,                -- 'COMMENTS', 'UF_CRM_5F2_BUDGET', etc.
+      field_label TEXT,                        -- человеко-читаемый ярлык
+      card_value TEXT,                         -- что сейчас в карточке
+      transcript_evidence TEXT,                -- цитата из стенограммы
+      suggested_value TEXT,                    -- что AI предлагает записать
+      severity TEXT NOT NULL,                  -- 'low'|'medium'|'high'
+      status TEXT NOT NULL DEFAULT 'pending',  -- 'pending'|'accepted'|'rejected'|'manual_fixed'|'auto_applied'
+      routed_to_user_id INTEGER,
+      ai_model TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      resolved_at TEXT,
+      resolved_by_user_id INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_card_discrepancies_tenant_status
+      ON card_discrepancies(tenant_id, status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_card_discrepancies_call
+      ON card_discrepancies(call_id);
+    CREATE INDEX IF NOT EXISTS idx_card_discrepancies_routed
+      ON card_discrepancies(routed_to_user_id, status);
+  `);
+
   // Засеваем дефолтного тенанта если ещё не существует
   seedDefaultData(db);
 }

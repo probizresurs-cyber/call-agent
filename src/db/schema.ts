@@ -29,6 +29,27 @@ export const tenants = pgTable("tenants", {
   // настройки тенанта (бюджет, retention, флаги интеграций)
   settings: jsonb("settings").$type<Record<string, unknown>>().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  // ─────── Модуль «AI-проверка карточки CRM» (discrepancy detector) ───────
+  // Все поля nullable / с дефолтами — старые тенанты не ломаются.
+  // discrepancyEnabled: включён ли модуль для тенанта
+  discrepancyEnabled: boolean("discrepancy_enabled").default(false),
+  // куда падают расхождения: 'manager' (в ЛК менеджера) | 'admins' (РОП/админ/владелец)
+  discrepancyRecipientMode: varchar("discrepancy_recipient_mode", { length: 16 })
+    .default("manager")
+    .$type<"manager" | "admins">(),
+  // JSON-массив user.id (только если recipient_mode='admins'); null = не задано
+  discrepancyAdminUserIds: jsonb("discrepancy_admin_user_ids").$type<number[]>(),
+  // 'manual' (получатель сам идёт в Bitrix) | 'auto_approve' (Accept/Reject + AI пишет в Bitrix)
+  discrepancyActionMode: varchar("discrepancy_action_mode", { length: 16 })
+    .default("manual")
+    .$type<"manual" | "auto_approve">(),
+  // JSON-массив UF_CRM_* whitelist; null = проверять ВСЕ UF_CRM_* поля
+  discrepancyCustomFields: jsonb("discrepancy_custom_fields").$type<string[]>(),
+  // порог: 'low' | 'medium' | 'high'
+  discrepancySeverityMin: varchar("discrepancy_severity_min", { length: 8 })
+    .default("medium")
+    .$type<"low" | "medium" | "high">(),
 });
 
 // ──────────────────────────────────────────────────────────────────────
@@ -288,5 +309,54 @@ export const reminders = pgTable(
   (t) => ({
     userStatusIdx: index("reminders_user_status_idx").on(t.userId, t.status),
     dueIdx: index("reminders_due_idx").on(t.dueAt),
+  })
+);
+
+// ──────────────────────────────────────────────────────────────────────
+// Card discrepancies — расхождения между карточкой CRM и стенограммой звонка.
+// Заполняется модулем «AI-проверка карточки CRM» (см. поля discrepancy_* в tenants).
+// Маршрутизация: routedToUserId = либо ответственный менеджер, либо РОП/админ
+// (определяется по tenants.discrepancyRecipientMode).
+
+export type DiscrepancySeverity = "low" | "medium" | "high";
+export type DiscrepancyStatus =
+  | "pending"
+  | "accepted"
+  | "rejected"
+  | "manual_fixed"
+  | "auto_applied";
+
+export const cardDiscrepancies = pgTable(
+  "card_discrepancies",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    tenantId: bigint("tenant_id", { mode: "number" }).notNull().references(() => tenants.id, { onDelete: "cascade" }),
+    callId: bigint("call_id", { mode: "number" }).notNull().references(() => calls.id, { onDelete: "cascade" }),
+    // К какой CRM-сущности относится поле
+    entityType: varchar("entity_type", { length: 16 }).$type<"deal" | "lead" | "contact">(),
+    entityId: varchar("entity_id", { length: 64 }),
+    // Идентификатор поля в Bitrix (COMMENTS, UF_CRM_5F2_BUDGET, …)
+    fieldName: text("field_name").notNull(),
+    // Человеко-читаемый ярлык для UI
+    fieldLabel: text("field_label"),
+    // Что сейчас в карточке
+    cardValue: text("card_value"),
+    // Цитата из стенограммы, подтверждающая расхождение
+    transcriptEvidence: text("transcript_evidence"),
+    // Что AI предлагает записать
+    suggestedValue: text("suggested_value"),
+    severity: varchar("severity", { length: 8 }).notNull().$type<DiscrepancySeverity>(),
+    status: varchar("status", { length: 16 }).notNull().default("pending").$type<DiscrepancyStatus>(),
+    // Кому отправлено на разбор (manager / admin user id)
+    routedToUserId: bigint("routed_to_user_id", { mode: "number" }).references(() => users.id, { onDelete: "set null" }),
+    aiModel: varchar("ai_model", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedByUserId: bigint("resolved_by_user_id", { mode: "number" }).references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => ({
+    tenantStatusIdx: index("idx_card_discrepancies_tenant_status").on(t.tenantId, t.status, t.createdAt),
+    callIdx: index("idx_card_discrepancies_call").on(t.callId),
+    routedIdx: index("idx_card_discrepancies_routed").on(t.routedToUserId, t.status),
   })
 );

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2 } from "lucide-react";
+import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -11,12 +11,14 @@ import { FlagsCard } from "./FlagsCard";
 import { BudgetCard } from "./BudgetCard";
 import { BitrixActivitiesCard } from "./BitrixActivitiesCard";
 import { DashboardShareCard } from "./DashboardShareCard";
+import { DiscrepancyCard, type DiscrepancyInitial, type RecipientUser } from "./DiscrepancyCard";
 import { isAutoImportEnabled, getLastAutoImport } from "@/lib/auto-importer";
 import { getFlagsSummary } from "@/lib/flags";
 import { getTenantBudget, getMonthlyUsage } from "@/lib/budget";
 import { getLastFetchedAt } from "@/lib/bitrix-activities";
 import { getDashboardToken } from "@/lib/dashboard-share";
 import { getSessionUser, canManage } from "@/lib/auth";
+import { getDbAsync } from "@/lib/db-compat";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,93 @@ export default async function SettingsPage() {
     getDashboardToken(me.tenantId),
   ]);
 
+  // ───── Настройки модуля «Сравнение с CRM-карточкой» (owner/admin/head) ─────
+  // Колонки tenants.discrepancy_* добавляет параллельный агент. Если миграция
+  // ещё не накатилась — отдаём дефолты и не падаем (try/catch).
+  const canSeeDiscrepancy = isManager || me.role === "head";
+  let discrepancyInitial: DiscrepancyInitial = {
+    enabled: false,
+    recipientMode: "manager",
+    adminUserIds: [],
+    actionMode: "manual",
+    customFields: null,
+    severityMin: "medium",
+  };
+  let discrepancyRecipients: RecipientUser[] = [];
+  if (canSeeDiscrepancy) {
+    try {
+      const db = getDbAsync();
+      const row = await db
+        .prepare(
+          `SELECT discrepancy_enabled, discrepancy_recipient_mode, discrepancy_admin_user_ids,
+                  discrepancy_action_mode, discrepancy_custom_fields, discrepancy_severity_min
+             FROM tenants WHERE id = ?`
+        )
+        .get<{
+          discrepancy_enabled: boolean | number | null;
+          discrepancy_recipient_mode: string | null;
+          discrepancy_admin_user_ids: string | null;
+          discrepancy_action_mode: string | null;
+          discrepancy_custom_fields: string | null;
+          discrepancy_severity_min: string | null;
+        }>(me.tenantId);
+      if (row) {
+        const recipientMode = (row.discrepancy_recipient_mode === "admins" ? "admins" : "manager") as "manager" | "admins";
+        const actionMode = (row.discrepancy_action_mode === "auto_approve" ? "auto_approve" : "manual") as "manual" | "auto_approve";
+        const sev = row.discrepancy_severity_min;
+        const severityMin = (sev === "low" || sev === "high" ? sev : "medium") as "low" | "medium" | "high";
+        let adminUserIds: number[] = [];
+        if (row.discrepancy_admin_user_ids) {
+          try {
+            const parsed = JSON.parse(row.discrepancy_admin_user_ids) as unknown;
+            if (Array.isArray(parsed)) {
+              adminUserIds = parsed.map((v) => Number(v)).filter((v) => Number.isInteger(v) && v > 0);
+            }
+          } catch { /* ignore malformed JSON */ }
+        }
+        let customFields: string[] | null = null;
+        if (row.discrepancy_custom_fields != null) {
+          try {
+            const parsed = JSON.parse(row.discrepancy_custom_fields) as unknown;
+            if (Array.isArray(parsed)) {
+              customFields = parsed.map((v) => String(v).trim()).filter(Boolean);
+              if (customFields.length === 0) customFields = null;
+            }
+          } catch { /* ignore malformed JSON */ }
+        }
+        discrepancyInitial = {
+          enabled: row.discrepancy_enabled === true || row.discrepancy_enabled === 1,
+          recipientMode,
+          adminUserIds,
+          actionMode,
+          customFields,
+          severityMin,
+        };
+      }
+      const recipientRows = await db
+        .prepare(
+          `SELECT id, login, role, name FROM users
+             WHERE tenant_id = ?
+               AND role IN ('head','owner','admin')
+               AND COALESCE(is_active, 1) = 1
+             ORDER BY
+               CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+               name, login`
+        )
+        .all<{ id: number; login: string; role: "owner" | "admin" | "head"; name: string | null }>(me.tenantId);
+      discrepancyRecipients = recipientRows.map((r) => ({
+        id: Number(r.id),
+        login: r.login,
+        role: r.role,
+        name: r.name,
+      }));
+    } catch (e) {
+      // Скорее всего миграция discrepancy_* колонок ещё не накатилась.
+      // Тихо отдаём дефолты, чтобы /settings не падал.
+      console.warn("[settings] failed to load discrepancy settings:", (e as Error).message);
+    }
+  }
+
   return (
     <>
       <h1 className="ds-h1" style={{ marginBottom: 20 }}>Настройки</h1>
@@ -49,6 +138,16 @@ export default async function SettingsPage() {
             <Shield size={16} strokeWidth={2} /> Системные флаги
           </h2>
           <FlagsCard initial={flags} />
+        </div>
+      )}
+
+      {/* ───────── Сравнение с CRM-карточкой (видно owner/admin/head) ───────── */}
+      {canSeeDiscrepancy && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Scale size={16} strokeWidth={2} /> Сравнение с CRM-карточкой
+          </h2>
+          <DiscrepancyCard initial={discrepancyInitial} recipients={discrepancyRecipients} />
         </div>
       )}
 
