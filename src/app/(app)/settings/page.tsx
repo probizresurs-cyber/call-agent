@@ -108,7 +108,6 @@ export default async function SettingsPage() {
           `SELECT id, login, role, name FROM users
              WHERE tenant_id = ?
                AND role IN ('head','owner','admin')
-               AND is_active IS NOT FALSE
              ORDER BY
                CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
                name, login`
