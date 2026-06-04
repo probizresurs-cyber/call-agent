@@ -54,8 +54,44 @@ export default async function SettingsPage() {
   };
   let discrepancyRecipients: RecipientUser[] = [];
   if (canSeeDiscrepancy) {
+    const db = getDbAsync();
+
+    // ① Загружаем список получателей — простой запрос, не зависит от миграций discrepancy_*
     try {
-      const db = getDbAsync();
+      const recipientRows = await db
+        .prepare(
+          `SELECT id, login, role, name FROM users
+             WHERE tenant_id = ?
+               AND role IN ('head','owner','admin')
+             ORDER BY
+               CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
+               name, login`
+        )
+        .all<{ id: number; login: string; role: "owner" | "admin" | "head"; name: string | null }>(me.tenantId);
+      discrepancyRecipients = recipientRows.map((r) => ({
+        id: Number(r.id),
+        login: r.login,
+        role: r.role,
+        name: r.name,
+      }));
+    } catch (e) {
+      console.warn("[settings] failed to load discrepancy recipients:", (e as Error).message);
+    }
+
+    // Гарантируем что текущий пользователь всегда в списке
+    const meRole = me.role as "owner" | "admin" | "head" | "manager";
+    if (
+      (meRole === "owner" || meRole === "admin" || meRole === "head") &&
+      !discrepancyRecipients.some((r) => r.id === me.id)
+    ) {
+      discrepancyRecipients = [
+        { id: me.id, login: me.login, role: meRole as "owner" | "admin" | "head", name: me.name },
+        ...discrepancyRecipients,
+      ];
+    }
+
+    // ② Загружаем настройки тенанта — может упасть если колонки discrepancy_* ещё не накатились
+    try {
       const row = await db
         .prepare(
           `SELECT discrepancy_enabled, discrepancy_recipient_mode, discrepancy_admin_user_ids,
@@ -103,45 +139,8 @@ export default async function SettingsPage() {
           severityMin,
         };
       }
-      const recipientRows = await db
-        .prepare(
-          `SELECT id, login, role, name FROM users
-             WHERE tenant_id = ?
-               AND role IN ('head','owner','admin')
-             ORDER BY
-               CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END,
-               name, login`
-        )
-        .all<{ id: number; login: string; role: "owner" | "admin" | "head"; name: string | null }>(me.tenantId);
-      discrepancyRecipients = recipientRows.map((r) => ({
-        id: Number(r.id),
-        login: r.login,
-        role: r.role,
-        name: r.name,
-      }));
-
-      // Гарантируем что текущий пользователь (owner/admin/head) всегда в списке,
-      // даже если его не оказалось в таблице users по каким-либо причинам
-      // (например, аккаунт owner был засеян другим путём или миграция не догнала).
-      const meRole = me.role as "owner" | "admin" | "head" | "manager";
-      if (
-        (meRole === "owner" || meRole === "admin" || meRole === "head") &&
-        !discrepancyRecipients.some((r) => r.id === me.id)
-      ) {
-        discrepancyRecipients = [
-          {
-            id: me.id,
-            login: me.login,
-            role: meRole as "owner" | "admin" | "head",
-            name: me.name,
-          },
-          ...discrepancyRecipients,
-        ];
-      }
     } catch (e) {
-      // Скорее всего миграция discrepancy_* колонок ещё не накатилась.
-      // Тихо отдаём дефолты, чтобы /settings не падал.
-      console.warn("[settings] failed to load discrepancy settings:", (e as Error).message);
+      console.warn("[settings] failed to load discrepancy tenant settings:", (e as Error).message);
     }
   }
 
