@@ -48,20 +48,34 @@ export async function POST(
   let dealTitle: string | null = null;
   let leadTitle: string | null = null;
   let contactName: string | null = null;
+  const errors: string[] = [];
 
+  // Каждый вызов Bitrix в отдельном try/catch — ошибка одного не роняет всё
   if (row.bitrix_deal_id) {
-    const d = await crmDealGet(row.bitrix_deal_id);
-    dealTitle = d?.TITLE ?? null;
+    try {
+      const d = await crmDealGet(row.bitrix_deal_id);
+      dealTitle = d?.TITLE ?? null;
+    } catch (e) {
+      errors.push(`deal: ${(e as Error).message}`);
+    }
   }
   if (row.bitrix_lead_id) {
-    const l = await crmLeadGet(row.bitrix_lead_id);
-    leadTitle = l
-      ? (l.TITLE || [l.NAME, l.LAST_NAME].filter(Boolean).join(" ") || null)
-      : null;
+    try {
+      const l = await crmLeadGet(row.bitrix_lead_id);
+      leadTitle = l
+        ? (l.TITLE || [l.NAME, l.LAST_NAME].filter(Boolean).join(" ") || null)
+        : null;
+    } catch (e) {
+      errors.push(`lead: ${(e as Error).message}`);
+    }
   }
   if (row.bitrix_contact_id) {
-    const c = await crmContactGet(row.bitrix_contact_id);
-    if (c) contactName = formatContactName(c);
+    try {
+      const c = await crmContactGet(row.bitrix_contact_id);
+      if (c) contactName = formatContactName(c);
+    } catch (e) {
+      errors.push(`contact: ${(e as Error).message}`);
+    }
   }
 
   await db
@@ -73,7 +87,8 @@ export async function POST(
     .run(dealTitle, leadTitle, contactName, portalUrl, callId, me.tenantId);
 
   return NextResponse.json({
-    ok: true,
+    ok: errors.length === 0,
     updated: { dealTitle, leadTitle, contactName, portalUrl },
+    errors: errors.length > 0 ? errors : undefined,
   });
 }
