@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale } from "lucide-react";
+import { Bot, Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -8,6 +8,7 @@ import { DashboardSettingsCard } from "./DashboardSettingsCard";
 import { ReanalyzeCard } from "./ReanalyzeCard";
 import { UsersCard } from "./UsersCard";
 import { FlagsCard } from "./FlagsCard";
+import { ModelCard } from "./ModelCard";
 import { BudgetCard } from "./BudgetCard";
 import { BitrixActivitiesCard } from "./BitrixActivitiesCard";
 import { DashboardShareCard } from "./DashboardShareCard";
@@ -33,6 +34,15 @@ export default async function SettingsPage() {
   const isManager = canManage(me.role);  // owner или admin
 
   const flags = await getFlagsSummary(me.tenantId);
+
+  const analysisModel = isManager
+    ? await getDbAsync()
+        .prepare("SELECT analysis_model FROM tenants WHERE id = ?")
+        .get<{ analysis_model: string | null }>(me.tenantId)
+        .then((r) => r?.analysis_model ?? null)
+        .catch(() => null)
+    : null;
+
   const [budget, usage, lastFetchedActivities, dashboardToken] = await Promise.all([
     getTenantBudget(me.tenantId),
     getMonthlyUsage(me.tenantId),
@@ -155,6 +165,16 @@ export default async function SettingsPage() {
             <Shield size={16} strokeWidth={2} /> Системные флаги
           </h2>
           <FlagsCard initial={flags} />
+        </div>
+      )}
+
+      {/* ───────── Модель для анализа (видно только owner/admin) ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <Bot size={16} strokeWidth={2} /> Модель для анализа
+          </h2>
+          <ModelCard initial={analysisModel} />
         </div>
       )}
 

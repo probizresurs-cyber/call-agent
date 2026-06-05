@@ -50,6 +50,11 @@ export const tenants = pgTable("tenants", {
   discrepancySeverityMin: varchar("discrepancy_severity_min", { length: 8 })
     .default("medium")
     .$type<"low" | "medium" | "high">(),
+
+  // Настройка модели AI для анализа звонков на уровне тенанта.
+  // NULL = использовать дефолт из ENV (AI_PROVIDER + дефолтная модель).
+  // Формат: 'openai:gpt-4o', 'openai:gpt-4o-mini', 'anthropic:claude-sonnet-4-6', etc.
+  analysisModel: text("analysis_model"),
 });
 
 // ──────────────────────────────────────────────────────────────────────

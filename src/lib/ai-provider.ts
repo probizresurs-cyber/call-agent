@@ -36,6 +36,12 @@ export interface ToolCallArgs {
   tenantId?: number;
   /** Для usage_events */
   callId?: number;
+  /**
+   * Переопределить модель для этого вызова (per-tenant настройка).
+   * Формат: 'provider:model', например 'openai:gpt-4o-mini' или 'anthropic:claude-haiku-4-5'.
+   * Если задан — используется вместо дефолта из ENV + modelTier.
+   */
+  modelOverride?: string;
 }
 
 export interface ToolCallResult<T> {
@@ -67,6 +73,35 @@ const MODEL_MAP: Record<AiProvider, { premium: string; fast: string }> = {
 };
 
 /**
+ * Разбирает modelOverride вида 'provider:model' и возвращает { provider, model }.
+ * Если modelOverride не задан или невалиден — возвращает null (используется дефолт).
+ *
+ * Поддерживаемые форматы:
+ *   'openai:gpt-4o'
+ *   'openai:gpt-4o-mini'
+ *   'anthropic:claude-sonnet-4-6'
+ *   'anthropic:claude-haiku-4-5'
+ */
+export function resolveModel(
+  modelOverride: string | null | undefined,
+  fallbackProvider: AiProvider,
+  fallbackTier: "premium" | "fast"
+): { provider: AiProvider; model: string } {
+  if (modelOverride) {
+    const colonIdx = modelOverride.indexOf(":");
+    if (colonIdx > 0) {
+      const providerStr = modelOverride.slice(0, colonIdx).trim().toLowerCase();
+      const modelStr = modelOverride.slice(colonIdx + 1).trim();
+      if ((providerStr === "openai" || providerStr === "anthropic") && modelStr) {
+        return { provider: providerStr as AiProvider, model: modelStr };
+      }
+    }
+    console.warn(`[ai-provider] невалидный modelOverride: '${modelOverride}', используем дефолт`);
+  }
+  return { provider: fallbackProvider, model: MODEL_MAP[fallbackProvider][fallbackTier] };
+}
+
+/**
  * Вызывает LLM с принудительным tool-use. Гарантирует что вернётся
  * структурированный JSON по schema (модель не может ответить «текстом мимо»).
  *
@@ -74,9 +109,9 @@ const MODEL_MAP: Record<AiProvider, { premium: string; fast: string }> = {
  * Budget: проверка ДО запроса (BudgetExceededError если лимит), запись расхода ПОСЛЕ.
  */
 export async function callWithTool<T = unknown>(args: ToolCallArgs): Promise<ToolCallResult<T>> {
-  const provider = args.provider || getActiveProvider();
+  const fallbackProvider = args.provider || getActiveProvider();
   const tier = args.modelTier || "premium";
-  const model = MODEL_MAP[provider][tier];
+  const { provider, model } = resolveModel(args.modelOverride, fallbackProvider, tier);
 
   // §4.4 Бюджет-гард — проверяем ДО запроса
   if (args.tenantId) {

@@ -9,6 +9,7 @@ import {
 import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { ReprocessButton } from "./ReprocessButton";
+import { DeepAnalyzeButton } from "./DeepAnalyzeButton";
 import { SendToCrmButton } from "./SendToCrmButton";
 
 export const dynamic = "force-dynamic";
@@ -110,7 +111,10 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
             </span>
           )}
         </h1>
-        <ReprocessButton callId={call.id} />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {me.role !== "manager" && <DeepAnalyzeButton callId={call.id} />}
+          <ReprocessButton callId={call.id} />
+        </div>
       </div>
 
       {call.error && (

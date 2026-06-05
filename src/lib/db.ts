@@ -102,6 +102,11 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("tenants", "discrepancy_custom_fields", "TEXT DEFAULT NULL");
   ensureColumn("tenants", "discrepancy_severity_min", "TEXT DEFAULT 'medium'");
 
+  // Настройка модели AI для анализа звонков на уровне тенанта.
+  // NULL = использовать дефолт из ENV (AI_PROVIDER + дефолтная модель).
+  // Формат: 'openai:gpt-4o', 'openai:gpt-4o-mini', 'anthropic:claude-sonnet-4-6', etc.
+  ensureColumn("tenants", "analysis_model", "TEXT DEFAULT NULL");
+
   // Таблица найденных расхождений между карточкой CRM и стенограммой звонка.
   // Идемпотентная — CREATE IF NOT EXISTS, индексы тоже.
   db.exec(`

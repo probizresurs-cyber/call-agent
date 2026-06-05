@@ -210,8 +210,11 @@ export async function analyzeCall(args: {
   tenantId?: number;  // §4.4 для бюджет-гарда
   callId?: number;    // для usage_events.call_id
   interactionType?: "call" | "chat" | "email" | "meeting";  // §2 MASTER-TZ
+  /** Per-tenant переопределение модели: 'provider:model', например 'openai:gpt-4o-mini'. */
+  modelOverride?: string;
 }): Promise<{ analysis: CallAnalysis; raw: string; model: string }> {
   // Провайдер AI выбирается через ENV AI_PROVIDER (openai | anthropic), default = openai.
+  // modelOverride позволяет задать модель на уровне тенанта (из tenants.analysis_model).
   // Бюджет-гард и retry внутри callWithTool — единая логика для обоих провайдеров.
   const out = await callWithTool<CallAnalysis>({
     toolName: "save_analysis",
@@ -224,6 +227,7 @@ export async function analyzeCall(args: {
     maxTokens: 12000,
     tenantId: args.tenantId,
     callId: args.callId,
+    modelOverride: args.modelOverride,
   });
 
   const parsed = out.result;
