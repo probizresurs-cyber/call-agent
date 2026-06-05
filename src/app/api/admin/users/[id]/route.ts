@@ -71,20 +71,38 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "Invalid user id" }, { status: 400 });
   }
 
+  // Optional tenant_id filter: if provided, scopes the lookup to that tenant only.
+  const tenantIdParam = req.nextUrl.searchParams.get("tenant_id");
+  const filterTenantId = tenantIdParam ? parseInt(tenantIdParam, 10) : null;
+  if (tenantIdParam && (isNaN(filterTenantId!) || filterTenantId! <= 0)) {
+    return NextResponse.json({ ok: false, error: "Invalid tenant_id" }, { status: 400 });
+  }
+
   try {
     const db = getDbAsync();
 
     // 1. Основные данные пользователя
-    const userRows = await db
-      .prepare(
-        `SELECT u.id, u.login, u.role, u.name, u.email, u.is_active,
-                u.bitrix_manager_id, u.tenant_id, u.created_at,
-                t.name AS tenant_name
-         FROM users u
-         LEFT JOIN tenants t ON t.id = u.tenant_id
-         WHERE u.id = $1`
-      )
-      .all<UserRow>(userId);
+    const userRows = filterTenantId
+      ? await db
+          .prepare(
+            `SELECT u.id, u.login, u.role, u.name, u.email, u.is_active,
+                    u.bitrix_manager_id, u.tenant_id, u.created_at,
+                    t.name AS tenant_name
+             FROM users u
+             LEFT JOIN tenants t ON t.id = u.tenant_id
+             WHERE u.id = $1 AND u.tenant_id = $2`
+          )
+          .all<UserRow>(userId, filterTenantId)
+      : await db
+          .prepare(
+            `SELECT u.id, u.login, u.role, u.name, u.email, u.is_active,
+                    u.bitrix_manager_id, u.tenant_id, u.created_at,
+                    t.name AS tenant_name
+             FROM users u
+             LEFT JOIN tenants t ON t.id = u.tenant_id
+             WHERE u.id = $1`
+          )
+          .all<UserRow>(userId);
 
     const u = userRows[0];
     if (!u) {

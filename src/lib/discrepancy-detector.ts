@@ -492,6 +492,19 @@ export async function applyDiscrepancyToBitrix(
     return;
   }
 
+  // Идемпотентность: проверяем что запись ещё в статусе 'pending'
+  // чтобы параллельный ретрай не вызвал двойную запись в Bitrix
+  const db = getDbAsync();
+  const current = await db
+    .prepare("SELECT status FROM card_discrepancies WHERE id = ?")
+    .get<{ status: string }>(discrepancy.id);
+  if (!current || current.status !== "pending") {
+    console.log(
+      `[discrepancy] applyToBitrix: #${discrepancy.id} status="${current?.status ?? "not found"}" — пропускаем (уже применено)`
+    );
+    return;
+  }
+
   const fields = { [field_name]: suggested_value };
 
   if (entity_type === "deal") {

@@ -67,12 +67,8 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
-  // Если уже обработано — ничего не делаем
-  if (row.status !== "pending") {
-    return NextResponse.json({ ok: true, skipped: true });
-  }
-
-  // Если принято — проверяем auto_approve
+  // Если принято — проверяем auto_approve и применяем в Bitrix ДО обновления статуса.
+  // Bitrix должен подтвердить успех прежде чем мы помечаем расхождение как resolved.
   if (action === "accepted") {
     const tenant = await db
       .prepare(`SELECT discrepancy_action_mode FROM tenants WHERE id = ?`)
@@ -82,20 +78,31 @@ export async function POST(
       try {
         await applyDiscrepancyToBitrix(row);
       } catch (e) {
-        console.warn(`[resolve] applyDiscrepancyToBitrix failed for #${discrepancyId}:`, (e as Error).message);
-        // Не прерываем — статус всё равно обновляем
+        // Bitrix недоступен или вернул ошибку — НЕ обновляем статус, сообщаем клиенту.
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[resolve] applyDiscrepancyToBitrix failed for #${discrepancyId}:`, msg);
+        return NextResponse.json(
+          { ok: false, error: `Не удалось записать в Bitrix: ${msg}` },
+          { status: 502 }
+        );
       }
     }
   }
 
-  // Обновляем статус
-  await db
+  // Атомарный UPDATE: обновляем статус только если он всё ещё 'pending'.
+  // Это исключает TOCTOU — два одновременных запроса не смогут оба выполнить UPDATE.
+  const result = await db
     .prepare(
       `UPDATE card_discrepancies
          SET status = ?, resolved_at = datetime('now'), resolved_by_user_id = ?
-       WHERE id = ?`
+       WHERE id = ? AND tenant_id = ? AND status = 'pending'`
     )
-    .run(action, me.id, discrepancyId);
+    .run(action, me.id, discrepancyId, me.tenantId);
+
+  // changes === 0 означает что кто-то уже зарезолвил это расхождение
+  if ((result as { changes?: number }).changes === 0) {
+    return NextResponse.json({ ok: true, already_resolved: true });
+  }
 
   return NextResponse.json({ ok: true });
 }
