@@ -31,7 +31,6 @@ interface TenantRow {
   id: number;
   name: string;
   created_at: string | Date;
-  analysis_model: string | null;
   users_count: number | string;
   calls_count: number | string;
   analyzed_count: number | string;
@@ -45,23 +44,30 @@ export async function GET(req: NextRequest) {
     const db = getDbAsync();
     const rows = await db
       .prepare(
-        `SELECT t.id, t.name, t.created_at, t.analysis_model,
+        `SELECT t.id, t.name, t.created_at,
                 COUNT(DISTINCT u.id) as users_count,
                 COUNT(DISTINCT c.id) as calls_count,
                 SUM(CASE WHEN c.status='done' THEN 1 ELSE 0 END) as analyzed_count
          FROM tenants t
          LEFT JOIN users u ON u.tenant_id = t.id
          LEFT JOIN calls c ON c.tenant_id = t.id
-         GROUP BY t.id, t.name, t.created_at, t.analysis_model
+         GROUP BY t.id, t.name, t.created_at
          ORDER BY t.created_at DESC`
       )
       .all<TenantRow>();
+
+    // Пробуем получить analysis_model отдельно — колонка может не существовать до миграции
+    const modelMap = new Map<number, string | null>();
+    try {
+      const modelRows = await db.prepare("SELECT id, analysis_model FROM tenants").all<{ id: number; analysis_model: string | null }>();
+      for (const mr of modelRows) modelMap.set(mr.id, mr.analysis_model ?? null);
+    } catch { /* колонка ещё не существует — OK */ }
 
     const tenants = rows.map((r) => ({
       id: r.id,
       name: r.name,
       createdAt: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at ?? ""),
-      analysisModel: r.analysis_model ?? null,
+      analysisModel: modelMap.get(r.id) ?? null,
       usersCount: Number(r.users_count ?? 0),
       callsCount: Number(r.calls_count ?? 0),
       analyzedCount: Number(r.analyzed_count ?? 0),

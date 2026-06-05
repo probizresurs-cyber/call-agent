@@ -158,12 +158,127 @@ function makePgDb(): CompatDb {
       connectionTimeoutMillis: 5_000,
     });
 
-    // Postgres-совместимые ALTER TABLE миграции.
-    // applyAlterMigrations() в db.ts использует SQLite-только pragma_table_info
-    // и не запускается при DB_DRIVER=postgres. Поэтому все новые колонки нужно
-    // добавлять здесь через ADD COLUMN IF NOT EXISTS.
-    // Идемпотентно — ADD COLUMN IF NOT EXISTS безопасно повторять.
+    // ─── Postgres миграции ───────────────────────────────────────────────────
+    // applyAlterMigrations() в db.ts использует SQLite-только pragma_table_info.
+    // Для Postgres все DDL-изменения (новые таблицы + новые колонки) живут здесь.
+    // Всё идемпотентно: CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS.
+    // Fire-and-forget — ошибки логируем, не роняем процесс.
     const migPool = _pgPool;
+
+    // ── Шаг 1: создать новые таблицы admin-модуля ──────────────────────────
+    migPool.query(`
+      CREATE TABLE IF NOT EXISTS ca_plans (
+        id              SERIAL PRIMARY KEY,
+        name            TEXT NOT NULL,
+        price_monthly   INTEGER NOT NULL,
+        price_annual    INTEGER,
+        calls_limit     INTEGER NOT NULL,
+        managers_limit  INTEGER,
+        features_json   TEXT,
+        active          BOOLEAN DEFAULT TRUE,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ca_referrals (
+        id                  SERIAL PRIMARY KEY,
+        code                TEXT UNIQUE NOT NULL,
+        name                TEXT,
+        created_by_user_id  INTEGER,
+        tenant_id           INTEGER,
+        uses_count          INTEGER DEFAULT 0,
+        max_uses            INTEGER,
+        discount_pct        INTEGER DEFAULT 0,
+        expires_at          TIMESTAMP,
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ca_promos (
+        id            SERIAL PRIMARY KEY,
+        code          TEXT UNIQUE NOT NULL,
+        description   TEXT,
+        discount_pct  INTEGER DEFAULT 0,
+        bonus_calls   INTEGER DEFAULT 0,
+        uses_count    INTEGER DEFAULT 0,
+        max_uses      INTEGER,
+        active        BOOLEAN DEFAULT TRUE,
+        expires_at    TIMESTAMP,
+        created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ca_partners (
+        id              SERIAL PRIMARY KEY,
+        name            TEXT NOT NULL,
+        email           TEXT,
+        contact         TEXT,
+        commission_pct  INTEGER DEFAULT 10,
+        ref_code        TEXT UNIQUE,
+        clients_count   INTEGER DEFAULT 0,
+        revenue_total   INTEGER DEFAULT 0,
+        status          TEXT DEFAULT 'active',
+        notes           TEXT,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS ca_payments (
+        id              SERIAL PRIMARY KEY,
+        tenant_id       INTEGER,
+        tenant_name     TEXT,
+        amount          INTEGER NOT NULL,
+        currency        TEXT DEFAULT 'RUB',
+        plan            TEXT,
+        status          TEXT DEFAULT 'pending',
+        payment_method  TEXT,
+        external_id     TEXT,
+        period_from     DATE,
+        period_to       DATE,
+        notes           TEXT,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS card_discrepancies (
+        id                    SERIAL PRIMARY KEY,
+        tenant_id             INTEGER NOT NULL,
+        call_id               INTEGER NOT NULL,
+        entity_type           TEXT,
+        entity_id             TEXT,
+        field_name            TEXT NOT NULL,
+        field_label           TEXT,
+        card_value            TEXT,
+        transcript_evidence   TEXT,
+        suggested_value       TEXT,
+        severity              TEXT NOT NULL,
+        status                TEXT NOT NULL DEFAULT 'pending',
+        routed_to_user_id     INTEGER,
+        ai_model              TEXT,
+        created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        resolved_at           TIMESTAMP,
+        resolved_by_user_id   INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_card_discrepancies_tenant_status
+        ON card_discrepancies(tenant_id, status, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_card_discrepancies_call
+        ON card_discrepancies(call_id);
+      CREATE INDEX IF NOT EXISTS idx_card_discrepancies_routed
+        ON card_discrepancies(routed_to_user_id, status);
+    `).then(async () => {
+      // Seed дефолтных тарифов если таблица только что создана и пустая
+      const r = await migPool.query("SELECT COUNT(*) FROM ca_plans");
+      if (parseInt(r.rows[0].count, 10) === 0) {
+        await migPool.query(`
+          INSERT INTO ca_plans (name, price_monthly, price_annual, calls_limit, managers_limit)
+          VALUES
+            ('Старт',   3500,  33600,  200,  1),
+            ('Базовый', 5500,  52800,  500,  5),
+            ('Про',    12000, 115200, 1500, 20),
+            ('Бизнес', 30000, 288000, 5000, NULL)
+        `);
+      }
+    }).catch((e: Error) => {
+      console.warn("[pg-migrations] CREATE TABLE warning:", e.message.split("\n")[0]);
+    });
+
+    // ── Шаг 2: добавить новые колонки в существующие таблицы ───────────────
     migPool.query(`
       ALTER TABLE calls     ADD COLUMN IF NOT EXISTS deal_context_json    TEXT;
       ALTER TABLE calls     ADD COLUMN IF NOT EXISTS interaction_type     TEXT NOT NULL DEFAULT 'call';
@@ -197,7 +312,6 @@ function makePgDb(): CompatDb {
       ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_severity_min      TEXT DEFAULT 'medium';
       ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS analysis_model                TEXT;
     `).catch((e: Error) => {
-      // Логируем но не роняем — таблицы могут не существовать ещё при первом старте
       console.warn("[pg-migrations] ALTER TABLE warning:", e.message.split("\n")[0]);
     });
   }
