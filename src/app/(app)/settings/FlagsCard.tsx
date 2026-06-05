@@ -100,9 +100,9 @@ export function FlagsCard({ initial }: { initial: FlagsInitial }) {
       )}
 
       <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, lineHeight: 1.5 }}>
-        Сейчас CRM-write и Telegram-каналы ещё не подключены, поэтому DRY_RUN не на что влияет.
-        Но переключатель уже здесь — чтобы при подключении интеграций (Фаза 1 / §5.5 ТЗ)
-        не было ситуации «забыли поставить предохранитель и снесли заказчику половину карточек».
+        При <b>DRY_RUN = OFF</b> — кнопка «Отправить в CRM» в карточке звонка реально пишет
+        комментарий в Bitrix24 (Timeline сделки/лида + поле Description в карточке звонка).{" "}
+        При <b>DRY_RUN = ON</b> — всё симулируется, превью показывается, но в Bitrix ничего не уходит.
       </div>
     </div>
   );
