@@ -29,15 +29,20 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Проверяем токен
+  // Если BITRIX_INBOUND_TOKEN не задан — пропускаем с предупреждением (обратная совместимость).
+  // Чтобы включить строгую проверку: задайте BITRIX_INBOUND_TOKEN в .env и добавьте ?token=...
+  // в URL исходящего вебхука Bitrix24.
   const queryToken = req.nextUrl.searchParams.get("token");
   const bodyToken = payload["auth[application_token]"] || payload["application_token"];
   const provided = queryToken || bodyToken;
-  if (!token) {
-    console.error('[webhook] BITRIX_INBOUND_TOKEN not configured — all requests rejected for safety');
-    return NextResponse.json({ error: 'Service not configured' }, { status: 503 });
-  }
-  if (provided !== token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (token) {
+    if (provided !== token) {
+      console.warn('[webhook] invalid token, rejecting');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  } else {
+    // Токен не настроен — принимаем, но логируем предупреждение
+    console.warn('[webhook] BITRIX_INBOUND_TOKEN not set — accepting without auth. Set it in .env for security.');
   }
 
   const event = payload["event"] || payload["EVENT"] || "";
