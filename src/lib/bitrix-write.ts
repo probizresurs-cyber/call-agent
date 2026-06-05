@@ -92,15 +92,21 @@ function buildSummaryMarkdown(call: CallForCrm, a: AnalysisForCrm): string {
   const lines: string[] = [];
   lines.push("[B]🤖 Анализ звонка (Call-Agent)[/B]");
   lines.push("");
+
+  // Блок резюме — выделен горизонтальным разделителем для читаемости в Bitrix Timeline
   if (a.summary) {
-    lines.push("[B]Резюме:[/B]");
+    lines.push("─────────────────────────────");
+    lines.push("[B]📝 РЕЗЮМЕ[/B]");
     lines.push(a.summary);
+    lines.push("─────────────────────────────");
     lines.push("");
   }
+
   if (a.next_action) {
-    lines.push("[B]Следующий шаг:[/B] " + a.next_action);
+    lines.push("[B]➡ Следующий шаг:[/B] " + a.next_action);
     lines.push("");
   }
+
   const metricsParts: string[] = [];
   if (a.manager_score != null) metricsParts.push(`Оценка ${a.manager_score.toFixed(1)}/10`);
   if (a.script_compliance != null) metricsParts.push(`Скрипт ${Math.round(a.script_compliance * 100)}%`);

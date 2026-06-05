@@ -25,7 +25,8 @@ const RECORDINGS_DIR = process.env.RECORDINGS_DIR
   ? path.resolve(process.env.RECORDINGS_DIR)
   : path.join(process.cwd(), "storage", "recordings");
 
-export async function processCall(callId: number): Promise<void> {
+export async function processCall(callId: number, opts?: { scriptProductOverride?: string }): Promise<void> {
+  const scriptProductOverride = opts?.scriptProductOverride ?? null;
   const db = getDbAsync();
   const row = await db.prepare(`SELECT * FROM calls WHERE id = ?`).get<CallRow>(callId);
   if (!row) throw new Error(`Call ${callId} не найден`);
@@ -167,10 +168,12 @@ export async function processCall(callId: number): Promise<void> {
     console.warn(`[pipeline] #${callId} bitrix enrich failed:`, (e as Error).message);
   }
 
-  // 4. Определяем продукт + выбираем подходящий скрипт
+  // 4. Определяем продукт + выбираем подходящий скрипт.
+  //    scriptProductOverride (из ReassignScriptButton) пропускает auto-detect.
   const { product, script } = await pickScriptForCall(t.text, row.direction, {
     tenantId: row.tenant_id ?? 1,
     callId,
+    productOverride: scriptProductOverride ?? undefined,
   });
   if (product) {
     await db.prepare(`UPDATE calls SET detected_product = ? WHERE id = ?`).run(product, callId);
@@ -330,26 +333,35 @@ async function loadActiveScripts(): Promise<ResolvedScript[]> {
  *  2. Общий (без product) + direction
  *  3. Любой общий
  *  4. Любой активный (fallback)
+ *
+ * productOverride — принудительно задать продукт (МП / МК) без auto-detect.
  */
 async function pickScriptForCall(
   transcript: string,
   callDirection: "in" | "out" | null,
-  opts: { tenantId?: number; callId?: number } = {}
+  opts: { tenantId?: number; callId?: number; productOverride?: string } = {}
 ): Promise<{ product: string | null; script: ResolvedScript | null }> {
   const scripts = await loadActiveScripts();
   if (scripts.length === 0) return { product: null, script: null };
 
-  const productCodes = [...new Set(scripts.map((s) => s.product).filter((p): p is string => !!p))];
-  const candidates: ProductCandidate[] = productCodes.map((code) => ({
-    code, name: code, keywords: [],
-  }));
-
   let product: string | null = null;
-  if (candidates.length > 1) {
-    try { product = await detectProduct(transcript, candidates, opts); }
-    catch (e) { console.warn("[pipeline] detectProduct failed:", (e as Error).message); }
-  } else if (candidates.length === 1) {
-    product = candidates[0].code;
+
+  if (opts.productOverride) {
+    // Руководитель вручную указал тип — пропускаем AI-детект
+    product = opts.productOverride;
+    console.log(`[pipeline] productOverride="${product}" — auto-detect пропущен`);
+  } else {
+    const productCodes = [...new Set(scripts.map((s) => s.product).filter((p): p is string => !!p))];
+    const candidates: ProductCandidate[] = productCodes.map((code) => ({
+      code, name: code, keywords: [],
+    }));
+
+    if (candidates.length > 1) {
+      try { product = await detectProduct(transcript, candidates, opts); }
+      catch (e) { console.warn("[pipeline] detectProduct failed:", (e as Error).message); }
+    } else if (candidates.length === 1) {
+      product = candidates[0].code;
+    }
   }
 
   const directionMatches = (s: ResolvedScript) =>

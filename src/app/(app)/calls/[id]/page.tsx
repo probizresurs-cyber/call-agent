@@ -10,6 +10,7 @@ import { getDbAsync } from "@/lib/db-compat";
 import { getSessionUser } from "@/lib/auth";
 import { ReprocessButton } from "./ReprocessButton";
 import { DeepAnalyzeButton } from "./DeepAnalyzeButton";
+import { ReassignScriptButton } from "./ReassignScriptButton";
 import { SendToCrmButton } from "./SendToCrmButton";
 
 export const dynamic = "force-dynamic";
@@ -112,6 +113,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           )}
         </h1>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {me.role !== "manager" && <ReassignScriptButton callId={call.id} />}
           {me.role !== "manager" && <DeepAnalyzeButton callId={call.id} />}
           <ReprocessButton callId={call.id} />
         </div>
