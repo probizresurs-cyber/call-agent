@@ -28,17 +28,21 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status });
 
   try {
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10) || 0);
+    const offset = page * 200;
+
     const db = getDbAsync();
-    const rows = await db
+    const payments = await db
       .prepare(
         `SELECT p.*, t.name AS tenant_name_resolved
          FROM ca_payments p
          LEFT JOIN tenants t ON t.id = p.tenant_id
-         ORDER BY p.created_at DESC`
+         ORDER BY p.created_at DESC LIMIT 200 OFFSET ?`
       )
-      .all();
+      .all(offset);
 
-    return NextResponse.json({ ok: true, payments: rows });
+    return NextResponse.json({ ok: true, payments, page, hasMore: payments.length === 200 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

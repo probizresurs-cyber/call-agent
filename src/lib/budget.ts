@@ -46,8 +46,20 @@ export interface UsageSummary {
  * Вызывается на первое обращение из любой budget-функции.
  */
 let _tableReady = false;
+
+/** Сбросить флаг готовности таблицы — для тестов и после перезапуска pool. */
+export function resetTableReady() { _tableReady = false; }
+
 async function ensureTable(): Promise<void> {
-  if (_tableReady) return;
+  if (_tableReady) {
+    // Дешёвая проверка — таблица реально существует (защита от DROP TABLE в тестах)
+    try {
+      await getDbAsync().prepare('SELECT 1 FROM usage_events LIMIT 1').get();
+      return; // таблица существует
+    } catch {
+      _tableReady = false; // таблица удалена, пересоздаём
+    }
+  }
   const db = getDbAsync();
   // Используем общий SQL который понимают обе БД.
   // BIGINT/INTEGER в SQLite приводится к INTEGER, в PG — к bigint.

@@ -7,10 +7,18 @@
  * Защита: Bearer CA_ADMIN_TOKEN (server-to-server из MR).
  */
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
 
 function checkAuth(req: NextRequest): { ok: true } | { ok: false; status: number; error: string } {
   const expected = process.env.CA_ADMIN_TOKEN;
@@ -20,7 +28,7 @@ function checkAuth(req: NextRequest): { ok: true } | { ok: false; status: number
   const header = req.headers.get("authorization") || "";
   const m = header.match(/^Bearer\s+(.+)$/i);
   if (!m) return { ok: false, status: 401, error: "Missing Bearer token" };
-  if (m[1].trim() !== expected) return { ok: false, status: 403, error: "Invalid token" };
+  if (!safeCompare(m[1].trim(), expected)) return { ok: false, status: 403, error: "Invalid token" };
   return { ok: true };
 }
 
@@ -76,6 +84,9 @@ export async function GET(
   const filterTenantId = tenantIdParam ? parseInt(tenantIdParam, 10) : null;
   if (tenantIdParam && (isNaN(filterTenantId!) || filterTenantId! <= 0)) {
     return NextResponse.json({ ok: false, error: "Invalid tenant_id" }, { status: 400 });
+  }
+  if (!filterTenantId) {
+    console.warn('[admin/users] tenant_id not provided — returning cross-tenant data');
   }
 
   try {

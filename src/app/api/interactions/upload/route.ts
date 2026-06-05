@@ -77,6 +77,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Нужен content_text или file" }, { status: 400 });
   }
 
+  // Whitelist расширений файлов
+  if (file) {
+    const ext = path.extname(file.name || '').toLowerCase();
+    const ALLOWED_EXTS = new Set(['.mp3', '.mp4', '.wav', '.m4a', '.ogg', '.aac', '.opus', '.webm', '.txt', '.pdf']);
+    if (ext && !ALLOWED_EXTS.has(ext)) {
+      return NextResponse.json({ ok: false, error: `Unsupported file type: ${ext}` }, { status: 400 });
+    }
+  }
+
+  // Лимит размера content_text
+  if (contentText && contentText.length > 200_000) {
+    return NextResponse.json({ ok: false, error: 'content_text too large (max 200 000 chars)' }, { status: 400 });
+  }
+
   // Генерим уникальный externalId — используется для идемпотентности.
   // При повторной загрузке того же файла создаст новую запись (так и должно быть для manual).
   const externalId = crypto.randomBytes(8).toString("hex");

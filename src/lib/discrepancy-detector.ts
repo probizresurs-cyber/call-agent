@@ -17,6 +17,7 @@ import type {
   DiscrepancySeverity,
   TenantDiscrepancySettings,
 } from "@/lib/discrepancy-types";
+import { isDryRunForTenant } from "./flags";
 
 // ──────────────────────────────────────────────────────────────
 // Внутренние типы
@@ -483,6 +484,12 @@ async function saveAndRoute(
 export async function applyDiscrepancyToBitrix(
   discrepancy: import("@/lib/discrepancy-types").CardDiscrepancy
 ): Promise<void> {
+  const tenantId = discrepancy.tenant_id;
+  if (tenantId && await isDryRunForTenant(tenantId)) {
+    console.info('[discrepancy] DRY_RUN: skip applyDiscrepancyToBitrix for tenant', tenantId);
+    return;
+  }
+
   const { entity_type, entity_id, field_name, suggested_value } = discrepancy;
 
   if (!entity_id || !suggested_value) {

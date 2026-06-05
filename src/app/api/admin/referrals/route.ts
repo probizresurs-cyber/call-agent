@@ -47,8 +47,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { code, name, discount_pct, max_uses, expires_at } = body as Record<string, string | number | null | undefined>;
 
-    if (!code || String(code).trim() === "") {
-      return NextResponse.json({ ok: false, error: "code is required" }, { status: 400 });
+    const err = (msg: string) => NextResponse.json({ ok: false, error: msg }, { status: 400 });
+    const discount = Number(discount_pct ?? 0);
+    if (!code || String(code).length > 64) return err('code required, max 64 chars');
+    if (!Number.isFinite(discount) || discount < 0 || discount > 100) return err('discount_pct 0..100');
+    if (max_uses != null) {
+      const mu = Number(max_uses);
+      if (!Number.isFinite(mu) || mu < 1) return err('max_uses must be positive');
     }
 
     const db = getDbAsync();

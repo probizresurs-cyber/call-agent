@@ -25,6 +25,18 @@ function checkAuth(req: NextRequest): { ok: true } | { ok: false; status: number
   return { ok: true };
 }
 
+function validatePlan(data: { name?: unknown; price_monthly?: unknown; calls_limit?: unknown; managers_limit?: unknown }) {
+  const price = Number(data.price_monthly);
+  const calls = Number(data.calls_limit);
+  if (!data.name || typeof data.name !== 'string' || data.name.length > 100)
+    return 'name must be a non-empty string ≤100 chars';
+  if (!Number.isFinite(price) || price < 0 || price > 10_000_000)
+    return 'price_monthly must be 0..10_000_000';
+  if (!Number.isFinite(calls) || calls < 0 || calls > 1_000_000)
+    return 'calls_limit must be 0..1_000_000';
+  return null;
+}
+
 interface PlanRow {
   id: number;
   name: string;
@@ -44,7 +56,7 @@ export async function GET(req: NextRequest) {
   try {
     const db = getDbAsync();
     const rows = await db
-      .prepare(`SELECT * FROM ca_plans ORDER BY price_monthly ASC`)
+      .prepare(`SELECT * FROM ca_plans ORDER BY price_monthly ASC LIMIT 500`)
       .all<PlanRow>();
 
     const plans = rows.map((r) => ({
@@ -73,6 +85,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, name, price_monthly, price_annual, calls_limit, managers_limit, features_json, active } = body;
+
+    const err = validatePlan({ name, price_monthly, calls_limit, managers_limit });
+    if (err) return NextResponse.json({ ok: false, error: err }, { status: 400 });
+
     const db = getDbAsync();
 
     if (id) {
@@ -120,6 +136,9 @@ export async function PUT(req: NextRequest) {
     const { id, name, price_monthly, price_annual, calls_limit, managers_limit, features_json, active } = body;
 
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
+
+    const putErr = validatePlan({ name, price_monthly, calls_limit, managers_limit });
+    if (putErr) return NextResponse.json({ ok: false, error: putErr }, { status: 400 });
 
     const db = getDbAsync();
     await db

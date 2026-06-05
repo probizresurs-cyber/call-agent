@@ -517,6 +517,15 @@ function ScoreBar({ value }: { value: number }) {
   );
 }
 
+function sanitizePortalUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const p = new URL(url);
+    if (p.protocol !== 'https:') return null;
+    return url;
+  } catch { return null; }
+}
+
 /**
  * Строка CRM-блока: иконка + тип + название/ID + ссылка «открыть в Bitrix».
  * Если portalUrl null — рендерим только текст без ссылки (webhook URL не задан).
@@ -531,7 +540,8 @@ function CrmLink({
   portalUrl: string | null;
   path: string;
 }) {
-  const href = portalUrl ? `${portalUrl}/${path}` : null;
+  const safePortalUrl = sanitizePortalUrl(portalUrl);
+  const href = safePortalUrl ? `${safePortalUrl}/${path}` : null;
   const displayTitle = (title && title.trim()) || `#${id}`;
   return (
     <div style={{

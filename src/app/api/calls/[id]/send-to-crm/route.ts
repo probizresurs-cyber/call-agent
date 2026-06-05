@@ -34,6 +34,11 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     const results = await sendCallToBitrix(callId);
     return NextResponse.json({ ok: true, results });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 });
+    const msg = (e as Error).message;
+    // Не раскрываем внутренние URL и токены
+    const safeMsg = msg.includes('Invalid URL') || msg.includes('webhook')
+      ? 'Internal configuration error'
+      : msg;
+    return NextResponse.json({ ok: false, error: safeMsg }, { status: 500 });
   }
 }

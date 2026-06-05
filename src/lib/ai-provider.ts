@@ -142,7 +142,9 @@ export async function callWithTool<T = unknown>(args: ToolCallArgs): Promise<Too
         status === 429 || status === 529 ||
         /overloaded/i.test(msg) || /rate.?limit/i.test(msg);
       if (!isRetryable || attempt === maxAttempts) throw e;
-      const delayMs = 3000 * Math.pow(3, attempt - 1);
+      const baseDelay = 3000 * Math.pow(3, attempt - 1);
+      const jitter = Math.floor(Math.random() * 1000);
+      const delayMs = baseDelay + jitter;
       console.warn(`[ai-provider:${provider}] attempt ${attempt}/${maxAttempts} failed (${status} ${msg.slice(0, 80)}), retry in ${delayMs}ms`);
       await new Promise((r) => setTimeout(r, delayMs));
     }
@@ -158,6 +160,7 @@ async function callAnthropic<T>(args: ToolCallArgs, model: string): Promise<Tool
   const client = new Anthropic({
     apiKey,
     baseURL: process.env.ANTHROPIC_BASE_URL || undefined,
+    timeout: 90_000,
   });
 
   const tool: Anthropic.Tool = {
@@ -200,6 +203,7 @@ async function callOpenAi<T>(args: ToolCallArgs, model: string): Promise<ToolCal
   const client = new OpenAI({
     apiKey,
     baseURL: process.env.OPENAI_BASE_URL?.trim() || undefined,
+    timeout: 90_000,
   });
 
   const completion = await client.chat.completions.create({

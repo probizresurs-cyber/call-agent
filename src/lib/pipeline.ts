@@ -19,6 +19,7 @@ import { analyzeCall, type CallAnalysis } from "./analyzer";
 import { createReminderFromAnalysis } from "./reminders";
 import { detectProduct, type ProductCandidate } from "./product-detector";
 import { detectDiscrepancies } from "./discrepancy-detector";
+import { isDryRunForTenant } from "./flags";
 
 const RECORDINGS_DIR = process.env.RECORDINGS_DIR
   ? path.resolve(process.env.RECORDINGS_DIR)
@@ -267,10 +268,10 @@ export async function processCall(callId: number): Promise<void> {
 
   // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL
   await setCallStatus(callId, "syncing");
-  const dryRun = process.env.BITRIX_DRY_RUN === "true";
+  const dryRun = await isDryRunForTenant(row.tenant_id ?? 1);
   const hasWebhook = !!process.env.BITRIX_WEBHOOK_URL?.trim();
   if (dryRun || !hasWebhook) {
-    const reason = dryRun ? "BITRIX_DRY_RUN=true" : "BITRIX_WEBHOOK_URL не задан";
+    const reason = dryRun ? "DRY_RUN=true (per-tenant or global)" : "BITRIX_WEBHOOK_URL не задан";
     await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
       `sync skipped: ${reason}`,
       callId

@@ -279,41 +279,49 @@ function makePgDb(): CompatDb {
     });
 
     // ── Шаг 2: добавить новые колонки в существующие таблицы ───────────────
-    migPool.query(`
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS deal_context_json    TEXT;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS interaction_type     TEXT NOT NULL DEFAULT 'call';
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS channel              TEXT NOT NULL DEFAULT 'bitrix_telephony';
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS content_text         TEXT;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS detected_product     TEXT;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS user_id              INTEGER;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_deal_title    TEXT;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_lead_title    TEXT;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_contact_name  TEXT;
-      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_portal_url    TEXT;
-      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS client_name          TEXT;
-      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS checklist_scores_json TEXT;
-      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS coaching_tips_json   TEXT;
-      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS call_stage           TEXT;
-      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS detected_product     TEXT;
-      ALTER TABLE transcripts ADD COLUMN IF NOT EXISTS dialogue_json      TEXT;
-      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS checklist_json   TEXT;
-      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS product          TEXT;
-      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS direction        TEXT DEFAULT 'all';
-      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS tenant_id        INTEGER NOT NULL DEFAULT 1;
-      ALTER TABLE managers  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1;
-      ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS user_id              INTEGER;
-      ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER;
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_enabled           BOOLEAN DEFAULT FALSE;
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_recipient_mode    TEXT DEFAULT 'manager';
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_admin_user_ids    TEXT;
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_action_mode       TEXT DEFAULT 'manual';
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_custom_fields     TEXT;
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_severity_min      TEXT DEFAULT 'medium';
-      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS analysis_model                TEXT;
-    `).catch((e: Error) => {
-      console.warn("[pg-migrations] ALTER TABLE warning:", e.message.split("\n")[0]);
-    });
+    // Каждый ALTER TABLE запускается отдельно — ошибка одного не убивает остальные.
+    const alterMigrations = [
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS deal_context_json    TEXT`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS interaction_type     TEXT NOT NULL DEFAULT 'call'`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS channel              TEXT NOT NULL DEFAULT 'bitrix_telephony'`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS content_text         TEXT`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS detected_product     TEXT`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS user_id              INTEGER`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_deal_title    TEXT`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_lead_title    TEXT`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_contact_name  TEXT`,
+      `ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_portal_url    TEXT`,
+      `ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS client_name          TEXT`,
+      `ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS checklist_scores_json TEXT`,
+      `ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS coaching_tips_json   TEXT`,
+      `ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS call_stage           TEXT`,
+      `ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS detected_product     TEXT`,
+      `ALTER TABLE transcripts ADD COLUMN IF NOT EXISTS dialogue_json      TEXT`,
+      `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS checklist_json   TEXT`,
+      `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS product          TEXT`,
+      `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS direction        TEXT DEFAULT 'all'`,
+      `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS tenant_id        INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE managers  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS user_id              INTEGER`,
+      `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_enabled           BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_recipient_mode    TEXT DEFAULT 'manager'`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_admin_user_ids    TEXT`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_action_mode       TEXT DEFAULT 'manual'`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_custom_fields     TEXT`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_severity_min      TEXT DEFAULT 'medium'`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS analysis_model                TEXT`,
+    ];
+
+    for (const sql of alterMigrations) {
+      migPool.query(sql).catch((e: Error) => {
+        const msg = e.message.split("\n")[0];
+        if (!msg.includes("already exists")) {
+          console.warn(`[pg-migrations] ${sql.slice(0, 50)}:`, msg);
+        }
+      });
+    }
   }
   const pool = _pgPool;
 

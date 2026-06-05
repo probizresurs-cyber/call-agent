@@ -32,8 +32,12 @@ export async function POST(req: NextRequest) {
   const queryToken = req.nextUrl.searchParams.get("token");
   const bodyToken = payload["auth[application_token]"] || payload["application_token"];
   const provided = queryToken || bodyToken;
-  if (token && provided !== token) {
-    return NextResponse.json({ ok: false, error: "invalid token" }, { status: 401 });
+  if (!token) {
+    console.error('[webhook] BITRIX_INBOUND_TOKEN not configured — all requests rejected for safety');
+    return NextResponse.json({ error: 'Service not configured' }, { status: 503 });
+  }
+  if (provided !== token) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const event = payload["event"] || payload["EVENT"] || "";

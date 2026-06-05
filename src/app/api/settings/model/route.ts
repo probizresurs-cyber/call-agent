@@ -46,7 +46,8 @@ export async function POST(req: NextRequest) {
   if (!me) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
-  if (me.role !== "owner" && me.role !== "admin" && me.role !== "head") {
+  // POST (write) — только owner и admin; head может только читать через GET
+  if (me.role !== "owner" && me.role !== "admin") {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 

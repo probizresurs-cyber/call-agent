@@ -68,19 +68,38 @@ export class BitrixError extends Error {
   }
 }
 
+export class BitrixRateLimitError extends BitrixError {
+  constructor(message: string, public retryAfter: number) {
+    super(message, "rate_limit");
+    this.name = "BitrixRateLimitError";
+  }
+}
+
 export async function callBitrixApi<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   return call<T>(method, params);
 }
 
 async function call<T = any>(method: string, params: Record<string, unknown> = {}): Promise<T> {
   const url = baseUrl() + method + ".json";
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('Bitrix timeout 15s')), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   const data = (await res.json()) as { result?: T; error?: string; error_description?: string };
   if (!res.ok || data.error) {
+    if (res.status === 429) {
+      const retryAfter = parseInt(res.headers.get('Retry-After') || '5', 10);
+      throw new BitrixRateLimitError(`Rate limited, retry after ${retryAfter}s`, retryAfter);
+    }
     throw new BitrixError(
       `${method}: ${data.error || res.statusText} — ${data.error_description ?? ""}`,
       method,
@@ -143,11 +162,19 @@ export async function voxListStatistics(opts: {
   if (opts.start) params.start = opts.start;
 
   const url = baseUrl() + "voximplant.statistic.get.json";
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
+  const voxController = new AbortController();
+  const voxTimer = setTimeout(() => voxController.abort(new Error('Bitrix timeout 15s')), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+      signal: voxController.signal,
+    });
+  } finally {
+    clearTimeout(voxTimer);
+  }
   const data = (await res.json()) as {
     result?: VoxStatistic[];
     total?: number;
@@ -243,8 +270,23 @@ export async function crmActivityUpdate(id: string, fields: Record<string, unkno
 // Скачивание записи в локальный файл
 
 export async function downloadRecording(url: string, outDir: string, callId: string): Promise<string> {
+  // Fix 1: SSRF protection — validate URL before fetching
+  const parsed = new URL(url);
+  if (parsed.protocol !== 'https:') throw new Error('SSRF: only https allowed');
+  const ALLOWED = /\.(bitrix24\.(ru|com)|voximplant\.com|b24files\.com)$/i;
+  if (!ALLOWED.test(parsed.hostname)) throw new Error(`SSRF: untrusted host ${parsed.hostname}`);
+
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
-  const res = await fetch(url, { redirect: "follow" });
+
+  // Fix 2: 60s timeout for large audio files
+  const dlController = new AbortController();
+  const dlTimer = setTimeout(() => dlController.abort(new Error('Bitrix timeout 60s')), 60_000);
+  let res: Response;
+  try {
+    res = await fetch(url, { redirect: "follow", signal: dlController.signal });
+  } finally {
+    clearTimeout(dlTimer);
+  }
   if (!res.ok) throw new Error(`Не удалось скачать запись ${url}: ${res.status}`);
   const ct = res.headers.get("content-type") || "";
   // Защита: если Битрикс вернул HTML вместо аудио — это auth ошибка
@@ -465,11 +507,19 @@ export async function crmCallActivitiesByPeriod(opts: {
       };
       if (start) params.start = start;
       const url = baseUrl() + "crm.activity.list.json";
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(params),
-      });
+      const actController = new AbortController();
+      const actTimer = setTimeout(() => actController.abort(new Error('Bitrix timeout 15s')), 15_000);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+          signal: actController.signal,
+        });
+      } finally {
+        clearTimeout(actTimer);
+      }
       const data = (await res.json()) as {
         result?: Array<{ ID: string; RESPONSIBLE_ID: string }>;
         next?: number;
@@ -528,10 +578,18 @@ export async function buildCallContext(args: {
   if (bitrixDealId) {
     const deal = await crmDealGet(bitrixDealId);
     if (!deal) return null;
-    const [comments, acts] = await Promise.all([
+    const [commentsResult, activitiesResult] = await Promise.allSettled([
       crmTimelineComments("deal", bitrixDealId, 5),
       crmPriorActivities("deal", bitrixDealId, 10),
     ]);
+    const comments = commentsResult.status === 'fulfilled' ? commentsResult.value : [];
+    const acts = activitiesResult.status === 'fulfilled' ? activitiesResult.value : [];
+    if (commentsResult.status === 'rejected') {
+      console.warn('[bitrix] crmTimelineComments failed:', commentsResult.reason?.message);
+    }
+    if (activitiesResult.status === 'rejected') {
+      console.warn('[bitrix] crmPriorActivities failed:', activitiesResult.reason?.message);
+    }
     return {
       kind: "deal",
       entityId: bitrixDealId,
@@ -557,10 +615,18 @@ export async function buildCallContext(args: {
   // lead
   const lead = await crmLeadGet(bitrixLeadId!);
   if (!lead) return null;
-  const [comments, acts] = await Promise.all([
+  const [commentsResultLead, activitiesResultLead] = await Promise.allSettled([
     crmTimelineComments("lead", bitrixLeadId!, 5),
     crmPriorActivities("lead", bitrixLeadId!, 10),
   ]);
+  const comments = commentsResultLead.status === 'fulfilled' ? commentsResultLead.value : [];
+  const acts = activitiesResultLead.status === 'fulfilled' ? activitiesResultLead.value : [];
+  if (commentsResultLead.status === 'rejected') {
+    console.warn('[bitrix] crmTimelineComments failed:', commentsResultLead.reason?.message);
+  }
+  if (activitiesResultLead.status === 'rejected') {
+    console.warn('[bitrix] crmPriorActivities failed:', activitiesResultLead.reason?.message);
+  }
   return {
     kind: "lead",
     entityId: bitrixLeadId,

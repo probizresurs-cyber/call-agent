@@ -187,9 +187,9 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
     `SELECT c.manager_id,
             COALESCE(MAX(c.manager_name), MAX(m.name), '') AS manager_name,
             COUNT(*) AS calls,
-            SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
+            SUM(CASE WHEN c.duration_sec >= ? THEN 1 ELSE 0 END) AS connected,
             COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
-            COALESCE(SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN c.duration_sec ELSE 0 END), 0) AS contact_seconds,
+            COALESCE(SUM(CASE WHEN c.duration_sec >= ? THEN c.duration_sec ELSE 0 END), 0) AS contact_seconds,
             SUM(CASE WHEN c.direction='in' AND c.duration_sec = 0 THEN 1 ELSE 0 END) AS missed,
             SUM(CASE WHEN c.direction='in' AND c.duration_sec > 0 THEN 1 ELSE 0 END) AS incoming,
             SUM(CASE WHEN c.direction='out' THEN 1 ELSE 0 END) AS outgoing,
@@ -206,7 +206,7 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
        ${andSql}
      GROUP BY c.manager_id
      ORDER BY calls DESC`
-  ).all<ManagerStatsRow>(...params);
+  ).all<ManagerStatsRow>(contactThreshold, contactThreshold, ...params);
 
   // ── Динамика по дням (14) ──
   const daily = await db.prepare(
@@ -235,7 +235,8 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
   // ── Топ возражений ──
   const rawObj = await db.prepare(
     `SELECT a.objections_json FROM analyses a JOIN calls c ON c.id = a.call_id
-     WHERE a.objections_json IS NOT NULL ${andSql}`
+     WHERE a.objections_json IS NOT NULL ${andSql}
+     LIMIT 2000`
   ).all<{ objections_json: string }>(...params);
   const objCount = new Map<string, number>();
   for (const r of rawObj) {
@@ -255,7 +256,8 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
   // ── Топ тем ──
   const rawTopics = await db.prepare(
     `SELECT a.topics_json FROM analyses a JOIN calls c ON c.id = a.call_id
-     WHERE a.topics_json IS NOT NULL ${andSql}`
+     WHERE a.topics_json IS NOT NULL ${andSql}
+     LIMIT 2000`
   ).all<{ topics_json: string }>(...params);
   const topicCount = new Map<string, number>();
   for (const r of rawTopics) {
@@ -286,8 +288,8 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
            ELSE '__no_transcript__'
          END AS product,
          COUNT(*) AS calls,
-         SUM(CASE WHEN c.duration_sec >= ${contactThreshold} THEN 1 ELSE 0 END) AS connected,
-         SUM(CASE WHEN c.duration_sec < ${missedThreshold} THEN 1 ELSE 0 END) AS missed,
+         SUM(CASE WHEN c.duration_sec >= ? THEN 1 ELSE 0 END) AS connected,
+         SUM(CASE WHEN c.duration_sec < ? THEN 1 ELSE 0 END) AS missed,
          COALESCE(SUM(c.duration_sec), 0) AS total_seconds,
          AVG(a.manager_score) AS avg_score,
          AVG(a.script_compliance) AS avg_compliance,
@@ -304,14 +306,15 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
      ORDER BY
        CASE WHEN sub.product = '__no_transcript__' THEN 2 WHEN sub.product = '__no_match__' THEN 1 ELSE 0 END,
        sub.calls DESC`
-  ).all<ProductStatsRow>(...params);
+  ).all<ProductStatsRow>(contactThreshold, missedThreshold, ...params);
 
   // ── Чек-лист: агрегация по пунктам (id+title → avg score, pass_rate, n) ──
   // SQL уже учитывает все фильтры дашборда через andSql (включая managerId).
   // Поэтому когда выбран менеджер — статистика считается только по его звонкам.
   const rawChecklist = await db.prepare(
     `SELECT a.checklist_scores_json FROM analyses a JOIN calls c ON c.id = a.call_id
-     WHERE a.checklist_scores_json IS NOT NULL ${andSql}`
+     WHERE a.checklist_scores_json IS NOT NULL ${andSql}
+     LIMIT 2000`
   ).all<{ checklist_scores_json: string }>(...params);
   const PASS_THRESHOLD = 0.7;
   const itemStats = new Map<string, { title: string; sum: number; n: number; passed: number }>();
