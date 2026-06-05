@@ -157,6 +157,49 @@ function makePgDb(): CompatDb {
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
     });
+
+    // Postgres-совместимые ALTER TABLE миграции.
+    // applyAlterMigrations() в db.ts использует SQLite-только pragma_table_info
+    // и не запускается при DB_DRIVER=postgres. Поэтому все новые колонки нужно
+    // добавлять здесь через ADD COLUMN IF NOT EXISTS.
+    // Идемпотентно — ADD COLUMN IF NOT EXISTS безопасно повторять.
+    const migPool = _pgPool;
+    migPool.query(`
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS deal_context_json    TEXT;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS interaction_type     TEXT NOT NULL DEFAULT 'call';
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS channel              TEXT NOT NULL DEFAULT 'bitrix_telephony';
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS content_text         TEXT;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS detected_product     TEXT;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS user_id              INTEGER;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_deal_title    TEXT;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_lead_title    TEXT;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_contact_name  TEXT;
+      ALTER TABLE calls     ADD COLUMN IF NOT EXISTS bitrix_portal_url    TEXT;
+      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS client_name          TEXT;
+      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS checklist_scores_json TEXT;
+      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS coaching_tips_json   TEXT;
+      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS call_stage           TEXT;
+      ALTER TABLE analyses  ADD COLUMN IF NOT EXISTS detected_product     TEXT;
+      ALTER TABLE transcripts ADD COLUMN IF NOT EXISTS dialogue_json      TEXT;
+      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS checklist_json   TEXT;
+      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS product          TEXT;
+      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS direction        TEXT DEFAULT 'all';
+      ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS tenant_id        INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE managers  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS user_id              INTEGER;
+      ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER;
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_enabled           BOOLEAN DEFAULT FALSE;
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_recipient_mode    TEXT DEFAULT 'manager';
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_admin_user_ids    TEXT;
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_action_mode       TEXT DEFAULT 'manual';
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_custom_fields     TEXT;
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_severity_min      TEXT DEFAULT 'medium';
+      ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS analysis_model                TEXT;
+    `).catch((e: Error) => {
+      // Логируем но не роняем — таблицы могут не существовать ещё при первом старте
+      console.warn("[pg-migrations] ALTER TABLE warning:", e.message.split("\n")[0]);
+    });
   }
   const pool = _pgPool;
 

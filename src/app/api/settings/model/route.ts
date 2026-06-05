@@ -64,10 +64,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const db = getDbAsync();
-  await db
-    .prepare("UPDATE tenants SET analysis_model = ? WHERE id = ?")
-    .run(model ?? null, me.tenantId);
+  try {
+    const db = getDbAsync();
+    await db
+      .prepare("UPDATE tenants SET analysis_model = ? WHERE id = ?")
+      .run(model ?? null, me.tenantId);
+  } catch (e) {
+    const msg = (e as Error).message;
+    // Колонка analysis_model может не существовать если миграция ещё не накатилась
+    if (msg.includes("no such column") || msg.includes("does not exist")) {
+      return NextResponse.json(
+        { ok: false, error: "Колонка analysis_model не найдена в БД. Перезапустите сервер для применения миграций." },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, model: model ?? null });
 }
