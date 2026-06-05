@@ -74,21 +74,22 @@ export async function POST(req: NextRequest) {
 
 async function ingestVoxCall(callId: string) {
   const stat = await voxGetStatistic(callId);
-  if (!stat) return;
-  const recordingUrl = stat.CALL_RECORD_URL || stat.CALL_WEBDAV_URL || null;
-  if (!recordingUrl) {
-    // Без записи нечего обрабатывать
-    return;
+  if (!stat) {
+    console.warn('[webhook] voxGetStatistic returned null for', callId);
+    return; // Bitrix API не ответил — ничего не можем сделать
   }
 
+  const recordingUrl = stat.CALL_RECORD_URL || stat.CALL_WEBDAV_URL || null;
   const db = getDbAsync();
   const entityType = entityTypeStringToId(stat.CRM_ENTITY_TYPE);
-  await db.prepare(
+
+  // Вставляем ВСЕГДА — даже без записи (статус no_recording вместо pending)
+  const result = await db.prepare(
     `INSERT INTO calls
       (bitrix_call_id, bitrix_deal_id, bitrix_lead_id, bitrix_contact_id,
        bitrix_activity_id, manager_id, client_phone, direction,
        started_at, duration_sec, recording_url, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(bitrix_call_id) DO NOTHING`
   ).run(
     callId,
@@ -102,8 +103,15 @@ async function ingestVoxCall(callId: string) {
     (stat.CALL_TYPE === "2" || stat.CALL_TYPE === "3") ? "in" : "out",
     stat.CALL_START_DATE ?? null,
     Number(stat.CALL_DURATION || 0),
-    recordingUrl
+    recordingUrl,
+    recordingUrl ? 'pending' : 'no_recording'  // без записи — сразу no_recording
   );
+
+  if (result.changes === 0) {
+    console.log('[webhook] duplicate call, skipped:', callId);
+  } else {
+    console.log('[webhook] inserted call:', callId, recordingUrl ? '(has recording)' : '(no recording)');
+  }
 }
 
 async function ingestCrmActivity(activityId: string) {
@@ -111,15 +119,16 @@ async function ingestCrmActivity(activityId: string) {
   if (!a || a.PROVIDER_TYPE_ID !== "CALL") return;
   const file = a.FILES?.[0];
   const recordingUrl = file?.urlMachine || file?.url || null;
-  if (!recordingUrl) return;
 
   const db = getDbAsync();
   const entityType = a.OWNER_TYPE_ID ? Number(a.OWNER_TYPE_ID) : null;
-  await db.prepare(
+
+  // Вставляем ВСЕГДА — даже без записи (статус no_recording вместо pending)
+  const result = await db.prepare(
     `INSERT INTO calls
       (bitrix_call_id, bitrix_deal_id, bitrix_lead_id, bitrix_contact_id,
        bitrix_activity_id, manager_id, started_at, recording_url, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(bitrix_call_id) DO NOTHING`
   ).run(
     `activity-${a.ID}`,
@@ -129,8 +138,15 @@ async function ingestCrmActivity(activityId: string) {
     a.ID,
     a.RESPONSIBLE_ID ?? null,
     a.START_TIME ?? null,
-    recordingUrl
+    recordingUrl,
+    recordingUrl ? 'pending' : 'no_recording'  // без записи — сразу no_recording
   );
+
+  if (result.changes === 0) {
+    console.log('[webhook] duplicate activity, skipped:', activityId);
+  } else {
+    console.log('[webhook] inserted activity:', activityId, recordingUrl ? '(has recording)' : '(no recording)');
+  }
 }
 
 export async function GET() {

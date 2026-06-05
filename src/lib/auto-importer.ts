@@ -7,7 +7,7 @@ const AUTO_ENABLED_KEY = "auto_import_enabled";
 
 // Перекрываем последние N минут чтобы не пропустить звонки,
 // которые попали в Bitrix с задержкой (вебхук от АТС может опаздывать).
-const OVERLAP_MIN = 10;
+const OVERLAP_MIN = 30; // было 10 — Bitrix может опаздывать дольше
 
 // При самом первом запуске — за сколько дней назад начать
 const INITIAL_LOOKBACK_DAYS = 7;
@@ -73,6 +73,11 @@ export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<Impor
 
   const toIso = toDateStr(new Date());
 
+  if (fromIso >= toIso) {
+    console.log('[auto-import] fromDate >= toDate, skipping');
+    return { ok: true, skipped: true } as unknown as ImportResult;
+  }
+
   console.log(`[auto-import] running ${fromIso} .. ${toIso}${opts.manual ? " (manual)" : ""}`);
   // Тянем включая служебные — иначе общая статистика не сходится с Битриксом
   const result = await importCallsFromBitrix({
@@ -81,10 +86,19 @@ export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<Impor
     includeServiceCalls: true,
   });
 
-  // Сохраняем timestamp текущего запуска как last (даже если result.ok=false, но не disabled —
-  // лучше двигать вперёд чем застрять навсегда)
   const now = new Date().toISOString();
-  await setSetting(LAST_IMPORT_KEY, now);
+
+  if (result.ok) {
+    await setSetting(LAST_IMPORT_KEY, now);
+
+    // Предупреждение о достижении лимита страниц
+    if (result.note) {
+      console.warn('[auto-import] MAX_PAGES reached! Some calls may be missing. Consider running manual backfill.');
+    }
+  } else {
+    console.warn('[auto-import] import failed, not updating last_import_at to preserve gap for retry');
+    // НЕ обновляем — следующий запуск попытается снова с того же fromDate
+  }
 
   // Краткое описание результата для UI
   const summary = result.ok
