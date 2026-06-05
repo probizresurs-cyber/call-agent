@@ -137,8 +137,71 @@ function applyAlterMigrations(db: Database.Database) {
       ON card_discrepancies(routed_to_user_id, status);
   `);
 
+  // ─────── Рефералки и промокоды (CA-admin) ───────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ca_referrals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      name TEXT,
+      created_by_user_id INTEGER,
+      tenant_id INTEGER,
+      uses_count INTEGER DEFAULT 0,
+      max_uses INTEGER DEFAULT NULL,
+      discount_pct INTEGER DEFAULT 0,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_ca_referrals_code ON ca_referrals(code);
+
+    CREATE TABLE IF NOT EXISTS ca_promos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      description TEXT,
+      discount_pct INTEGER DEFAULT 0,
+      bonus_calls INTEGER DEFAULT 0,
+      uses_count INTEGER DEFAULT 0,
+      max_uses INTEGER DEFAULT NULL,
+      active INTEGER DEFAULT 1,
+      expires_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_ca_promos_code ON ca_promos(code);
+  `);
+
+  // ─────── Тарифные планы Call-Agent (CA-admin) ───────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ca_plans (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      price_monthly INTEGER NOT NULL,
+      price_annual INTEGER,
+      calls_limit INTEGER NOT NULL,
+      managers_limit INTEGER,
+      features_json TEXT,
+      active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  // Засеваем дефолтные планы если таблица пустая
+  seedCaPlans(db);
+
   // Засеваем дефолтного тенанта если ещё не существует
   seedDefaultData(db);
+}
+
+function seedCaPlans(db: Database.Database) {
+  const hasPlans = db.prepare(`SELECT 1 FROM ca_plans LIMIT 1`).get();
+  if (hasPlans) return;
+
+  const insert = db.prepare(
+    `INSERT INTO ca_plans (name, price_monthly, price_annual, calls_limit, managers_limit, active)
+     VALUES (?, ?, ?, ?, ?, 1)`
+  );
+  insert.run("Старт",   3500,  35000,  200,  1);
+  insert.run("Базовый", 5500,  55000,  500,  5);
+  insert.run("Про",     12000, 120000, 1500, 20);
+  insert.run("Бизнес",  30000, 300000, 5000, null);
 }
 
 function seedDefaultData(db: Database.Database) {
@@ -276,6 +339,38 @@ CREATE TABLE IF NOT EXISTS sessions (
   tenant_id INTEGER,               -- для быстрого фильтра без JOIN
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   expires_at TEXT NOT NULL
+);
+
+-- ─────── Call-Agent SaaS: партнёры и платежи ───────
+
+CREATE TABLE IF NOT EXISTS ca_partners (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT,
+  contact TEXT,
+  commission_pct INTEGER DEFAULT 10,
+  ref_code TEXT UNIQUE,
+  clients_count INTEGER DEFAULT 0,
+  revenue_total INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS ca_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tenant_id INTEGER,
+  tenant_name TEXT,
+  amount INTEGER NOT NULL,
+  currency TEXT DEFAULT 'RUB',
+  plan TEXT,
+  status TEXT DEFAULT 'pending',
+  payment_method TEXT,
+  external_id TEXT,
+  period_from TEXT,
+  period_to TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 `;
 
