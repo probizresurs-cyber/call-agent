@@ -60,11 +60,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const db = getDbAsync();
   const row = await db
     .prepare(
-      `SELECT s.user_id, s.tenant_id as session_tenant, s.user as legacy_login
+      `SELECT s.user_id, s.tenant_id as session_tenant
        FROM sessions s
        WHERE s.id = ? AND s.expires_at > datetime('now')`
     )
-    .get<{ user_id: number | null; session_tenant: number | null; legacy_login: string | null }>(token);
+    .get<{ user_id: number | null; session_tenant: number | null }>(token);
   if (!row) return null;
 
   // Новая схема: ищем по user_id
@@ -75,7 +75,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
          FROM users WHERE id = ?`
       )
       .get<{ id: number; tenant_id: number; login: string; role: UserRole;
-            name: string | null; email: string | null; bitrix_manager_id: string | null; is_active: number }>(row.user_id);
+            name: string | null; email: string | null; bitrix_manager_id: string | null; is_active: boolean | number }>(row.user_id);
     if (!u || !u.is_active) return null;
     return {
       id: u.id,
@@ -88,17 +88,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     };
   }
 
-  // Legacy путь — сессия создана старым кодом, по логину. Подтянем из users по логину.
-  ensureAdminEnv();
-  if (!row.legacy_login) return null;
-  const u = await db
-    .prepare(
-      `SELECT id, tenant_id, login, role, name, email, bitrix_manager_id, is_active
-       FROM users WHERE login = ? LIMIT 1`
-    )
-    .get<{ id: number; tenant_id: number; login: string; role: UserRole;
-          name: string | null; email: string | null; bitrix_manager_id: string | null; is_active: number }>(row.legacy_login);
-  if (!u || !u.is_active) return null;
+  // Legacy путь — сессия создана старым кодом.
+  // В новой схеме у всех сессий есть user_id, поэтому этот путь не должен срабатывать.
+  // Оставлен для совместимости с очень старыми сессиями.
+  return null;
   return {
     id: u.id,
     tenantId: u.tenant_id,
