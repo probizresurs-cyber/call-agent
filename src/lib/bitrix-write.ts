@@ -78,48 +78,31 @@ async function loadCallAndAnalysis(callId: number): Promise<{ call: CallForCrm; 
   return { call, analysis: analysis ?? null };
 }
 
-/** Формирование текста комментария — единое место для всех CRM-целей. */
+/**
+ * Формирование текста комментария — единое место для всех CRM-целей.
+ * Намеренно лаконично: только краткое содержание + следующий шаг.
+ * Метрики, чек-лист, возражения, темы — НЕ выводим (по запросу заказчика
+ * комментарий должен быть максимально коротким). Полный разбор — по ссылке.
+ */
 function buildSummaryMarkdown(call: CallForCrm, a: AnalysisForCrm): string {
   const dashboardUrl = `https://marketradar24.ru/call-agent/calls/${call.id}`;
-  const objections: string[] = a.objections_json ? safeJsonArray(a.objections_json) : [];
-  const topics: string[] = a.topics_json ? safeJsonArray(a.topics_json) : [];
-
-  const sentimentLabel =
-    a.sentiment === "positive" ? "Позитивное" :
-    a.sentiment === "negative" ? "Негативное" :
-    a.sentiment === "neutral"  ? "Нейтральное" : "—";
 
   const lines: string[] = [];
   lines.push("[B]🤖 Анализ звонка (Call-Agent)[/B]");
   lines.push("");
 
-  // Блок резюме — выделен горизонтальным разделителем для читаемости в Bitrix Timeline
   if (a.summary) {
-    lines.push("─────────────────────────────");
-    lines.push("[B]📝 РЕЗЮМЕ[/B]");
+    lines.push("[B]Краткое содержание:[/B]");
     lines.push(a.summary);
-    lines.push("─────────────────────────────");
     lines.push("");
   }
 
   if (a.next_action) {
-    lines.push("[B]➡ Следующий шаг:[/B] " + a.next_action);
+    lines.push("[B]Следующий шаг:[/B] " + a.next_action);
     lines.push("");
   }
 
-  const metricsParts: string[] = [];
-  if (a.manager_score != null) metricsParts.push(`Оценка ${a.manager_score.toFixed(1)}/10`);
-  if (a.script_compliance != null) metricsParts.push(`Скрипт ${Math.round(a.script_compliance * 100)}%`);
-  if (a.sentiment) metricsParts.push(`Настроение: ${sentimentLabel}`);
-  if (metricsParts.length) {
-    lines.push("[B]Метрики:[/B] " + metricsParts.join(" · "));
-  }
-  if (a.client_name) lines.push("[B]Заказчик представился:[/B] " + a.client_name);
-  if (a.detected_product) lines.push("[B]Продукт:[/B] " + a.detected_product);
-  if (objections.length) lines.push("[B]Возражения:[/B] " + objections.join(", "));
-  if (topics.length) lines.push("[B]Темы:[/B] " + topics.join(", "));
-  lines.push("");
-  lines.push("[URL=" + dashboardUrl + "]Открыть полный разбор в Call-Agent →[/URL]");
+  lines.push("[URL=" + dashboardUrl + "]Полный разбор в Call-Agent →[/URL]");
 
   return lines.join("\n");
 }
