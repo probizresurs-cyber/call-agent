@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
            COUNT(DISTINCT c.tenant_id) AS active_tenants,
            SUM(CASE WHEN c.status = 'done' THEN 1 ELSE 0 END) AS analyzed
          FROM calls c
-         WHERE c.started_at >= datetime('now', '-30 days')
+         WHERE c.started_at >= datetime('now', '-14 days')
          GROUP BY substr(c.started_at, 1, 10)
          ORDER BY date DESC`
       )
