@@ -28,6 +28,11 @@ for (const fname of [".env", ".env.local"]) {
 
 const nextConfig: NextConfig = {
   basePath: "/call-agent",
+  // КРИТИЧНО: nginx редиректит /call-agent → /call-agent/ (добавляет слэш),
+  // а Next.js по умолчанию делал 308 /call-agent/ → /call-agent (убирал слэш) —
+  // получалась бесконечная петля ERR_TOO_MANY_REDIRECTS. Эта опция отключает
+  // автоматический trailing-slash редирект Next.js, разрывая цикл.
+  skipTrailingSlashRedirect: true,
   typescript: {
     ignoreBuildErrors: true,
   },
