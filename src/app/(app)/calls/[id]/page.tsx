@@ -12,6 +12,7 @@ import { ReprocessButton } from "./ReprocessButton";
 import { DeepAnalyzeButton } from "./DeepAnalyzeButton";
 import { ReassignScriptButton } from "./ReassignScriptButton";
 import { SendToCrmButton } from "./SendToCrmButton";
+import { EnrichCrmButton } from "./EnrichCrmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -179,8 +180,11 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
       {/* CRM-блок: ссылки на карточки Bitrix24 (сделка/лид/контакт) */}
       {(call.bitrix_deal_id || call.bitrix_lead_id || call.bitrix_contact_id) && (
         <div className="ds-card" style={{ marginBottom: 16 }}>
-          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <Briefcase size={16} strokeWidth={2} /> CRM
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Briefcase size={16} strokeWidth={2} /> CRM
+            </span>
+            {me.role !== "manager" && <EnrichCrmButton callId={call.id} />}
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {call.bitrix_deal_id && (
