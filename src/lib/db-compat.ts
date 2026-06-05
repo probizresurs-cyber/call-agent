@@ -312,6 +312,7 @@ function makePgDb(): CompatDb {
       `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_custom_fields     TEXT`,
       `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_severity_min      TEXT DEFAULT 'medium'`,
       `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS analysis_model                TEXT`,
+      `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS glossary                      TEXT`,
     ];
 
     for (const sql of alterMigrations) {

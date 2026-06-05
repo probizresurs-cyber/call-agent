@@ -157,9 +157,23 @@ function userPrompt(args: {
   checklist: ChecklistItem[] | null;
   context: DealContext | null;
   interactionType?: "call" | "chat" | "email" | "meeting";
+  glossary?: string | null;
 }) {
   const { transcript, checklist, context } = args;
   const itype = args.interactionType ?? "call";
+
+  // Глоссарий названий тенанта — правильные написания компаний/продуктов/терминов.
+  // Whisper распознаёт названия на слух по-разному (Орлинг, Арлинк → Орлинк),
+  // поэтому в начало промпта добавляем словарь правильных написаний.
+  const glossaryText = (args.glossary ?? "").trim();
+  const glossaryBlock = glossaryText
+    ? `ВАЖНО — правильные написания названий (глоссарий компании):
+${glossaryText}
+Используй ИМЕННО эти написания в summary, client_intent, next_action и других текстовых полях.
+Whisper мог распознать названия на слух неправильно — исправляй на правильные из глоссария.
+
+`
+    : "";
 
   // Терминология подстраивается под тип взаимодействия — анализ остаётся тот же
   const labels = {
@@ -198,7 +212,7 @@ ${context.recentComments.map((c) => `  • ${c.createdAt}: ${c.text.slice(0, 300
 `
     : "Контекст сделки/лида не получен.";
 
-  return `Тип взаимодействия: ${labels.noun}. ${labels.diarization}.
+  return `${glossaryBlock}Тип взаимодействия: ${labels.noun}. ${labels.diarization}.
 
 ${contextBlock}
 
@@ -223,6 +237,8 @@ export async function analyzeCall(args: {
   interactionType?: "call" | "chat" | "email" | "meeting";  // §2 MASTER-TZ
   /** Per-tenant переопределение модели: 'provider:model', например 'openai:gpt-4o-mini'. */
   modelOverride?: string;
+  /** Глоссарий названий тенанта (tenants.glossary) — правильные написания для AI. */
+  glossary?: string | null;
 }): Promise<{ analysis: CallAnalysis; raw: string; model: string }> {
   // Провайдер AI выбирается через ENV AI_PROVIDER (openai | anthropic), default = openai.
   // modelOverride позволяет задать модель на уровне тенанта (из tenants.analysis_model).

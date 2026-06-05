@@ -107,6 +107,11 @@ function applyAlterMigrations(db: Database.Database) {
   // Формат: 'openai:gpt-4o', 'openai:gpt-4o-mini', 'anthropic:claude-sonnet-4-6', etc.
   ensureColumn("tenants", "analysis_model", "TEXT DEFAULT NULL");
 
+  // Глоссарий названий компании (per-tenant). Whisper распознаёт названия на слух
+  // по-разному (Орлинг, Арлинк), а нужно консистентно («Орлинк»). Подставляется в
+  // промпт анализатора, чтобы AI использовал правильные написания во всех текстовых полях.
+  ensureColumn("tenants", "glossary", "TEXT DEFAULT NULL");
+
   // Таблица найденных расхождений между карточкой CRM и стенограммой звонка.
   // Идемпотентная — CREATE IF NOT EXISTS, индексы тоже.
   db.exec(`

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Bot, Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale } from "lucide-react";
+import { Bot, BookOpen, Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -9,6 +9,7 @@ import { ReanalyzeCard } from "./ReanalyzeCard";
 import { UsersCard } from "./UsersCard";
 import { FlagsCard } from "./FlagsCard";
 import { ModelCard } from "./ModelCard";
+import { GlossaryCard } from "./GlossaryCard";
 import { BudgetCard } from "./BudgetCard";
 import { BitrixActivitiesCard } from "./BitrixActivitiesCard";
 import { DashboardShareCard } from "./DashboardShareCard";
@@ -42,6 +43,16 @@ export default async function SettingsPage() {
         .then((r) => r?.analysis_model ?? null)
         .catch(() => null)
     : null;
+
+  // Глоссарий названий тенанта — правильные написания для AI-анализатора.
+  // Колонка glossary может ещё не существовать на старой БД — try/catch отдаёт "".
+  const glossary = isManager
+    ? await getDbAsync()
+        .prepare("SELECT glossary FROM tenants WHERE id = ?")
+        .get<{ glossary: string | null }>(me.tenantId)
+        .then((r) => r?.glossary ?? "")
+        .catch(() => "")
+    : "";
 
   const [budget, usage, lastFetchedActivities, dashboardToken] = await Promise.all([
     getTenantBudget(me.tenantId),
@@ -175,6 +186,16 @@ export default async function SettingsPage() {
             <Bot size={16} strokeWidth={2} /> Модель для анализа
           </h2>
           <ModelCard initial={analysisModel} />
+        </div>
+      )}
+
+      {/* ───────── Глоссарий названий (видно только owner/admin) ───────── */}
+      {isManager && (
+        <div className="ds-card" style={{ marginBottom: 16 }}>
+          <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            <BookOpen size={16} strokeWidth={2} /> Глоссарий названий
+          </h2>
+          <GlossaryCard initial={glossary} />
         </div>
       )}
 

@@ -183,9 +183,11 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   // 5. Анализ с выбранным чек-листом. tenantId/callId — для §4.4 бюджет-гарда.
   //    interactionType подстраивает терминологию (звонок vs переписка vs встреча).
   //    modelOverride — per-tenant настройка модели AI (из tenants.analysis_model).
+  //    glossary — per-tenant словарь правильных написаний названий (из tenants.glossary).
   const tenantRow = await db
-    .prepare("SELECT analysis_model FROM tenants WHERE id = ?")
-    .get<{ analysis_model: string | null }>(row.tenant_id ?? 1);
+    .prepare("SELECT analysis_model, glossary FROM tenants WHERE id = ?")
+    .get<{ analysis_model: string | null; glossary: string | null }>(row.tenant_id ?? 1)
+    .catch(() => null);
   const modelOverride = tenantRow?.analysis_model ?? undefined;
 
   const { analysis, raw, model } = await analyzeCall({
@@ -196,6 +198,7 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
     callId,
     interactionType,
     modelOverride,
+    glossary: tenantRow?.glossary ?? null,
   });
 
   // 5. Сохраняем транскрипт + диалог
