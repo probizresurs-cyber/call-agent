@@ -182,134 +182,137 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
     <div
       className={`dash-filters${expanded ? " expanded" : ""}`}
       style={{
-        display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center",
+        display: "flex", flexDirection: "column", gap: 8,
         marginBottom: 20, padding: 10, background: "var(--card)",
         border: "1px solid var(--border)", borderRadius: 8,
       }}
     >
-      {/* «Только с CRM» — слева; на мобиле скрыта пока не «Ещё» */}
-      <button
-        type="button"
-        onClick={toggleCrm}
-        disabled={pending}
-        className="dash-collapsible"
-        title={withCrm
-          ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
-          : "Показываются все звонки, включая холодные без CRM-привязки"}
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "0 14px", height: 30, fontSize: 13, borderRadius: 4, flexShrink: 0,
-          border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
-          background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
-          color: withCrm ? "var(--primary)" : "var(--foreground)",
-          cursor: pending ? "wait" : "pointer", fontWeight: 600, whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
-          display: "inline-block",
-        }} />
-        Только с CRM
-      </button>
-
-      {/* Разделитель — десктоп */}
-      <div className="dash-collapsible" style={{ width: 1, height: 22, background: "var(--border)", margin: "0 2px", flexShrink: 0 }} />
-
-      {/* Первые 3 пресета — видны всегда */}
-      {PRIMARY.map((p) => (
+      {/* Строка 1: «Только с CRM» — отдельной кнопкой сверху слева (ПК/ТВ).
+          На мобиле скрыта пока не нажата «Ещё». */}
+      <div className="dash-filter-crm" style={{ display: "flex", alignItems: "center" }}>
         <button
-          key={p.key}
           type="button"
-          onClick={() => applyPreset(p)}
-          className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
-          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+          onClick={toggleCrm}
           disabled={pending}
-        >
-          {p.label}
-        </button>
-      ))}
-
-      {/* «Ещё» — только мобайл (CSS) */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="ds-btn ds-btn-ghost dash-more-btn"
-        style={{ height: 30, padding: "0 10px", fontSize: 13, alignItems: "center", gap: 5 }}
-      >
-        <SlidersHorizontal size={13} />
-        Ещё
-        <ChevronDown size={13} style={{ transition: "transform 0.15s", transform: expanded ? "rotate(180deg)" : "none" }} />
-      </button>
-
-      {/* Остальные пресеты — collapsible */}
-      {SECONDARY.map((p) => (
-        <button
-          key={p.key}
-          type="button"
-          onClick={() => applyPreset(p)}
-          className={`dash-collapsible ds-btn ${active === p.key ? "ds-btn-primary" : "ds-btn-secondary"}`}
-          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
-          disabled={pending}
-        >
-          {p.label}
-        </button>
-      ))}
-      <button
-        type="button"
-        onClick={showAll}
-        className={`dash-collapsible ds-btn ${active === "all" ? "ds-btn-primary" : "ds-btn-ghost"}`}
-        style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
-        disabled={pending}
-      >
-        За всё время
-      </button>
-
-      {/* Разделитель — десктоп */}
-      <div className="dash-collapsible" style={{ width: 1, height: 22, background: "var(--border)", margin: "0 2px", flexShrink: 0 }} />
-
-      {/* Менеджеры — collapsible */}
-      {managers && managers.length > 0 && (
-        <select
-          value={managerId}
-          onChange={(e) => onManagerChange(e.target.value)}
-          disabled={pending}
-          title="Фильтр по менеджеру"
-          className="dash-collapsible"
+          title={withCrm
+            ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
+            : "Показываются все звонки, включая холодные без CRM-привязки"}
           style={{
-            height: 30, padding: "0 8px", fontSize: 13, flexShrink: 0,
-            background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
-            border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
-            color: managerId ? "var(--primary)" : "var(--foreground)",
-            borderRadius: 4, minWidth: 150,
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "0 14px", height: 30, fontSize: 13, borderRadius: 4, flexShrink: 0,
+            border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
+            background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
+            color: withCrm ? "var(--primary)" : "var(--foreground)",
+            cursor: pending ? "wait" : "pointer", fontWeight: 600, whiteSpace: "nowrap",
           }}
         >
-          <option value="">Все менеджеры</option>
-          {managers.map((m) => (
-            <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
-          ))}
-        </select>
-      )}
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+            display: "inline-block",
+          }} />
+          Только с CRM
+        </button>
+      </div>
 
-      {/* Стрелки и date picker — collapsible */}
-      <button type="button" className="ds-btn ds-btn-secondary dash-collapsible"
-        onClick={() => shiftDay(-1)} title="На день назад"
-        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
-        <ChevronLeft size={14} />
-      </button>
-      <span className="dash-collapsible" style={{ display: "inline-flex", flexShrink: 0 }}>
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={(f, t) => navigate({ from: f, to: t })}
-          maxDate={isoDate(today())}
-        />
-      </span>
-      <button type="button" className="ds-btn ds-btn-secondary dash-collapsible"
-        onClick={() => shiftDay(+1)} title="На день вперёд"
-        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
-        <ChevronRight size={14} />
-      </button>
+      {/* Строка 2: пресеты периода + менеджеры + диапазон дат — всё в одну строку.
+          На мобиле видны только первые 3 пресета + «Ещё», остальное collapsible. */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        {/* Первые 3 пресета — видны всегда */}
+        {PRIMARY.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p)}
+            className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
+            style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+            disabled={pending}
+          >
+            {p.label}
+          </button>
+        ))}
+
+        {/* «Ещё» — только мобайл (CSS) */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="ds-btn ds-btn-ghost dash-more-btn"
+          style={{ height: 30, padding: "0 10px", fontSize: 13, alignItems: "center", gap: 5 }}
+        >
+          <SlidersHorizontal size={13} />
+          Ещё
+          <ChevronDown size={13} style={{ transition: "transform 0.15s", transform: expanded ? "rotate(180deg)" : "none" }} />
+        </button>
+
+        {/* Остальные пресеты — collapsible */}
+        {SECONDARY.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p)}
+            className={`dash-collapsible ds-btn ${active === p.key ? "ds-btn-primary" : "ds-btn-secondary"}`}
+            style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+            disabled={pending}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={showAll}
+          className={`dash-collapsible ds-btn ${active === "all" ? "ds-btn-primary" : "ds-btn-ghost"}`}
+          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+          disabled={pending}
+        >
+          За всё время
+        </button>
+
+        {/* Разделитель — collapsible */}
+        <div className="dash-collapsible" style={{ width: 1, height: 22, background: "var(--border)", margin: "0 2px", flexShrink: 0 }} />
+
+        {/* Менеджеры — collapsible */}
+        {managers && managers.length > 0 && (
+          <select
+            value={managerId}
+            onChange={(e) => onManagerChange(e.target.value)}
+            disabled={pending}
+            title="Фильтр по менеджеру"
+            className="dash-collapsible"
+            style={{
+              height: 30, padding: "0 8px", fontSize: 13, flexShrink: 0,
+              background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
+              border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
+              color: managerId ? "var(--primary)" : "var(--foreground)",
+              borderRadius: 4, minWidth: 150,
+            }}
+          >
+            <option value="">Все менеджеры</option>
+            {managers.map((m) => (
+              <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Стрелки и date picker — collapsible */}
+        <button type="button" className="ds-btn ds-btn-secondary dash-collapsible"
+          onClick={() => shiftDay(-1)} title="На день назад"
+          style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
+          <ChevronLeft size={14} />
+        </button>
+        <span className="dash-collapsible" style={{ display: "inline-flex", flexShrink: 0 }}>
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={(f, t) => navigate({ from: f, to: t })}
+            maxDate={isoDate(today())}
+          />
+        </span>
+        <button type="button" className="ds-btn ds-btn-secondary dash-collapsible"
+          onClick={() => shiftDay(+1)} title="На день вперёд"
+          style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
+          <ChevronRight size={14} />
+        </button>
+      </div>
     </div>
   );
 }
