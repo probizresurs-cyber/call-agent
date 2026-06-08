@@ -291,12 +291,8 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
         </select>
       )}
 
-      {/* Стрелки и date picker — collapsible */}
-      <button type="button" className="ds-btn ds-btn-secondary dash-collapsible"
-        onClick={() => shiftDay(-1)} title="На день назад"
-        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
-        <ChevronLeft size={14} />
-      </button>
+      {/* Выбор диапазона дат — collapsible. Навигация ±1 день делается прямо
+          в календаре, поэтому отдельные стрелки убраны (экономия места). */}
       <span className="dash-collapsible" style={{ display: "inline-flex", flexShrink: 0 }}>
         <DateRangePicker
           from={from}
@@ -305,11 +301,6 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
           maxDate={isoDate(today())}
         />
       </span>
-      <button type="button" className="ds-btn ds-btn-secondary dash-collapsible"
-        onClick={() => shiftDay(+1)} title="На день вперёд"
-        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
-        <ChevronRight size={14} />
-      </button>
     </div>
   );
 }
