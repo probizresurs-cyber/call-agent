@@ -111,7 +111,7 @@ export function ReportsClient({ managers }: { managers: ManagerOption[] }) {
     setSendInfo(null);
     setPreviewing(true);
     try {
-      const res = await fetch("/api/reports/preview", {
+      const res = await fetch("/call-agent/api/reports/preview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildBody()),
@@ -138,7 +138,7 @@ export function ReportsClient({ managers }: { managers: ManagerOption[] }) {
     setSendInfo(null);
     setSending(true);
     try {
-      const res = await fetch("/api/reports/send", {
+      const res = await fetch("/call-agent/api/reports/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildBody()),
