@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { DateRangePicker } from "@/app/_components/DateRangePicker";
 
@@ -105,6 +105,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   const typeParam = search.get("type") || "";
   const managerParam = search.get("manager_id") || "";
   const minDurationParam = search.get("min_duration") || "";
+  const allParam = search.get("period") === "all";  // явный выбор «За всё время»
 
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
@@ -114,6 +115,33 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   const [type, setType] = useState(typeParam);
   const [managerId, setManagerId] = useState(managerParam);
   const [minDuration, setMinDuration] = useState(minDurationParam);
+
+  // Дефолт «Сегодня»: при первом заходе без параметров периода (нет from/to и нет
+  // period=all) — подставляем сегодняшний день. Чтобы открыть «За всё время» —
+  // нужен явный ?period=all.
+  useEffect(() => {
+    if (!fromParam && !toParam && !allParam) {
+      const t = isoDate(today());
+      const params = new URLSearchParams();
+      params.set("from", t);
+      params.set("to", t);
+      if (qParam) params.set("q", qParam);
+      if (sentimentParam) params.set("sentiment", sentimentParam);
+      if (statusParam) params.set("status", statusParam);
+      if (typeParam) params.set("type", typeParam);
+      if (managerParam) params.set("manager_id", managerParam);
+      if (minDurationParam) params.set("min_duration", minDurationParam);
+      router.replace("/calls" + `?${params}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Синхронизируем локальный state from/to с URL (в т.ч. после дефолт-редиректа
+  // на «Сегодня») — иначе подсветка активного пресета не сработает.
+  useEffect(() => {
+    setFrom(fromParam);
+    setTo(toParam);
+  }, [fromParam, toParam]);
 
   function navigate(next: Record<string, string>) {
     const params = new URLSearchParams();
@@ -127,8 +155,10 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
     navigate({ from, to, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
   function reset() {
-    setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType(""); setManagerId(""); setMinDuration("");
-    startTransition(() => router.push("/calls"));
+    // Сброс всех фильтров → возврат к дефолтному виду «Сегодня».
+    const t = isoDate(today());
+    setFrom(t); setTo(t); setQ(""); setSentiment(""); setStatus(""); setType(""); setManagerId(""); setMinDuration("");
+    startTransition(() => router.push(`/calls?from=${t}&to=${t}`));
   }
   function applyPreset(p: Preset) {
     const r = p.range();
@@ -137,11 +167,21 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
   }
   function showAll() {
     setFrom(""); setTo("");
-    navigate({ from: "", to: "", q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
+    // Явный маркер «За всё время» (иначе сработает дефолт «Сегодня»).
+    const params = new URLSearchParams();
+    params.set("period", "all");
+    if (q) params.set("q", q);
+    if (sentiment) params.set("sentiment", sentiment);
+    if (status) params.set("status", status);
+    if (type) params.set("type", type);
+    if (managerId) params.set("manager_id", managerId);
+    if (minDuration) params.set("min_duration", minDuration);
+    startTransition(() => router.push("/calls" + `?${params}`));
   }
   // Определяем какой пресет сейчас активен (для подсветки)
   function activePreset(): string | null {
-    if (!from && !to) return "all";
+    if (allParam) return "all";
+    if (!from && !to) return null;
     for (const p of PRESETS) {
       const r = p.range();
       if (r.from === from && r.to === to) return p.key;
@@ -161,25 +201,8 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-      {/* Верхняя строка: дата-навигация */}
+      {/* Верхняя строка: пресеты, затем дата-навигация в конце */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(-1)} title="Назад день"
-          style={{ width: 30, height: 30, padding: 0 }}>
-          <ChevronLeft size={16} />
-        </button>
-        <DateRangePicker
-          from={from}
-          to={to}
-          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration }); }}
-          maxDate={todayIso()}
-        />
-        <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(+1)} title="Вперёд день"
-          style={{ width: 30, height: 30, padding: 0 }}>
-          <ChevronRight size={16} />
-        </button>
-
-        <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 4px" }} />
-
         {PRESETS.map((p) => (
           <button
             key={p.key}
@@ -201,8 +224,22 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
         >
           За всё время
         </button>
-        <button type="button" className="ds-btn ds-btn-ghost" onClick={reset} style={{ marginLeft: "auto" }}>
-          Сбросить всё
+
+        <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 4px" }} />
+
+        <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(-1)} title="Назад день"
+          style={{ width: 30, height: 30, padding: 0 }}>
+          <ChevronLeft size={16} />
+        </button>
+        <DateRangePicker
+          from={from}
+          to={to}
+          onChange={(f, t) => { setFrom(f); setTo(t); navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration }); }}
+          maxDate={todayIso()}
+        />
+        <button type="button" className="ds-btn ds-btn-secondary" onClick={() => shiftDay(+1)} title="Вперёд день"
+          style={{ width: 30, height: 30, padding: 0 }}>
+          <ChevronRight size={16} />
         </button>
       </div>
 
@@ -278,6 +315,9 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
         )}
         <button type="button" className="ds-btn ds-btn-primary" onClick={apply} disabled={pending}>
           Применить
+        </button>
+        <button type="button" className="ds-btn ds-btn-ghost" onClick={reset} disabled={pending}>
+          Сбросить всё
         </button>
       </div>
     </div>

@@ -254,19 +254,14 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
           ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
           : "Показываются все звонки, включая холодные без CRM-привязки"}
         style={{
-          display: "inline-flex", alignItems: "center", gap: 8,
-          padding: "0 14px", height: 30, fontSize: 13, borderRadius: 4, flexShrink: 0,
+          display: "inline-flex", alignItems: "center", gap: 6,
+          padding: "0 12px", height: 30, fontSize: 13, borderRadius: 4, flexShrink: 0,
           border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
           background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
           color: withCrm ? "var(--primary)" : "var(--foreground)",
           cursor: pending ? "wait" : "pointer", fontWeight: 600, whiteSpace: "nowrap",
         }}
       >
-        <span style={{
-          width: 8, height: 8, borderRadius: "50%",
-          background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
-          display: "inline-block",
-        }} />
         Только с CRM
       </button>
 
