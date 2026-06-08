@@ -47,7 +47,11 @@ export default async function PublicDashboardPage(props: {
     <>
       {tv && <PublicDashboardAutoRefresh intervalSec={30} />}
 
-      <div style={{ maxWidth: 1400, margin: "0 auto", fontSize: tv ? 16 : 14 }}>
+      <div style={{
+        maxWidth: 1400, width: "100%", margin: "0 auto",
+        padding: "clamp(0px, 1vw, 12px)", boxSizing: "border-box",
+        fontSize: tv ? 16 : 14,
+      }}>
         <div className="page-header" style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           marginBottom: 16, gap: 12, flexWrap: "wrap",

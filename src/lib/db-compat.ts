@@ -301,6 +301,7 @@ function makePgDb(): CompatDb {
       `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS checklist_json   TEXT`,
       `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS product          TEXT`,
       `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS direction        TEXT DEFAULT 'all'`,
+      `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS key_phrases      TEXT`,
       `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS tenant_id        INTEGER NOT NULL DEFAULT 1`,
       `ALTER TABLE managers  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1`,
       `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS user_id              INTEGER`,

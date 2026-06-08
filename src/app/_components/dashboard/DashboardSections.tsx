@@ -224,7 +224,8 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
           <TrendingUp size={16} strokeWidth={2} /> Динамика за 14 дней
         </h2>
         {totals.total === 0 ? <Empty /> : (
-          <div style={{ display: "grid", gridTemplateColumns: `repeat(${series.length}, 1fr)`, gap: 6, alignItems: "end", height: 160 }}>
+          <div style={{ overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: `repeat(${series.length}, minmax(24px, 1fr))`, gap: 6, alignItems: "end", height: 160, minWidth: series.length > 7 ? series.length * 30 : undefined }}>
             {series.map((s) => {
               const tot = s.positive + s.negative + s.neutral || s.total;
               const hPx = Math.round((s.total / maxDaily) * 130) + 2;
@@ -244,6 +245,7 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
               );
             })}
           </div>
+          </div>
         )}
         <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 12 }}>
           <LegendDot color="var(--success)" label="Позитив" />
@@ -253,7 +255,8 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
       </div>
 
       {/* ───── Sentiment + Слабые пункты ───── */}
-      <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+      {/* auto-fit/minmax → 2 колонки на десктопе, 1 колонка на узких экранах (без media-query) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 16 }}>
         <div className="ds-card">
           <h2 className="ds-h3" style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <CircleDot size={16} strokeWidth={2} /> Настроение заказчиков
@@ -293,7 +296,8 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
       </div>
 
       {/* ───── Топ возражений + Топ тем ───── */}
-      <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+      {/* auto-fit/minmax → 2 колонки на десктопе, 1 колонка на узких экранах (без media-query) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 16 }}>
         <div className="ds-card">
           <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <MessageSquare size={16} strokeWidth={2} /> Топ возражений

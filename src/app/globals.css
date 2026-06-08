@@ -178,50 +178,114 @@ html, body {
 .nav-link:hover { background: var(--sidebar-hover); }
 .nav-link.active { background: var(--sidebar-active); }
 
+/* ── Мобильная навигация (топ-бар + drawer) ── */
+/* По умолчанию (десктоп ≥768px) топ-бар, гамбургер, крестик и overlay скрыты.
+   Сайдбар отображается статично через .shell grid. */
+.mobile-topbar { display: none; }
+.mobile-burger,
+.mobile-close { display: none; }
+.mobile-overlay { display: none; }
+
 /* ── Responsive ── */
-/* Tablet и меньше */
+/* Планшет и меньше — десктопный сайдбар чуть уже, контент компактнее */
 @media (max-width: 900px) {
+  .shell { grid-template-columns: 200px 1fr; }
+  .shell-main { padding: 18px 18px; max-width: 100%; }
+}
+
+/* Мобайл (<768px): сайдбар превращается в выезжающий drawer */
+@media (max-width: 768px) {
+  /* Одна колонка — контент во всю ширину */
   .shell { grid-template-columns: 1fr; }
-  .shell-sidebar {
-    position: sticky; top: 0;
-    height: auto;
-    padding: 10px 14px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 8px;
-    z-index: 100;
+
+  /* Топ-бар с гамбургером */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    height: 52px;
+    padding: 0 14px;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-fg);
   }
-  .shell-sidebar > *:first-child { width: 100%; margin-bottom: 4px; }  /* лого занимает всю ширину */
-  .shell-sidebar nav { flex-direction: row; flex-wrap: wrap; gap: 4px !important; }
-  .shell-sidebar .nav-link { padding: 6px 10px; font-size: 13px; }
+  .mobile-burger,
+  .mobile-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  .mobile-burger:hover,
+  .mobile-close:hover { background: var(--sidebar-hover); }
+
+  /* Сайдбар — фиксированный drawer слева, по умолчанию уехавший за экран */
+  .shell-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    max-width: 84vw;
+    height: 100vh;
+    z-index: 80;
+    padding: 16px 14px;
+    transform: translateX(-100%);
+    transition: transform 220ms ease;
+    overflow-y: auto;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.30);
+  }
+  .shell-sidebar.open { transform: translateX(0); }
+
+  /* Затемнение фона под drawer */
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    background: rgba(0,0,0,0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+  }
+  .mobile-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Контент */
   .shell-main { padding: 14px; max-width: 100%; }
   .ds-h1 { font-size: 22px; }
   .ds-h2 { font-size: 18px; }
   .ds-h3 { font-size: 15px; }
-  .ds-card { padding: 12px; }
+  .ds-card { padding: 14px; }
   /* Все таблицы — горизонтальный скролл вместо обрезки */
   .ds-table { font-size: 12px; }
   .ds-table td, .ds-table th { padding: 6px 8px; }
-}
-
-/* Mobile */
-@media (max-width: 600px) {
-  .shell-main { padding: 10px; }
-  .ds-h1 { font-size: 19px; }
-  .ds-card { padding: 10px; }
-  /* KPI grid: на mobile 1-2 колонки */
-  .kpi-grid-5 { grid-template-columns: repeat(2, 1fr) !important; }
-  .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  /* KPI-сетки: на мобиле 2 колонки */
+  .kpi-grid-5, .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
   .kpi-grid-3 { grid-template-columns: 1fr !important; }
   /* Шапки страниц в столбик */
   .page-header { flex-direction: column !important; align-items: flex-start !important; gap: 8px !important; }
-  /* Маленькие экраны = всегда горизонтальный scroll для таблиц */
+  /* Обёртки таблиц — горизонтальный scroll */
   .ds-table-wrap { overflow-x: auto; }
 }
 
-/* Очень узкие экраны (< 400) — крайний случай */
-@media (max-width: 400px) {
-  .shell-sidebar .nav-link span { display: none; }  /* остаются только иконки */
+/* Узкие телефоны (<480px) — KPI в одну колонку */
+@media (max-width: 480px) {
+  .shell-main { padding: 12px; }
+  .ds-h1 { font-size: 20px; }
+  .ds-card { padding: 12px; }
+  .kpi-grid-5, .kpi-grid-4 { grid-template-columns: 1fr !important; }
 }
 
 /* Большие TV-экраны / мониторы (для public dashboard ?tv=1) */

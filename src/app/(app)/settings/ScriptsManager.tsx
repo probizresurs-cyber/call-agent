@@ -19,6 +19,7 @@ interface Script {
   direction: "in" | "out" | "all";
   content_md: string;
   checklist_json: string | null;
+  key_phrases: string | null;
   is_active: number;
   updated_at: string;
 }
@@ -216,6 +217,7 @@ function ScriptEditor({ initial, onSave, onCancel }: {
   const [product, setProduct] = useState(initial?.product || "");
   const [direction, setDirection] = useState<"in" | "out" | "all">(initial?.direction || "all");
   const [content, setContent] = useState(initial?.content_md || "");
+  const [keyPhrases, setKeyPhrases] = useState(initial?.key_phrases || "");
   const [checklist, setChecklist] = useState<ChecklistItem[]>(() => {
     if (initial?.checklist_json) {
       try { return JSON.parse(initial.checklist_json); } catch {}
@@ -277,6 +279,7 @@ function ScriptEditor({ initial, onSave, onCancel }: {
         direction,
         content_md: content,
         checklist: cleaned,
+        key_phrases: keyPhrases.trim() || null,
         is_active: true,
       };
       if (initial) {
@@ -328,6 +331,22 @@ function ScriptEditor({ initial, onSave, onCancel }: {
         общий для звонков где AI не смог определить продукт.
         <b style={{ marginLeft: 6 }}>Направление</b> — для каких звонков применять.
       </p>
+
+      {/* ────── КЛЮЧЕВЫЕ ФРАЗЫ (помощь AI в определении типа) ────── */}
+      <div style={{ marginBottom: 18 }}>
+        <label className="ds-caption" style={{ display: "block", marginBottom: 4 }}>
+          Ключевые фразы (помощь AI в определении типа)
+        </label>
+        <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 8 }}>
+          Словосочетания которые характерны для этого скрипта — по одной фразе на строку.
+          AI использует их чтобы понять что звонок относится к этому типу.
+          Например: «монтаж ангара», «цена за тонну», «выставить КП».
+        </p>
+        <textarea className="ds-textarea" rows={4}
+          value={keyPhrases} onChange={(e) => setKeyPhrases(e.target.value)}
+          placeholder={"строительство ангара\nмонтаж сэндвич-панелей\nпод ключ"}
+        />
+      </div>
 
       {/* ────── СЕКЦИЯ 1: ТЕКСТ СКРИПТА ────── */}
       <div style={{

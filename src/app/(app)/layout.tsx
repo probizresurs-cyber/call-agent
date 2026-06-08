@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones, User as UserIcon, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
+import { MobileNav, type NavItem } from "./MobileNav";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   owner: "Владелец",
@@ -44,125 +43,52 @@ export default async function AuthedLayout({ children }: { children: React.React
     }
   }
 
+  // Собираем пункты меню как сериализуемые данные (иконки — строкой),
+  // чтобы прокинуть их в client-компонент MobileNav.
+  const navItems: NavItem[] = [
+    { href: "/dashboard", label: dashboardLabel, icon: "BarChart3" },
+    { href: "/calls", label: callsLabel, icon: "Phone" },
+    { href: "/clients", label: "Заказчики", icon: "Users" },
+  ];
+  if (user.role === "manager") {
+    navItems.push({ href: "/my", label: "Мой кабинет", icon: "Bell" });
+  }
+  if (user.role !== "manager") {
+    navItems.push({ href: "/leaderboard", label: "Лидерборд", icon: "Trophy" });
+  }
+  if (showSettings) {
+    navItems.push({ href: "/interactions/upload", label: "Загрузить запись", icon: "FilePlus2" });
+    navItems.push({ href: "/queue", label: "Очередь", icon: "Activity" });
+    navItems.push({ href: "/crm-log", label: "CRM-журнал", icon: "Upload" });
+  }
+  if (showDiscrepancies) {
+    navItems.push({
+      href: "/discrepancies",
+      label: "Расхождения",
+      icon: "Scale",
+      badge: pendingDiscrepanciesCount,
+    });
+  }
+  if (showSettings) {
+    navItems.push({ href: "/settings", label: "Настройки", icon: "Settings" });
+  }
+
+  const roleIcon =
+    user.role === "owner" || user.role === "admin"
+      ? "ShieldCheck"
+      : user.role === "head"
+      ? "Headphones"
+      : "User";
+
   return (
     <div className="shell">
-      <aside className="shell-sidebar">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 12px" }}>
-          <div
-            style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: "linear-gradient(135deg,#7c70e0,#5b4fc7)",
-              display: "grid", placeItems: "center",
-              color: "#fff", fontWeight: 700,
-            }}
-          >CA</div>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>Call-Agent</div>
-            <div style={{ fontSize: 11, color: "var(--sidebar-muted)" }}>AI-анализ коммуникаций</div>
-          </div>
-        </div>
-
-        <nav style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Link className="nav-link" href="/dashboard">
-            <BarChart3 size={16} strokeWidth={2} /> {dashboardLabel}
-          </Link>
-          <Link className="nav-link" href="/calls">
-            <Phone size={16} strokeWidth={2} /> {callsLabel}
-          </Link>
-          <Link className="nav-link" href="/clients">
-            <Users size={16} strokeWidth={2} /> Заказчики
-          </Link>
-          {user.role === "manager" && (
-            <Link className="nav-link" href="/my">
-              <Bell size={16} strokeWidth={2} /> Мой кабинет
-            </Link>
-          )}
-          {user.role !== "manager" && (
-            <Link className="nav-link" href="/leaderboard">
-              <Trophy size={16} strokeWidth={2} /> Лидерборд
-            </Link>
-          )}
-          {showSettings && (
-            <Link className="nav-link" href="/interactions/upload">
-              <FilePlus2 size={16} strokeWidth={2} /> Загрузить запись
-            </Link>
-          )}
-          {showSettings && (
-            <Link className="nav-link" href="/queue">
-              <Activity size={16} strokeWidth={2} /> Очередь
-            </Link>
-          )}
-          {showSettings && (
-            <Link className="nav-link" href="/crm-log">
-              <Upload size={16} strokeWidth={2} /> CRM-журнал
-            </Link>
-          )}
-          {showDiscrepancies && (
-            <Link
-              className="nav-link"
-              href="/discrepancies"
-              style={{ position: "relative" }}
-            >
-              <Scale size={16} strokeWidth={2} /> Расхождения
-              {pendingDiscrepanciesCount > 0 && (
-                <span
-                  style={{
-                    marginLeft: "auto",
-                    minWidth: 18,
-                    height: 18,
-                    borderRadius: 9,
-                    background: "var(--destructive)",
-                    color: "#fff",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 5px",
-                    lineHeight: 1,
-                  }}
-                >
-                  {pendingDiscrepanciesCount > 99 ? "99+" : pendingDiscrepanciesCount}
-                </span>
-              )}
-            </Link>
-          )}
-          {showSettings && (
-            <Link className="nav-link" href="/settings">
-              <Settings size={16} strokeWidth={2} /> Настройки
-            </Link>
-          )}
-        </nav>
-
-        <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ padding: "8px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 6 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--sidebar-fg)", fontWeight: 600 }}>
-              {user.role === "owner" || user.role === "admin"
-                ? <ShieldCheck size={12} strokeWidth={2} />
-                : user.role === "head"
-                ? <Headphones size={12} strokeWidth={2} />
-                : <UserIcon size={12} strokeWidth={2} />}
-              {user.name || user.login}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--sidebar-muted)", marginTop: 2 }}>
-              {ROLE_LABELS[user.role]}
-            </div>
-          </div>
-          <form action={doLogout}>
-            <button type="submit" className="ds-btn ds-btn-secondary" style={{
-              width: "100%",
-              background: "rgba(255,255,255,0.06)",
-              borderColor: "rgba(255,255,255,0.12)",
-              color: "var(--sidebar-fg)",
-              gap: 8,
-            }}>
-              <LogOut size={14} strokeWidth={2} />
-              Выйти
-            </button>
-          </form>
-        </div>
-      </aside>
-
+      <MobileNav
+        navItems={navItems}
+        userName={user.name || user.login}
+        roleLabel={ROLE_LABELS[user.role]}
+        roleIcon={roleIcon}
+        logoutAction={doLogout}
+      />
       <main className="shell-main">{children}</main>
     </div>
   );

@@ -13,7 +13,7 @@ export async function GET() {
   const db = getDbAsync();
   const rows = await db
     .prepare(
-      `SELECT id, name, product, direction, content_md, checklist_json, is_active, updated_at
+      `SELECT id, name, product, direction, content_md, checklist_json, key_phrases, is_active, updated_at
        FROM sales_scripts
        ORDER BY is_active DESC, COALESCE(product, '') ASC, name ASC`
     )
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     direction?: "in" | "out" | "all";
     content_md?: string;
     checklist?: Array<{ id: string; title: string; weight: number; description?: string }>;
+    key_phrases?: string | null;
     is_active?: boolean;
   };
   if (!body.name) {
@@ -37,14 +38,15 @@ export async function POST(req: NextRequest) {
 
   const db = getDbAsync();
   const result = await db.prepare(
-    `INSERT INTO sales_scripts (name, product, direction, content_md, checklist_json, is_active)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sales_scripts (name, product, direction, content_md, checklist_json, key_phrases, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     body.name,
     body.product?.trim() || null,
     body.direction || "all",
     body.content_md || "",
     JSON.stringify(body.checklist ?? []),
+    body.key_phrases?.trim() || null,
     body.is_active !== false
   );
 

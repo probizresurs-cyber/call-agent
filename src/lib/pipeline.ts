@@ -305,12 +305,23 @@ interface ResolvedScript {
   product: string | null;
   direction: string;
   checklist: ChecklistItem[] | null;
+  /** Ключевые фразы/словосочетания — подсказка AI при определении типа звонка. */
+  keyPhrases: string[];
+}
+
+/** Разбивает текст key_phrases (по строкам или запятым) в массив непустых фраз. */
+function parseKeyPhrases(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[\n,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 async function loadActiveScripts(): Promise<ResolvedScript[]> {
   const rows = await getDbAsync()
-    .prepare(`SELECT id, name, product, direction, checklist_json FROM sales_scripts WHERE is_active = 1`)
-    .all<{ id: number; name: string; product: string | null; direction: string | null; checklist_json: string | null }>();
+    .prepare(`SELECT id, name, product, direction, checklist_json, key_phrases FROM sales_scripts WHERE is_active = 1`)
+    .all<{ id: number; name: string; product: string | null; direction: string | null; checklist_json: string | null; key_phrases: string | null }>();
   return rows.map((r) => {
     let checklist: ChecklistItem[] | null = null;
     if (r.checklist_json) {
@@ -325,6 +336,7 @@ async function loadActiveScripts(): Promise<ResolvedScript[]> {
       product: r.product,
       direction: r.direction || "all",
       checklist,
+      keyPhrases: parseKeyPhrases(r.key_phrases),
     };
   });
 }
@@ -355,9 +367,18 @@ async function pickScriptForCall(
     console.log(`[pipeline] productOverride="${product}" — auto-detect пропущен`);
   } else {
     const productCodes = [...new Set(scripts.map((s) => s.product).filter((p): p is string => !!p))];
-    const candidates: ProductCandidate[] = productCodes.map((code) => ({
-      code, name: code, keywords: [],
-    }));
+    const candidates: ProductCandidate[] = productCodes.map((code) => {
+      // Собираем ключевые фразы из всех активных скриптов этого продукта —
+      // это подсказка для AI: какие словосочетания характерны для типа звонка.
+      const keywords = [
+        ...new Set(
+          scripts
+            .filter((s) => s.product === code)
+            .flatMap((s) => s.keyPhrases)
+        ),
+      ];
+      return { code, name: code, keywords };
+    });
 
     if (candidates.length > 1) {
       try { product = await detectProduct(transcript, candidates, opts); }

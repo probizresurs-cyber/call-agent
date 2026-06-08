@@ -27,8 +27,20 @@ export async function detectProduct(
   if (!transcript || transcript.length < 30) return null;
 
   const productsList = candidates
-    .map((p) => `- ${p.code}: ${p.name}${p.keywords.length ? " (признаки: " + p.keywords.join(", ") + ")" : ""}`)
+    .map((p) => `- ${p.code}: ${p.name}`)
     .join("\n");
+
+  // Подсказки из настроек скриптов: характерные для каждого типа словосочетания.
+  // Если в разговоре встречаются эти фразы (или похожие по смыслу) — выбираем
+  // соответствующий скрипт. Блок добавляется только если хоть у одного кандидата есть фразы.
+  const candidatesWithPhrases = candidates.filter((p) => p.keywords.length > 0);
+  const keyPhrasesBlock = candidatesWithPhrases.length
+    ? `\nПодсказки для определения типа (ключевые фразы из настроек):\n` +
+      candidatesWithPhrases
+        .map((p) => `- Скрипт "${p.code}": ${p.keywords.join(", ")}`)
+        .join("\n") +
+      `\nЕсли в разговоре встречаются эти фразы или похожие по смыслу — выбирай соответствующий скрипт.\n`
+    : "";
 
   const codes = candidates.map((p) => p.code);
   const snippet = transcript.length > 2000 ? transcript.slice(0, 2000) + "..." : transcript;
@@ -48,7 +60,7 @@ export async function detectProduct(
   const system = "Ты классификатор B2B-звонков. Отвечаешь только через инструмент save_detection. Никаких лишних слов.";
   const user = `Определи о каком продукте идёт речь в звонке. Возможные варианты:
 ${productsList}
-
+${keyPhrasesBlock}
 Если разговор слишком короткий или непонятно — product_code='unknown'.
 Если упоминаются оба продукта — верни тот о котором говорят больше.
 

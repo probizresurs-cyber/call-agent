@@ -65,6 +65,9 @@ function applyAlterMigrations(db: Database.Database) {
   // Мульти-скрипты: product (МП/МК/др.) и direction (in/out/all)
   ensureColumn("sales_scripts", "product", "TEXT");
   ensureColumn("sales_scripts", "direction", "TEXT DEFAULT 'all'");
+  // Ключевые фразы/словосочетания — подсказка для AI при определении типа звонка (МП vs МК).
+  // Хранится как текст: по одной фразе на строку (или через запятую).
+  ensureColumn("sales_scripts", "key_phrases", "TEXT DEFAULT NULL");
   // В calls — какой product определил AI (для статистики)
   ensureColumn("calls", "detected_product", "TEXT");
   ensureColumn("analyses", "detected_product", "TEXT");

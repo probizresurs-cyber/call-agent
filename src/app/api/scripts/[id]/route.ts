@@ -22,6 +22,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     direction?: "in" | "out" | "all";
     content_md?: string;
     checklist?: Array<{ id: string; title: string; weight: number; description?: string }>;
+    key_phrases?: string | null;
     is_active?: boolean;
   };
 
@@ -34,6 +35,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (body.direction !== undefined) { fields.push("direction = ?"); params.push(body.direction); }
   if (body.content_md !== undefined) { fields.push("content_md = ?"); params.push(body.content_md); }
   if (body.checklist !== undefined) { fields.push("checklist_json = ?"); params.push(JSON.stringify(body.checklist)); }
+  if (body.key_phrases !== undefined) { fields.push("key_phrases = ?"); params.push((body.key_phrases ?? "").trim() || null); }
   if (body.is_active !== undefined) { fields.push("is_active = ?"); params.push(!!body.is_active); }
   fields.push("updated_at = datetime('now')");
 
