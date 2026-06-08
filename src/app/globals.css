@@ -289,6 +289,17 @@ html, body {
   .kpi-grid-5, .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
 }
 
+/* ── Фильтры дашборда: на ПК/ТВ всё видно (2-3 строки как было),
+      на мобиле видна только строка из 3 пресетов, остальное — под «Ещё». ── */
+.dash-more-btn { display: none; }   /* кнопка «Ещё» — скрыта на десктопе */
+@media (max-width: 768px) {
+  .dash-more-btn { display: inline-flex !important; order: 99; margin-left: auto; }
+  /* Пока не раскрыто — прячем CRM-строку, доп.фильтры и вторичные пресеты */
+  .dash-filters:not(.expanded) .dash-filter-crm,
+  .dash-filters:not(.expanded) .dash-filter-advanced,
+  .dash-filters:not(.expanded) .dash-collapsible { display: none !important; }
+}
+
 /* Большие TV-экраны / мониторы (для public dashboard ?tv=1) */
 @media (min-width: 1600px) {
   .shell-main { max-width: 1500px; }

@@ -8,13 +8,84 @@ import { DateRangePicker } from "@/app/_components/DateRangePicker";
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+function today(): Date {
+  return new Date();
+}
 function todayIso(): string {
   return isoDate(new Date());
 }
-function yesterdayIso(): string {
-  const d = new Date(); d.setDate(d.getDate() - 1);
-  return isoDate(d);
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  // Понедельник = 1; getDay() возвращает 0=вс, 1=пн, ..., 6=сб
+  const day = x.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  x.setDate(x.getDate() - diff);
+  return x;
 }
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+interface Preset {
+  key: string;
+  label: string;
+  range: () => { from: string; to: string };
+}
+
+const PRESETS: Preset[] = [
+  {
+    key: "today",
+    label: "Сегодня",
+    range: () => {
+      const t = isoDate(today());
+      return { from: t, to: t };
+    },
+  },
+  {
+    key: "yesterday",
+    label: "Вчера",
+    range: () => {
+      const d = today(); d.setDate(d.getDate() - 1);
+      const s = isoDate(d);
+      return { from: s, to: s };
+    },
+  },
+  {
+    key: "this_week",
+    label: "Эта неделя",
+    range: () => {
+      const from = isoDate(startOfWeek(today()));
+      return { from, to: isoDate(today()) };
+    },
+  },
+  {
+    key: "last_week",
+    label: "Прошлая неделя",
+    range: () => {
+      const start = startOfWeek(today());
+      const lastEnd = new Date(start); lastEnd.setDate(lastEnd.getDate() - 1);
+      const lastStart = startOfWeek(lastEnd);
+      return { from: isoDate(lastStart), to: isoDate(lastEnd) };
+    },
+  },
+  {
+    key: "this_month",
+    label: "Этот месяц",
+    range: () => {
+      return { from: isoDate(startOfMonth(today())), to: isoDate(today()) };
+    },
+  },
+  {
+    key: "last_month",
+    label: "Прошлый месяц",
+    range: () => {
+      const s = startOfMonth(today());
+      const lastEnd = new Date(s); lastEnd.setDate(lastEnd.getDate() - 1);
+      const lastStart = startOfMonth(lastEnd);
+      return { from: isoDate(lastStart), to: isoDate(lastEnd) };
+    },
+  },
+];
 
 interface ManagerOption {
   id: string;
@@ -59,21 +130,23 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
     setFrom(""); setTo(""); setQ(""); setSentiment(""); setStatus(""); setType(""); setManagerId(""); setMinDuration("");
     startTransition(() => router.push("/calls"));
   }
-  function presetToday() {
-    const t = todayIso();
-    setFrom(t); setTo(t);
-    navigate({ from: t, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
+  function applyPreset(p: Preset) {
+    const r = p.range();
+    setFrom(r.from); setTo(r.to);
+    navigate({ from: r.from, to: r.to, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
-  function presetYesterday() {
-    const y = yesterdayIso();
-    setFrom(y); setTo(y);
-    navigate({ from: y, to: y, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
+  function showAll() {
+    setFrom(""); setTo("");
+    navigate({ from: "", to: "", q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
-  function presetLast7() {
-    const d = new Date(); d.setDate(d.getDate() - 6);
-    const f = isoDate(d), t = todayIso();
-    setFrom(f); setTo(t);
-    navigate({ from: f, to: t, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
+  // Определяем какой пресет сейчас активен (для подсветки)
+  function activePreset(): string | null {
+    if (!from && !to) return "all";
+    for (const p of PRESETS) {
+      const r = p.range();
+      if (r.from === from && r.to === to) return p.key;
+    }
+    return null;
   }
   function shiftDay(delta: number) {
     const base = from || todayIso();
@@ -83,6 +156,8 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
     setFrom(ds); setTo(ds);
     navigate({ from: ds, to: ds, q, sentiment, status, type, manager_id: managerId, min_duration: minDuration });
   }
+
+  const active = activePreset();
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
@@ -105,11 +180,27 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
 
         <div style={{ width: 1, height: 24, background: "var(--border)", margin: "0 4px" }} />
 
-        <button type="button" className="ds-btn ds-btn-secondary" onClick={presetYesterday}>Вчера</button>
-        <button type="button" className="ds-btn ds-btn-secondary" onClick={presetToday}>
-          <Calendar size={14} style={{ marginRight: 4 }} /> Сегодня
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
+            onClick={() => applyPreset(p)}
+            disabled={pending}
+            style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+          >
+            {p.key === "today" ? <><Calendar size={14} style={{ marginRight: 4 }} /> {p.label}</> : p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={active === "all" ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
+          onClick={showAll}
+          disabled={pending}
+          style={{ flexShrink: 0, whiteSpace: "nowrap" }}
+        >
+          За всё время
         </button>
-        <button type="button" className="ds-btn ds-btn-secondary" onClick={presetLast7}>7 дней</button>
         <button type="button" className="ds-btn ds-btn-ghost" onClick={reset} style={{ marginLeft: "auto" }}>
           Сбросить всё
         </button>

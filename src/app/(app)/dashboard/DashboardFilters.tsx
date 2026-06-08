@@ -173,15 +173,50 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
   }
   const active = activePreset();
 
+  // Первые 3 пресета видны всегда (на мобиле — единственная видимая строка),
+  // остальные + «За всё время» + доп.фильтры сворачиваются под «Ещё» (только мобайл).
+  const PRIMARY = PRESETS.slice(0, 3);
+  const SECONDARY = PRESETS.slice(3);
+
   return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 8,
-      marginBottom: 20, padding: 10, background: "var(--card)",
-      border: "1px solid var(--border)", borderRadius: 8,
-    }}>
-      {/* Первая строка (всегда видна): пресеты периода + «За всё время» в конце */}
+    <div
+      className={`dash-filters${expanded ? " expanded" : ""}`}
+      style={{
+        display: "flex", flexDirection: "column", gap: 8,
+        marginBottom: 20, padding: 10, background: "var(--card)",
+        border: "1px solid var(--border)", borderRadius: 8,
+      }}
+    >
+      {/* Строка «Только с CRM» — на ПК сверху слева (как было), на мобиле скрыта пока не «Ещё» */}
+      <div className="dash-filter-crm" style={{ display: "flex", alignItems: "center" }}>
+        <button
+          type="button"
+          onClick={toggleCrm}
+          disabled={pending}
+          title={withCrm
+            ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
+            : "Показываются все звонки, включая холодные без CRM-привязки"}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 8,
+            padding: "0 14px", height: 30, fontSize: 13, borderRadius: 4,
+            border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
+            background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
+            color: withCrm ? "var(--primary)" : "var(--foreground)",
+            cursor: pending ? "wait" : "pointer", fontWeight: 600, whiteSpace: "nowrap",
+          }}
+        >
+          <span style={{
+            width: 8, height: 8, borderRadius: "50%",
+            background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+            display: "inline-block",
+          }} />
+          Только с CRM
+        </button>
+      </div>
+
+      {/* Строка пресетов: первые 3 видны всегда + «Ещё» (мобайл) + остальные (collapsible) */}
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-        {PRESETS.map((p) => (
+        {PRIMARY.map((p) => (
           <button
             key={p.key}
             type="button"
@@ -193,58 +228,44 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
             {p.label}
           </button>
         ))}
-        <button
-          type="button"
-          onClick={showAll}
-          className={active === "all" ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-ghost"}
-          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
-          disabled={pending}
-        >
-          За всё время
-        </button>
 
-        {/* Кнопка раскрытия доп. фильтров */}
+        {/* «Ещё» — видна только на мобиле (CSS), раскрывает остальное */}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="ds-btn ds-btn-ghost"
-          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, marginLeft: "auto" }}
+          className="ds-btn ds-btn-ghost dash-more-btn"
+          style={{ height: 30, padding: "0 10px", fontSize: 13, alignItems: "center", gap: 5 }}
         >
           <SlidersHorizontal size={13} />
           Ещё
           <ChevronDown size={13} style={{ transition: "transform 0.15s", transform: expanded ? "rotate(180deg)" : "none" }} />
         </button>
+
+        {SECONDARY.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p)}
+            className={`dash-collapsible ds-btn ${active === p.key ? "ds-btn-primary" : "ds-btn-secondary"}`}
+            style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+            disabled={pending}
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={showAll}
+          className={`dash-collapsible ds-btn ${active === "all" ? "ds-btn-primary" : "ds-btn-ghost"}`}
+          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+          disabled={pending}
+        >
+          За всё время
+        </button>
       </div>
 
-      {/* Раскрываемая часть: Только с CRM + менеджеры + диапазон дат */}
-      {expanded && (
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", paddingTop: 4, borderTop: "1px solid var(--border)" }}>
-          {/* Тогл «Только с CRM» */}
-          <button
-            type="button"
-            onClick={toggleCrm}
-            disabled={pending}
-            title={withCrm
-              ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
-              : "Показываются все звонки, включая холодные без CRM-привязки"}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "0 14px", height: 30, fontSize: 13, borderRadius: 4,
-              border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
-              background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
-              color: withCrm ? "var(--primary)" : "var(--foreground)",
-              cursor: pending ? "wait" : "pointer", fontWeight: 600,
-              whiteSpace: "nowrap", flexShrink: 0,
-            }}
-          >
-            <span style={{
-              width: 8, height: 8, borderRadius: "50%",
-              background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
-              display: "inline-block",
-            }} />
-            Только с CRM
-          </button>
-
+      {/* Доп.фильтры: менеджеры + диапазон дат — на ПК видны всегда, на мобиле collapsible */}
+      <div className="dash-filter-advanced" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
           {/* Фильтр менеджеров */}
           {managers && managers.length > 0 && (
             <select
@@ -284,8 +305,7 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
             style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
             <ChevronRight size={14} />
           </button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
