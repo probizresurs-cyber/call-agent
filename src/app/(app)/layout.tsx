@@ -68,6 +68,7 @@ export default async function AuthedLayout({ children }: { children: React.React
       icon: "Scale",
       badge: pendingDiscrepanciesCount,
     });
+    navItems.push({ href: "/reports", label: "Отчёты", icon: "FileText" });
   }
   if (showSettings) {
     navItems.push({ href: "/settings", label: "Настройки", icon: "Settings" });
