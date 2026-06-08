@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useTransition } from "react";
-import { ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { useState, useTransition, useEffect } from "react";
+import { ChevronLeft, ChevronRight, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { DateRangePicker } from "@/app/_components/DateRangePicker";
 
 function isoDate(d: Date): string {
@@ -98,9 +98,27 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
   const toParam = search.get("to") || "";
   const withCrm = search.get("with_crm") === "true";
   const managerParam = search.get("manager_id") || "";
+  const allParam = search.get("period") === "all";  // явный выбор «За всё время»
   const [from, setFrom] = useState(fromParam);
   const [to, setTo] = useState(toParam);
   const [managerId, setManagerId] = useState(managerParam);
+  // Доп. фильтры (менеджер, диапазон дат, CRM) свёрнуты по умолчанию — видны только пресеты
+  const [expanded, setExpanded] = useState(false);
+
+  // Дефолт «Сегодня»: при первом заходе без параметров (нет from/to и нет period=all)
+  // — подставляем сегодняшний день. Чтобы открыть «За всё время» — нужен ?period=all.
+  useEffect(() => {
+    if (!fromParam && !toParam && !allParam) {
+      const t = isoDate(today());
+      const params = new URLSearchParams();
+      params.set("from", t);
+      params.set("to", t);
+      if (withCrm) params.set("with_crm", "true");
+      if (managerParam) params.set("manager_id", managerParam);
+      router.replace(basePath + `?${params}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function navigate(next: { from: string; to: string; withCrm?: boolean; managerId?: string }) {
     setFrom(next.from); setTo(next.to);
@@ -123,9 +141,13 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
     navigate({ ...p.range() });
   }
 
-  function reset() {
-    setFrom(""); setTo(""); setManagerId("");
-    startTransition(() => router.push(basePath));
+  function showAll() {
+    setFrom(""); setTo("");
+    const params = new URLSearchParams();
+    params.set("period", "all");  // явный маркер «За всё время» (иначе сработает дефолт «Сегодня»)
+    if (withCrm) params.set("with_crm", "true");
+    if (managerId) params.set("manager_id", managerId);
+    startTransition(() => router.push(basePath + `?${params}`));
   }
 
   function shiftDay(delta: number) {
@@ -141,7 +163,8 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
 
   // Определяем какой пресет сейчас активен (для подсветки)
   function activePreset(): string | null {
-    if (!from && !to) return "all";
+    if (allParam) return "all";
+    if (!from && !to) return null;
     for (const p of PRESETS) {
       const r = p.range();
       if (r.from === from && r.to === to) return p.key;
@@ -156,104 +179,113 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
       marginBottom: 20, padding: 10, background: "var(--card)",
       border: "1px solid var(--border)", borderRadius: 8,
     }}>
-      {/* Верхний ряд: тогл "Только с CRM" — заметно слева */}
-      <div style={{ display: "flex", alignItems: "center" }}>
-        <button
-          type="button"
-          onClick={toggleCrm}
-          disabled={pending}
-          title={withCrm
-            ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
-            : "Показываются все звонки, включая холодные без CRM-привязки"}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "0 14px", height: 32, fontSize: 13,
-            borderRadius: 4,
-            border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
-            background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
-            color: withCrm ? "var(--primary)" : "var(--foreground)",
-            cursor: pending ? "wait" : "pointer",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-          }}
-        >
-          <span style={{
-            width: 8, height: 8, borderRadius: "50%",
-            background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
-            display: "inline-block",
-          }} />
-          Только с CRM
-        </button>
-      </div>
-
-      {/* Нижний ряд: пресеты + менеджеры + date picker */}
+      {/* Первая строка (всегда видна): пресеты периода + «За всё время» в конце */}
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      {/* Пресеты диапазона */}
-      {PRESETS.map((p) => (
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p)}
+            className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
+            style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
+            disabled={pending}
+          >
+            {p.label}
+          </button>
+        ))}
         <button
-          key={p.key}
           type="button"
-          onClick={() => applyPreset(p)}
-          className={active === p.key ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-secondary"}
+          onClick={showAll}
+          className={active === "all" ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-ghost"}
           style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
           disabled={pending}
         >
-          {p.label}
+          За всё время
         </button>
-      ))}
-      <button
-        type="button"
-        onClick={reset}
-        className={active === "all" ? "ds-btn ds-btn-primary" : "ds-btn ds-btn-ghost"}
-        style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, whiteSpace: "nowrap" }}
-        disabled={pending}
-      >
-        За всё время
-      </button>
 
-      {/* Разделитель */}
-      <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 2px", flexShrink: 0 }} />
-
-      {/* Фильтр менеджеров */}
-      {managers && managers.length > 0 && (
-        <select
-          value={managerId}
-          onChange={(e) => onManagerChange(e.target.value)}
-          disabled={pending}
-          title="Фильтр по менеджеру"
-          style={{
-            height: 30, padding: "0 8px", fontSize: 13, flexShrink: 0,
-            background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
-            border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
-            color: managerId ? "var(--primary)" : "var(--foreground)",
-            borderRadius: 4, minWidth: 150,
-          }}
+        {/* Кнопка раскрытия доп. фильтров */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="ds-btn ds-btn-ghost"
+          style={{ height: 30, padding: "0 10px", fontSize: 13, flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, marginLeft: "auto" }}
         >
-          <option value="">Все менеджеры</option>
-          {managers.map((m) => (
-            <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
-          ))}
-        </select>
-      )}
-
-      {/* Стрелки и date picker */}
-      <button type="button" className="ds-btn ds-btn-secondary"
-        onClick={() => shiftDay(-1)} title="На день назад"
-        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
-        <ChevronLeft size={14} />
-      </button>
-      <DateRangePicker
-        from={from}
-        to={to}
-        onChange={(f, t) => navigate({ from: f, to: t })}
-        maxDate={isoDate(today())}
-      />
-      <button type="button" className="ds-btn ds-btn-secondary"
-        onClick={() => shiftDay(+1)} title="На день вперёд"
-        style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
-        <ChevronRight size={14} />
-      </button>
+          <SlidersHorizontal size={13} />
+          Ещё
+          <ChevronDown size={13} style={{ transition: "transform 0.15s", transform: expanded ? "rotate(180deg)" : "none" }} />
+        </button>
       </div>
+
+      {/* Раскрываемая часть: Только с CRM + менеджеры + диапазон дат */}
+      {expanded && (
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", paddingTop: 4, borderTop: "1px solid var(--border)" }}>
+          {/* Тогл «Только с CRM» */}
+          <button
+            type="button"
+            onClick={toggleCrm}
+            disabled={pending}
+            title={withCrm
+              ? "Сейчас показываются только звонки привязанные к Сделке / Лиду / Контакту в CRM"
+              : "Показываются все звонки, включая холодные без CRM-привязки"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "0 14px", height: 30, fontSize: 13, borderRadius: 4,
+              border: `1px solid ${withCrm ? "var(--primary)" : "var(--border)"}`,
+              background: withCrm ? "color-mix(in oklch, var(--primary) 15%, var(--card))" : "var(--card)",
+              color: withCrm ? "var(--primary)" : "var(--foreground)",
+              cursor: pending ? "wait" : "pointer", fontWeight: 600,
+              whiteSpace: "nowrap", flexShrink: 0,
+            }}
+          >
+            <span style={{
+              width: 8, height: 8, borderRadius: "50%",
+              background: withCrm ? "var(--primary)" : "var(--muted-foreground)",
+              display: "inline-block",
+            }} />
+            Только с CRM
+          </button>
+
+          {/* Фильтр менеджеров */}
+          {managers && managers.length > 0 && (
+            <select
+              value={managerId}
+              onChange={(e) => onManagerChange(e.target.value)}
+              disabled={pending}
+              title="Фильтр по менеджеру"
+              style={{
+                height: 30, padding: "0 8px", fontSize: 13, flexShrink: 0,
+                background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
+                border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
+                color: managerId ? "var(--primary)" : "var(--foreground)",
+                borderRadius: 4, minWidth: 150,
+              }}
+            >
+              <option value="">Все менеджеры</option>
+              {managers.map((m) => (
+                <option key={m.id} value={m.id}>{m.name || `ID ${m.id}`}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Стрелки и date picker */}
+          <button type="button" className="ds-btn ds-btn-secondary"
+            onClick={() => shiftDay(-1)} title="На день назад"
+            style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
+            <ChevronLeft size={14} />
+          </button>
+          <DateRangePicker
+            from={from}
+            to={to}
+            onChange={(f, t) => navigate({ from: f, to: t })}
+            maxDate={isoDate(today())}
+          />
+          <button type="button" className="ds-btn ds-btn-secondary"
+            onClick={() => shiftDay(+1)} title="На день вперёд"
+            style={{ width: 30, height: 30, padding: 0, flexShrink: 0 }}>
+            <ChevronRight size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -280,12 +280,13 @@ html, body {
   .ds-table-wrap { overflow-x: auto; }
 }
 
-/* Узкие телефоны (<480px) — KPI в одну колонку */
+/* Узкие телефоны (<480px) — KPI остаются в 2 колонки (компактные плашки,
+   как на десктопе), не растягиваются на всю строку. Названия сокращены в JSX. */
 @media (max-width: 480px) {
   .shell-main { padding: 12px; }
   .ds-h1 { font-size: 20px; }
   .ds-card { padding: 12px; }
-  .kpi-grid-5, .kpi-grid-4 { grid-template-columns: 1fr !important; }
+  .kpi-grid-5, .kpi-grid-4 { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
 }
 
 /* Большие TV-экраны / мониторы (для public dashboard ?tv=1) */

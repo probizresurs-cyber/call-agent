@@ -44,10 +44,10 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
       </div>
 
       <div className="kpi-grid-4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 24 }}>
-        <Kpi icon={Star} label="Средняя оценка менеджера" value={aggs.avg_score != null ? `${aggs.avg_score.toFixed(1)} / 10` : "—"} color="var(--warning)" />
-        <Kpi icon={ClipboardList} label="Среднее по чек-листу" value={aggs.avg_compliance != null ? `${Math.round(aggs.avg_compliance * 100)}%` : "—"} color="var(--primary)" />
-        <Kpi icon={Timer} label="Средняя длительность" value={formatDuration(totals.avg_duration)} />
-        <Kpi icon={ArrowDownLeft} label="Входящие / Исходящие" value={`${totals.incoming} / ${totals.outgoing}`} />
+        <Kpi icon={Star} label="Ср. оценка" value={aggs.avg_score != null ? `${aggs.avg_score.toFixed(1)} / 10` : "—"} color="var(--warning)" />
+        <Kpi icon={ClipboardList} label="Ср. чек-лист" value={aggs.avg_compliance != null ? `${Math.round(aggs.avg_compliance * 100)}%` : "—"} color="var(--primary)" />
+        <Kpi icon={Timer} label="Ср. длительность" value={formatDuration(totals.avg_duration)} />
+        <Kpi icon={ArrowDownLeft} label="Вход. / Исход." value={`${totals.incoming} / ${totals.outgoing}`} />
       </div>
 
       {/* ───── Менеджеры — детальная статистика ───── */}
