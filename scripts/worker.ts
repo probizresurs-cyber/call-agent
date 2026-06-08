@@ -42,6 +42,12 @@ const RETRYABLE_ERROR_PATTERNS = [
   "ECONNRESET",
   "fetch failed",
   "socket hang up",
+  // Гео-блок OpenAI 403 — ВРЕМЕННЫЙ: CF-worker роутит запрос через случайный
+  // edge-регион, иногда попадает в заблокированный. Повторная попытка часто
+  // проходит из дружелюбного региона. Поэтому 403 тоже retry-able.
+  "403",
+  "Country, region",
+  "territory not supported",
 ];
 
 // ─────────────── Обработка очереди ───────────────
