@@ -40,8 +40,15 @@ const RETRYABLE_ERROR_PATTERNS = [
   "429",
   "ETIMEDOUT",
   "ECONNRESET",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
   "fetch failed",
   "socket hang up",
+  // OpenAI/Anthropic SDK так называют обрыв соединения (APIConnectionError →
+  // "Connection error.") — классический транзиент, обязательно ретраим, иначе
+  // звонок навсегда застревает в failed после 3 неудачных попыток.
+  "Connection error",
   // Гео-блок OpenAI 403 — ВРЕМЕННЫЙ: CF-worker роутит запрос через случайный
   // edge-регион, иногда попадает в заблокированный. Повторная попытка часто
   // проходит из дружелюбного региона. Поэтому 403 тоже retry-able.
