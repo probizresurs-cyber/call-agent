@@ -73,8 +73,12 @@ export async function runAutoImport(opts: RunAutoImportOpts = {}): Promise<Impor
 
   const toIso = toDateStr(new Date());
 
-  if (fromIso >= toIso) {
-    console.log('[auto-import] fromDate >= toDate, skipping');
+  // ВАЖНО: строго `>`, не `>=`. toDateStr обрезает до YYYY-MM-DD (без времени),
+  // поэтому при импорте за СЕГОДНЯ from и to равны (оба = текущая дата) — это
+  // ВАЛИДНЫЙ импорт за день, пропускать нельзя. `>=` ломал импорт за текущий
+  // день целиком (звонки не подтягивались пока день не сменится).
+  if (fromIso > toIso) {
+    console.log('[auto-import] fromDate > toDate, skipping');
     return { ok: true, skipped: true } as unknown as ImportResult;
   }
 
