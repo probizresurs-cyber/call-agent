@@ -77,7 +77,8 @@ export function DateRangePicker({ from, to, onChange, maxDate }: Props) {
   }
 
   const displayText = from && to
-    ? `${formatDisplay(from)} — ${formatDisplay(to)}`
+    // Один день (from == to) — показываем одну дату, не дублируем (компактнее)
+    ? (from === to ? formatDisplay(from) : `${formatDisplay(from)} — ${formatDisplay(to)}`)
     : from
     ? `${formatDisplay(from)} — выберите конец`
     : "Выбрать период";
