@@ -125,20 +125,20 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
           onKeyDown={(e) => { if (e.key === "Enter") apply(); }}
           style={{ flex: "1 1 280px", minWidth: 200 }}
         />
-        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value, manager_id: managerId, min_duration: minDuration }); }} style={{ width: 150 }}>
+        <select className="ds-input" value={type} onChange={(e) => { setType(e.target.value); navigate({ from, to, q, sentiment, status, type: e.target.value, manager_id: managerId, min_duration: minDuration }); }} style={{ flex: "1 1 140px", minWidth: 130, maxWidth: "100%" }}>
           <option value="">Все типы</option>
           <option value="call">Звонки</option>
           <option value="chat">Чаты</option>
           <option value="email">Email</option>
           <option value="meeting">Встречи</option>
         </select>
-        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type, manager_id: managerId, min_duration: minDuration }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={sentiment} onChange={(e) => { setSentiment(e.target.value); navigate({ from, to, q, sentiment: e.target.value, status, type, manager_id: managerId, min_duration: minDuration }); }} style={{ flex: "1 1 160px", minWidth: 150, maxWidth: "100%" }}>
           <option value="">Все настроения</option>
           <option value="positive">Позитив</option>
           <option value="neutral">Нейтрально</option>
           <option value="negative">Негатив</option>
         </select>
-        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type, manager_id: managerId, min_duration: minDuration }); }} style={{ width: 170 }}>
+        <select className="ds-input" value={status} onChange={(e) => { setStatus(e.target.value); navigate({ from, to, q, sentiment, status: e.target.value, type, manager_id: managerId, min_duration: minDuration }); }} style={{ flex: "1 1 160px", minWidth: 150, maxWidth: "100%" }}>
           <option value="">Все статусы</option>
           <option value="done">Готово</option>
           <option value="pending">В очереди</option>
@@ -151,7 +151,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
           onChange={(e) => { setMinDuration(e.target.value); navigate({ from, to, q, sentiment, status, type, manager_id: managerId, min_duration: e.target.value }); }}
           title="Минимальная длительность"
           style={{
-            width: 160,
+            flex: "1 1 150px", minWidth: 140, maxWidth: "100%",
             background: minDuration ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : undefined,
             borderColor: minDuration ? "var(--primary)" : undefined,
             color: minDuration ? "var(--primary)" : undefined,
@@ -173,7 +173,7 @@ export function CallsFilters({ managers }: { managers?: ManagerOption[] }) {
             onChange={(e) => { setManagerId(e.target.value); navigate({ from, to, q, sentiment, status, type, manager_id: e.target.value, min_duration: minDuration }); }}
             title="Фильтр по менеджеру"
             style={{
-              width: 180,
+              flex: "1 1 170px", minWidth: 150, maxWidth: "100%",
               background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : undefined,
               borderColor: managerId ? "var(--primary)" : undefined,
               color: managerId ? "var(--primary)" : undefined,

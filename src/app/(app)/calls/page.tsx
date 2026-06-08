@@ -107,7 +107,7 @@ export default async function CallsListPage(props: {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
         <h1 className="ds-h1">{isManager ? "Мои звонки" : "Звонки"}</h1>
         <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
           Найдено: <b>{totalCount.n}</b>{rows.length < totalCount.n ? ` (показано первые ${rows.length})` : ""}
@@ -125,6 +125,7 @@ export default async function CallsListPage(props: {
         </div>
       ) : (
         <div className="ds-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <table className="ds-table">
             <thead>
               <tr>
@@ -168,6 +169,7 @@ export default async function CallsListPage(props: {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

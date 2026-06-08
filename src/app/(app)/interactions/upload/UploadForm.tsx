@@ -94,7 +94,7 @@ export function UploadForm() {
   const showTextInput = true;   // также можно вставить готовый транскрипт текстом
 
   return (
-    <form onSubmit={submit} className="ds-card" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800 }}>
+    <form onSubmit={submit} className="ds-card" style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 800, width: "100%" }}>
       {/* Заголовок типа — теперь только встреча/диктофон, выбор убран */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
@@ -113,7 +113,7 @@ export function UploadForm() {
       </div>
 
       {/* Канал + направление */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
         <Field label="Канал">
           <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)} className="ds-input" style={inputStyle}>
             {channels.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -128,7 +128,7 @@ export function UploadForm() {
       </div>
 
       {/* Метаданные */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         <Field label="Дата и время">
           <input type="datetime-local" value={startedAt} onChange={(e) => setStartedAt(e.target.value)} className="ds-input" style={inputStyle} />
         </Field>
@@ -136,7 +136,7 @@ export function UploadForm() {
           <input value={managerId} onChange={(e) => setManagerId(e.target.value)} placeholder="например 123" className="ds-input" style={inputStyle} />
         </Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
         <Field label="Телефон заказчика">
           <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="79161234567" className="ds-input" style={inputStyle} />
         </Field>
@@ -144,7 +144,7 @@ export function UploadForm() {
           <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Иван Петров" className="ds-input" style={inputStyle} />
         </Field>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <Field label="Bitrix Deal ID">
           <input value={bitrixDealId} onChange={(e) => setBitrixDealId(e.target.value)} placeholder="" className="ds-input" style={inputStyle} />
         </Field>

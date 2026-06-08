@@ -100,8 +100,8 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
       }}>
         <ArrowLeft size={14} /> К списку
       </Link>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "8px 0 20px" }}>
-        <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, margin: "8px 0 20px" }}>
+        <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           Звонок #{call.id}
           {analysis?.client_name && (
             <span style={{
@@ -113,7 +113,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
             </span>
           )}
         </h1>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           {me.role !== "manager" && <ReassignScriptButton callId={call.id} />}
           {me.role !== "manager" && <DeepAnalyzeButton callId={call.id} />}
           <ReprocessButton callId={call.id} />
@@ -128,7 +128,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 16 }}>
         <div className="ds-card">
           <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
             <Info size={16} strokeWidth={2} /> Информация
@@ -225,7 +225,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
         <div className="ds-card" style={{ marginBottom: 16 }}>
           <h2 className="ds-h3" style={{ marginBottom: 14 }}>AI-анализ</h2>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 18 }}>
             <Metric
               label="Настроение"
               icon={

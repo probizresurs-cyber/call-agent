@@ -31,7 +31,7 @@ export default async function LeaderboardPage() {
 
       {/* Челлендж недели */}
       <div className="ds-card" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Target size={16} strokeWidth={2} color="var(--destructive)" />
             <span style={{ fontWeight: 600 }}>Челлендж недели</span>
@@ -62,6 +62,7 @@ export default async function LeaderboardPage() {
             Пока никто не набрал 3+ done-звонка за 30 дней. Подождите пока воркер обработает свежие звонки.
           </div>
         ) : (
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <table className="ds-table">
             <thead>
               <tr>
@@ -99,6 +100,7 @@ export default async function LeaderboardPage() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </>

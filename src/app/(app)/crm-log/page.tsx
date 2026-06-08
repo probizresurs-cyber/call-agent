@@ -32,11 +32,11 @@ export default async function CrmLogPage(props: { searchParams: Promise<{ mode?:
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
         <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Upload size={22} strokeWidth={2} /> Журнал CRM-write
         </h1>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <FilterPill href="/crm-log" active={!mode} label={`Все (${stats.total})`} />
           <FilterPill href="/crm-log?mode=dry" active={mode === "dry"} label={`Симуляция (${stats.dry})`} />
           <FilterPill href="/crm-log?mode=live" active={mode === "live"} label={`Отправлено (${stats.sent})`} />
@@ -60,6 +60,7 @@ export default async function CrmLogPage(props: { searchParams: Promise<{ mode?:
         </div>
       ) : (
         <div className="ds-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <table className="ds-table">
             <thead>
               <tr>
@@ -76,6 +77,7 @@ export default async function CrmLogPage(props: { searchParams: Promise<{ mode?:
               {rows.map((r) => <Row key={r.id} r={r} />)}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

@@ -30,7 +30,7 @@ export default async function ClientsListPage(props: {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
         <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Users size={22} strokeWidth={2} /> Заказчики
         </h1>
@@ -54,6 +54,7 @@ export default async function ClientsListPage(props: {
         </div>
       ) : (
         <div className="ds-card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <table className="ds-table">
             <thead>
               <tr>
@@ -98,6 +99,7 @@ export default async function ClientsListPage(props: {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

@@ -283,6 +283,8 @@ export default async function DiscrepanciesPage(props: {
           alignItems: "center",
           justifyContent: "space-between",
           marginBottom: 20,
+          flexWrap: "wrap",
+          gap: 12,
         }}
       >
         <h1
@@ -304,7 +306,7 @@ export default async function DiscrepanciesPage(props: {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
           gap: 12,
           marginBottom: 20,
         }}
@@ -359,6 +361,7 @@ export default async function DiscrepanciesPage(props: {
           className="ds-card"
           style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}
         >
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <table className="ds-table">
             <thead>
               <tr>
@@ -483,6 +486,7 @@ export default async function DiscrepanciesPage(props: {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

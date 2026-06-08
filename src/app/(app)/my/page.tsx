@@ -145,6 +145,7 @@ export default async function MyPage() {
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, marginBottom: 10 }}>
           Имена коллег скрыты — видно только ваше. Формула: средняя оценка × 10 + кол-во done + доля позитивных × 20.
         </p>
+        <div style={{ overflowX: "auto", maxWidth: "100%" }}>
         <table className="ds-table">
           <thead>
             <tr>
@@ -170,6 +171,7 @@ export default async function MyPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Ачивки */}

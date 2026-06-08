@@ -61,7 +61,9 @@ export function DiscrepanciesFilters({
         onChange={(e) => navigate({ status: e.target.value })}
         disabled={pending}
         style={{
-          width: 170,
+          minWidth: 150,
+          flex: "1 1 150px",
+          maxWidth: "100%",
           background: statusParam
             ? "color-mix(in oklch, var(--primary) 10%, var(--card))"
             : undefined,
@@ -84,7 +86,9 @@ export function DiscrepanciesFilters({
         onChange={(e) => navigate({ severity: e.target.value })}
         disabled={pending}
         style={{
-          width: 160,
+          minWidth: 150,
+          flex: "1 1 150px",
+          maxWidth: "100%",
           background: severityParam
             ? "color-mix(in oklch, var(--primary) 10%, var(--card))"
             : undefined,
@@ -106,7 +110,9 @@ export function DiscrepanciesFilters({
           onChange={(e) => navigate({ manager_id: e.target.value })}
           disabled={pending}
           style={{
-            width: 190,
+            minWidth: 160,
+            flex: "1 1 160px",
+            maxWidth: "100%",
             background: managerParam
               ? "color-mix(in oklch, var(--primary) 10%, var(--card))"
               : undefined,

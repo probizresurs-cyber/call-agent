@@ -214,6 +214,7 @@ export default async function QueuePage() {
       {daily.length > 0 && (
         <div className="ds-card">
           <h2 className="ds-h3" style={{ marginBottom: 14 }}>Динамика обработки (7 дней)</h2>
+          <div style={{ overflowX: "auto", maxWidth: "100%" }}>
           <table className="ds-table">
             <thead>
               <tr>
@@ -238,6 +239,7 @@ export default async function QueuePage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>
