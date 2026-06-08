@@ -70,9 +70,12 @@ interface SendResultRow {
   error?: string;
 }
 
-export function ReportsClient({ managers }: { managers: ManagerOption[] }) {
+export function ReportsClient({ managers, recipients }: { managers: ManagerOption[]; recipients: ManagerOption[] }) {
   const [scope, setScope] = useState<Scope>("manager");
   const [managerId, setManagerId] = useState<string>(managers[0]?.id ?? "");
+  // «Кому отправить»: "" = по умолчанию (manager → самому менеджеру; team → всем РОПам).
+  // Иначе — отправляем выбранному получателю, независимо от того, про кого отчёт.
+  const [recipientId, setRecipientId] = useState<string>("");
   const [presetKey, setPresetKey] = useState<string>("this_month");
 
   const [preview, setPreview] = useState<{ title: string; text: string } | null>(null);
@@ -91,6 +94,7 @@ export function ReportsClient({ managers }: { managers: ManagerOption[] }) {
     return {
       scope,
       managerId: scope === "manager" ? managerId : undefined,
+      recipientId: recipientId || undefined,
       from: from ?? undefined,
       to: to ?? undefined,
       periodLabel,
@@ -258,6 +262,31 @@ export function ReportsClient({ managers }: { managers: ManagerOption[] }) {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* ── Кому отправить (получатель) ── */}
+        <div>
+          <div style={{ marginBottom: 8, fontWeight: 600, fontSize: 13, color: "var(--foreground)" }}>Кому отправить</div>
+          <select
+            className="ds-input"
+            value={recipientId}
+            disabled={busy}
+            onChange={(e) => { setRecipientId(e.target.value); setSendInfo(null); }}
+            style={{ maxWidth: 360 }}
+          >
+            <option value="">
+              {scope === "manager"
+                ? "По умолчанию — самому менеджеру"
+                : "По умолчанию — всем РОПам / владельцам"}
+            </option>
+            {recipients.map((r) => (
+              <option key={r.id} value={r.id}>{r.name || `ID ${r.id}`}</option>
+            ))}
+          </select>
+          <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 6 }}>
+            Выберите получателя, чтобы отправить отчёт конкретному человеку (например, РОПу) —
+            независимо от того, про кого отчёт. Только превью получателя не учитывает.
+          </p>
         </div>
 
         {/* ── Действия ── */}

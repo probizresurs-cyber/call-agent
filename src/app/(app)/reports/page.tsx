@@ -17,9 +17,10 @@ export default async function ReportsPage() {
   if (!me) redirect("/login");
   if (!canViewTeam(me.role)) redirect("/dashboard");
 
-  // Список менеджеров тенанта — id здесь это Bitrix manager_id (он же Bitrix user id),
-  // его и шлём в API как managerId.
-  const managers = await getDbAsync()
+  const db = getDbAsync();
+
+  // Список звонящих менеджеров — «про кого» отчёт. id = Bitrix manager_id (= Bitrix user id).
+  const managers = await db
     .prepare(
       `SELECT c.manager_id AS id,
               COALESCE(MAX(c.manager_name), MAX(m.name), '') AS name
@@ -33,5 +34,37 @@ export default async function ReportsPage() {
     )
     .all<{ id: string; name: string }>(me.tenantId);
 
-  return <ReportsClient managers={managers} />;
+  // Пользователи платформы с Bitrix-привязкой — потенциальные получатели (РОПы/владельцы),
+  // даже если сами не звонят и в списке менеджеров их нет.
+  const platformUsers = await db
+    .prepare(
+      `SELECT bitrix_manager_id AS id,
+              COALESCE(NULLIF(name, ''), login) AS name,
+              role
+         FROM users
+        WHERE tenant_id = ?
+          AND bitrix_manager_id IS NOT NULL
+          AND bitrix_manager_id != ''`
+    )
+    .all<{ id: string; name: string; role: string }>(me.tenantId);
+
+  // Пул получателей «Кому отправить» = звонящие менеджеры ∪ пользователи платформы.
+  // Дедуп по Bitrix id; запись из users приоритетнее (несёт роль-метку).
+  const roleLabel: Record<string, string> = {
+    owner: "владелец", admin: "админ", head: "РОП", manager: "менеджер",
+  };
+  const recipientMap = new Map<string, { id: string; name: string }>();
+  for (const c of managers) {
+    const id = String(c.id);
+    recipientMap.set(id, { id, name: c.name || `ID ${id}` });
+  }
+  for (const u of platformUsers) {
+    const id = String(u.id);
+    const tag = roleLabel[u.role] ? ` — ${roleLabel[u.role]}` : "";
+    recipientMap.set(id, { id, name: `${u.name || `ID ${id}`}${tag}` });
+  }
+  const recipients = Array.from(recipientMap.values())
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+
+  return <ReportsClient managers={managers} recipients={recipients} />;
 }

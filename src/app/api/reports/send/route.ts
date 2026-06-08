@@ -3,15 +3,16 @@
  *
  * Генерирует отчёт и отправляет его в Bitrix-мессенджер.
  *
- * Body: { scope: "manager"|"team", managerId?, from?, to?, periodLabel? }
+ * Body: { scope: "manager"|"team", managerId?, recipientId?, from?, to?, periodLabel? }
  * Доступ: owner / admin / head (canViewTeam).
  *
- *  - scope='manager': managerId — это Bitrix user id выбранного менеджера. Генерим
- *    отчёт и шлём ему imSendMessage(managerId, text). Если у менеджера нет bitrix id
- *    (managerId пустой) — ошибка.
- *  - scope='team': шлём всем РОПам / владельцам тенанта (users role owner/admin/head
- *    с непустым bitrix_manager_id). Если таких нет, но у текущего пользователя есть
- *    bitrix id — шлём ему.
+ *  - recipientId (опц.): явный получатель (Bitrix user id). Если задан — отчёт уходит
+ *    ТОЛЬКО ему, независимо от scope. Так можно отправить отчёт про менеджера — РОПу.
+ *  - scope='manager': managerId — это Bitrix user id менеджера (про кого отчёт). Без
+ *    recipientId отчёт уходит самому менеджеру. Если managerId пустой — ошибка.
+ *  - scope='team': без recipientId шлём всем РОПам / владельцам тенанта (users role
+ *    owner/admin/head с непустым bitrix_manager_id). Если таких нет, но у текущего
+ *    пользователя есть bitrix id — шлём ему.
  *
  * generateReport() и imSendMessage() реализует параллельный агент.
  */
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     scope?: unknown;
     managerId?: unknown;
+    recipientId?: unknown;
     from?: unknown;
     to?: unknown;
     periodLabel?: unknown;
@@ -53,6 +55,11 @@ export async function POST(req: Request) {
   const scope = body.scope === "team" ? "team" : "manager";
   const managerId = typeof body.managerId === "string" && body.managerId.trim()
     ? body.managerId.trim()
+    : undefined;
+  // «Кому отправить» — явный получатель (Bitrix user id). Если задан — шлём ему,
+  // независимо от scope (отчёт про кого ≠ кому отправить).
+  const recipientId = typeof body.recipientId === "string" && body.recipientId.trim()
+    ? body.recipientId.trim()
     : undefined;
 
   if (scope === "manager" && !managerId) {
@@ -75,7 +82,28 @@ export async function POST(req: Request) {
   //    чтобы при пустом списке не тратить токены на отчёт.
   let recipients: Array<{ bitrixId: string; name?: string }> = [];
 
-  if (scope === "manager") {
+  if (recipientId) {
+    // Явно выбран получатель — отправляем только ему, независимо от scope.
+    // Имя подтягиваем best-effort (users по bitrix-привязке → managers-кэш).
+    let name: string | undefined;
+    try {
+      const db = getDbAsync();
+      const urow = await db
+        .prepare(
+          `SELECT COALESCE(NULLIF(name, ''), login) AS name
+             FROM users WHERE tenant_id = ? AND bitrix_manager_id = ? LIMIT 1`
+        )
+        .get<{ name: string }>(me.tenantId, recipientId);
+      if (urow?.name) name = urow.name;
+      else {
+        const mrow = await db
+          .prepare(`SELECT name FROM managers WHERE id = ? LIMIT 1`)
+          .get<{ name: string }>(recipientId);
+        if (mrow?.name) name = mrow.name;
+      }
+    } catch { /* имя необязательно — UI покажет Bitrix ID */ }
+    recipients = [{ bitrixId: recipientId, name }];
+  } else if (scope === "manager") {
     // managerId здесь — это и есть Bitrix user id менеджера.
     recipients = [{ bitrixId: managerId! }];
   } else {
