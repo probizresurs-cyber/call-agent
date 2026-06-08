@@ -286,7 +286,7 @@ export function DashboardFilters({ managers, basePath = "/dashboard" }: { manage
             background: managerId ? "color-mix(in oklch, var(--primary) 10%, var(--card))" : "var(--card)",
             border: `1px solid ${managerId ? "var(--primary)" : "var(--border)"}`,
             color: managerId ? "var(--primary)" : "var(--foreground)",
-            borderRadius: 4, minWidth: 150,
+            borderRadius: 4, minWidth: 120, maxWidth: 160,
           }}
         >
           <option value="">Все менеджеры</option>
