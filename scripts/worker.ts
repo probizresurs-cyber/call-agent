@@ -14,6 +14,7 @@ import { getDbAsync } from "../src/lib/db-compat";
 import { processCall } from "../src/lib/pipeline";
 import { runAutoImport, isAutoImportEnabled } from "../src/lib/auto-importer";
 import { fetchEmailAndChats, getLastFetchedAt } from "../src/lib/bitrix-activities";
+import { getDueSchedules, runScheduled } from "../src/lib/reports-scheduler";
 
 // Сразу логируем доступность ключевых ENV — поможет диагностике
 console.log("[worker] env check:",
@@ -26,6 +27,7 @@ const POLL_INTERVAL_MS = 5_000;            // 5 сек — обработка о
 const AUTO_IMPORT_INTERVAL_MS = 300_000;    // 5 минут — проверка новых звонков
 const AUTO_RETRY_INTERVAL_MS = 1_800_000;    // 30 минут — переанализ failed
 const ACTIVITIES_FETCH_INTERVAL_MS = 600_000; // 10 минут — забор email + Open Lines чатов
+const SCHEDULER_INTERVAL_MS = 60_000;        // 1 минута — авто-отправка отчётов по расписанию
 const MAX_ATTEMPTS = 3;                   // для pending/failed
 const MAX_NO_RECORDING_ATTEMPTS = 6;      // для no_recording — попыток в течение 6 часов
 const NO_RECORDING_RETRY_HOURS = 1;       // повтор раз в час
@@ -229,5 +231,37 @@ console.log("[worker] starting:",
       }
     }
     await new Promise((r) => setTimeout(r, ACTIVITIES_FETCH_INTERVAL_MS));
+  }
+})();
+
+// ─────────────── Авто-отправка отчётов по расписанию ───────────────
+// Раз в минуту берём расписания с next_run_at ≤ now (enabled=true) и шлём
+// каждый в указанного получателя (личка bitrix-юзера или групповой "chatN").
+// runScheduled() сам обновляет last_run_* и next_run_at для следующего тика.
+(async function schedulerLoop() {
+  // Первый запуск через 60 сек — даём БД и .env проинициализироваться.
+  await new Promise((r) => setTimeout(r, 60_000));
+  console.log(`[scheduler] starting (interval=${SCHEDULER_INTERVAL_MS}ms)`);
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      const due = await getDueSchedules(new Date());
+      for (const s of due) {
+        console.log(`[scheduler] running #${s.id} "${s.name}" → ${s.recipient_kind}:${s.recipient_id}`);
+        try {
+          const r = await runScheduled(s);
+          if (r.ok) {
+            console.log(`[scheduler] ✓ #${s.id} sent (msg=${r.messageId ?? "-"})`);
+          } else {
+            console.warn(`[scheduler] ✗ #${s.id} failed: ${r.error}`);
+          }
+        } catch (e) {
+          console.error(`[scheduler] crash #${s.id}:`, (e as Error).message);
+        }
+      }
+    } catch (e) {
+      console.error("[scheduler] tick error:", (e as Error).message);
+    }
+    await new Promise((r) => setTimeout(r, SCHEDULER_INTERVAL_MS));
   }
 })();

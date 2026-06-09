@@ -8,6 +8,8 @@
 import { redirect } from "next/navigation";
 import { getSessionUser, canViewTeam } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
+import { listSchedules, type ScheduleRow } from "@/lib/reports-scheduler";
+import { listBotChats, type BotChat } from "@/lib/bitrix-im";
 import { ReportsClient } from "./ReportsClient";
 
 export const dynamic = "force-dynamic";
@@ -66,5 +68,28 @@ export default async function ReportsPage() {
   const recipients = Array.from(recipientMap.values())
     .sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
-  return <ReportsClient managers={managers} recipients={recipients} />;
+  // Расписания автоотправки — список текущих + best-effort список чатов Bitrix
+  // (если бот не зарегистрирован или нет прав — listBotChats вернёт пустой массив).
+  let schedules: ScheduleRow[] = [];
+  try {
+    schedules = await listSchedules(me.tenantId);
+  } catch (e) {
+    console.warn("[reports] listSchedules failed:", (e as Error).message);
+  }
+
+  let chats: BotChat[] = [];
+  try {
+    chats = await listBotChats();
+  } catch {
+    chats = [];
+  }
+
+  return (
+    <ReportsClient
+      managers={managers}
+      recipients={recipients}
+      schedules={schedules}
+      chats={chats}
+    />
+  );
 }

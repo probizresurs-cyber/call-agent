@@ -277,6 +277,41 @@ function makePgDb(): CompatDb {
 
       CREATE INDEX IF NOT EXISTS idx_onboarding_requests_status
         ON onboarding_requests(status, created_at DESC);
+
+      -- ─────── Расписания автоматической отправки отчётов в Bitrix ───────
+      -- recipient_kind='user' → recipient_id это bitrix user_id (личка через imbot);
+      -- recipient_kind='chat' → recipient_id это "chatN" (групповой чат бота).
+      -- next_run_at прекомпьютим при создании/апдейте, чтобы worker мог
+      -- выбирать due-расписания одним индексным SELECT.
+      -- Note: На проде разово выполнить
+      --   ALTER TABLE report_schedules OWNER TO callagent;
+      --   ALTER SEQUENCE report_schedules_id_seq OWNER TO callagent;
+      CREATE TABLE IF NOT EXISTS report_schedules (
+        id                SERIAL PRIMARY KEY,
+        tenant_id         INTEGER NOT NULL,
+        name              TEXT NOT NULL,
+        scope             TEXT NOT NULL,
+        manager_id        TEXT,
+        recipient_kind    TEXT NOT NULL,
+        recipient_id      TEXT NOT NULL,
+        recipient_name    TEXT,
+        frequency         TEXT NOT NULL,
+        time_hhmm         TEXT NOT NULL,
+        days_of_week      TEXT,
+        period_kind       TEXT NOT NULL DEFAULT 'yesterday',
+        enabled           BOOLEAN DEFAULT TRUE,
+        last_run_at       TIMESTAMP,
+        last_run_status   TEXT,
+        last_run_error    TEXT,
+        next_run_at       TIMESTAMP,
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_report_schedules_due
+        ON report_schedules(enabled, next_run_at);
+      CREATE INDEX IF NOT EXISTS idx_report_schedules_tenant
+        ON report_schedules(tenant_id);
     `).then(async () => {
       // Seed дефолтных тарифов если таблица только что создана и пустая
       const r = await migPool.query("SELECT COUNT(*) FROM ca_plans");

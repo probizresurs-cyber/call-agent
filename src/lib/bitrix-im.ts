@@ -75,7 +75,9 @@ export async function imSendMessage(
   }
   try {
     const botId = await ensureBot();
-    // imbot.message.add возвращает ID сообщения (число)
+    // imbot.message.add возвращает ID сообщения (число).
+    // DIALOG_ID: число (либо строка из цифр) → личка пользователю по USER_ID;
+    //             "chatN" → групповой чат с CHAT_ID=N. Здесь поддерживаются оба варианта.
     const messageId = await callBitrixApi<number>("imbot.message.add", {
       BOT_ID: botId,
       DIALOG_ID: String(bitrixUserId),
@@ -89,5 +91,134 @@ export async function imSendMessage(
       ? `${msg} — проверьте что у вебхука включено право «imbot» (Чат-боты)`
       : msg;
     return { ok: false, mode: "live", error: friendly };
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────
+// Получатели для рассылки отчётов: чаты и пользователи бота.
+
+export interface BotChat {
+  /** Для групповых чатов — "chatN" (готовый DIALOG_ID); для личек — bitrix user_id строкой. */
+  id: string;
+  title: string;
+  type: "chat" | "user";
+}
+
+/**
+ * Список диалогов, в которых участвует бот «Call-Agent».
+ *
+ * Под капотом — `im.recent.get`. Метод требует контекста сессии бота, поэтому
+ * на некоторых порталах может вернуть пустой массив или ошибку прав. В этом
+ * случае возвращаем `[]` и не бросаем — UI просто скроет секцию выбора чатов.
+ *
+ * Структура ответа в Bitrix не вполне стабильна: бывает `{ items: [...] }`,
+ * бывает чистый массив. Обрабатываем оба варианта.
+ */
+export async function listBotChats(): Promise<BotChat[]> {
+  try {
+    // SKIP_OPENLINES=N — нам нужны и OL-чаты; SKIP_CHAT=N — нам нужны группы.
+    const raw = await callBitrixApi<unknown>("im.recent.get", {
+      SKIP_OPENLINES: "N",
+      SKIP_CHAT: "N",
+    });
+
+    // raw может быть либо массивом, либо { items: [...] }
+    let items: Array<Record<string, unknown>> = [];
+    if (Array.isArray(raw)) {
+      items = raw as Array<Record<string, unknown>>;
+    } else if (raw && typeof raw === "object") {
+      const obj = raw as Record<string, unknown>;
+      if (Array.isArray(obj.items)) items = obj.items as Array<Record<string, unknown>>;
+    }
+
+    const out: BotChat[] = [];
+    for (const it of items) {
+      const type = String(it.type ?? "").toLowerCase();
+      const rawId = it.id;
+      const titleRaw = it.title ?? "";
+      if (type === "chat") {
+        // id для чата может приходить как число (CHAT_ID) либо как "chatN"
+        const idStr =
+          typeof rawId === "string" && rawId.startsWith("chat")
+            ? rawId
+            : `chat${rawId}`;
+        out.push({
+          id: idStr,
+          title: String(titleRaw) || `Чат ${idStr}`,
+          type: "chat",
+        });
+      } else if (type === "user" || type === "private") {
+        // Личные диалоги — id равен bitrix user id (число/строка)
+        const idStr = String(rawId ?? "");
+        if (!idStr) continue;
+        // Иногда заголовок лежит в user.name
+        let title = String(titleRaw || "");
+        if (!title && it.user && typeof it.user === "object") {
+          const u = it.user as Record<string, unknown>;
+          title = String(u.name ?? u.last_name ?? "") || `ID ${idStr}`;
+        }
+        out.push({
+          id: idStr,
+          title: title || `ID ${idStr}`,
+          type: "user",
+        });
+      }
+    }
+    return out;
+  } catch (e) {
+    // Best-effort: бот ещё не зарегистрирован / нет прав / метод недоступен —
+    // не бросаем, чтобы UI расписаний не падал. Чисто опциональная фича.
+    console.warn("[bitrix-im] listBotChats failed:", (e as Error).message);
+    return [];
+  }
+}
+
+/**
+ * Проверить что чат существует и доступен боту. Принимает как «chatN», так и просто «N».
+ *
+ * Возвращает { ok:true, title } если чат найден, либо { ok:false, error } с
+ * человеко-читаемым сообщением. Используется в UI при ручном вводе ID.
+ */
+export async function validateChatId(
+  chatId: string
+): Promise<{ ok: boolean; title?: string; error?: string }> {
+  const raw = chatId.trim();
+  if (!raw) return { ok: false, error: "Введите ID чата" };
+
+  // Извлекаем числовой CHAT_ID — нужен для im.chat.get
+  const m = raw.match(/^(?:chat)?(\d+)$/i);
+  if (!m) {
+    return { ok: false, error: "ID чата должен быть числом или вида chatN" };
+  }
+  const numericId = m[1];
+  const dialogId = `chat${numericId}`;
+
+  // Сначала пробуем im.dialog.get (с DIALOG_ID=chatN) — он проверяет ещё и
+  // доступ от имени вебхука. Если упало — fallback на im.chat.get(CHAT_ID).
+  try {
+    const r = await callBitrixApi<Record<string, unknown> | unknown[]>(
+      "im.dialog.get",
+      { DIALOG_ID: dialogId }
+    );
+    if (r) {
+      const obj = Array.isArray(r) ? (r[0] as Record<string, unknown> | undefined) : r;
+      const title = obj && typeof obj === "object" ? (obj.title ?? obj.name) : undefined;
+      return { ok: true, title: title ? String(title) : `Чат ${numericId}` };
+    }
+  } catch {
+    // продолжаем — fallback ниже
+  }
+
+  try {
+    const r = await callBitrixApi<Record<string, unknown>>("im.chat.get", {
+      CHAT_ID: numericId,
+    });
+    if (r && typeof r === "object") {
+      const title = (r as Record<string, unknown>).title ?? (r as Record<string, unknown>).name;
+      return { ok: true, title: title ? String(title) : `Чат ${numericId}` };
+    }
+    return { ok: false, error: "Чат не найден или бот не добавлен в чат" };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
   }
 }

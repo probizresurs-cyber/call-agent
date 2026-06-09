@@ -211,6 +211,36 @@ function applyAlterMigrations(db: Database.Database) {
     );
   `);
 
+  // ─────── Расписания автоматической отправки отчётов в Bitrix ───────
+  // SQLite-аналог Postgres-версии в db-compat.ts.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS report_schedules (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      tenant_id       INTEGER NOT NULL,
+      name            TEXT NOT NULL,
+      scope           TEXT NOT NULL,            -- 'manager'|'team'
+      manager_id      TEXT,                     -- bitrix manager id (про кого), scope=manager
+      recipient_kind  TEXT NOT NULL,            -- 'user'|'chat'
+      recipient_id    TEXT NOT NULL,            -- bitrix user id ИЛИ "chatN"
+      recipient_name  TEXT,                     -- кэш для UI
+      frequency       TEXT NOT NULL,            -- 'daily'|'weekly'
+      time_hhmm       TEXT NOT NULL,            -- 'HH:MM'
+      days_of_week    TEXT,                     -- JSON array [1..7] для weekly
+      period_kind     TEXT NOT NULL DEFAULT 'yesterday',
+      enabled         INTEGER DEFAULT 1,
+      last_run_at     TEXT,
+      last_run_status TEXT,                     -- 'ok'|'failed'
+      last_run_error  TEXT,
+      next_run_at     TEXT,                     -- precomputed (ISO)
+      created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_report_schedules_due
+      ON report_schedules(enabled, next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_report_schedules_tenant
+      ON report_schedules(tenant_id);
+  `);
+
   // Засеваем дефолтные планы если таблица пустая
   seedCaPlans(db);
 
