@@ -29,7 +29,9 @@ export async function transcribeFile(
 
   // OPENAI_BASE_URL — для прокси (Cloudflare Worker) обхода гео-блока РФ.
   const baseURL = process.env.OPENAI_BASE_URL?.trim() || undefined;
-  const client = new OpenAI({ apiKey, baseURL });
+  // timeout — чтобы зависшее соединение через прокси не блокировало воркер навсегда.
+  // maxRetries — SDK сам переповторяет connection/5xx ошибки (поверх нашего цикла ниже).
+  const client = new OpenAI({ apiKey, baseURL, timeout: 300_000, maxRetries: 3 });
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -64,16 +66,29 @@ export async function transcribeFile(
       };
     } catch (e) {
       lastError = e;
-      const err = e as { status?: number; message?: string };
-      // Ретраим только гео-блок 403 и network-ошибки (5xx, fetch errors).
-      // Auth-ошибки (401, 400) — нет смысла повторять.
+      const err = e as { status?: number; message?: string; name?: string };
+      // Ретраим гео-блок 403, rate-limit 429, 5xx И любые сетевые сбои.
+      // КЛЮЧЕВОЕ: OpenAI SDK при обрыве соединения бросает APIConnectionError
+      // с message="Connection error." и БЕЗ HTTP-статуса (status=undefined→0).
+      // Раньше это не подпадало под retriable → звонок падал мгновенно, не
+      // используя оставшиеся попытки. Теперь любой ответ без статуса считаем
+      // сетевым (транзиентным) и повторяем. Auth (401/400) имеют статус — не ретраим.
       const status = err.status ?? 0;
+      const msg = (err.message ?? "").toLowerCase();
+      const name = (err.name ?? "").toLowerCase();
+      const isNetwork =
+        status === 0 ||                       // нет HTTP-статуса = сетевой сбой
+        msg.includes("connection error") ||
+        msg.includes("connection") ||
+        msg.includes("fetch") ||
+        msg.includes("network") ||
+        msg.includes("timeout") ||
+        msg.includes("econnreset") ||
+        msg.includes("econnrefused") ||
+        msg.includes("socket hang up") ||
+        name.includes("apiconnection");
       const retriable =
-        status === 403 ||
-        status === 429 ||
-        status >= 500 ||
-        (err.message ?? "").includes("fetch") ||
-        (err.message ?? "").includes("network");
+        status === 403 || status === 429 || status >= 500 || isNetwork;
 
       if (!retriable || attempt === MAX_ATTEMPTS) throw e;
 
