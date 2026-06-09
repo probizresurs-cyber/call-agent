@@ -145,6 +145,26 @@ function applyAlterMigrations(db: Database.Database) {
       ON card_discrepancies(routed_to_user_id, status);
   `);
 
+  // ─────── Заявки на подключение (публичный опросник онбординга) ───────
+  // Заполняется публичной формой /call-agent/onboarding (без авторизации).
+  // Ключевые поля вынесены в колонки, полный набор ответов — в payload_json.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS onboarding_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT NOT NULL,
+      contact_name TEXT NOT NULL,
+      contact_email TEXT NOT NULL,
+      contact_phone TEXT,
+      bitrix_url TEXT NOT NULL,
+      telephony_type TEXT,
+      status TEXT NOT NULL DEFAULT 'new',
+      payload_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_onboarding_requests_status
+      ON onboarding_requests(status, created_at DESC);
+  `);
+
   // ─────── Рефералки и промокоды (CA-admin) ───────
   db.exec(`
     CREATE TABLE IF NOT EXISTS ca_referrals (

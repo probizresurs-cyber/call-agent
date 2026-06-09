@@ -6,13 +6,13 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones,
   User as UserIcon, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale,
-  FileText, Menu, X,
+  FileText, ClipboardList, Menu, X,
 } from "lucide-react";
 
 // Иконки передаём строкой (server→client boundary не сериализует компоненты),
 // здесь маппим обратно на lucide-компонент.
 const ICONS = {
-  BarChart3, Phone, Settings, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale, FileText,
+  BarChart3, Phone, Settings, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale, FileText, ClipboardList,
 } as const;
 
 export type NavIconName = keyof typeof ICONS;

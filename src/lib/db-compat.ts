@@ -261,6 +261,22 @@ function makePgDb(): CompatDb {
         ON card_discrepancies(call_id);
       CREATE INDEX IF NOT EXISTS idx_card_discrepancies_routed
         ON card_discrepancies(routed_to_user_id, status);
+
+      CREATE TABLE IF NOT EXISTS onboarding_requests (
+        id              SERIAL PRIMARY KEY,
+        company_name    TEXT NOT NULL,
+        contact_name    TEXT NOT NULL,
+        contact_email   TEXT NOT NULL,
+        contact_phone   TEXT,
+        bitrix_url      TEXT NOT NULL,
+        telephony_type  TEXT,
+        status          TEXT NOT NULL DEFAULT 'new',
+        payload_json    TEXT,
+        created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_onboarding_requests_status
+        ON onboarding_requests(status, created_at DESC);
     `).then(async () => {
       // Seed дефолтных тарифов если таблица только что создана и пустая
       const r = await migPool.query("SELECT COUNT(*) FROM ca_plans");
