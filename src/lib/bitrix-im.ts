@@ -131,12 +131,29 @@ export async function listBotChats(): Promise<BotChat[]> {
       if (Array.isArray(obj.items)) items = obj.items as Array<Record<string, unknown>>;
     }
 
+    // Системный спам Bitrix-телефонии и автоуведомлений — фильтруем по
+    // характерным заголовкам. На орлинковском портале пришло 62 «Пропущенный
+    // звонок. Требуется перезвонить» — это мусор, в селекторе бесполезен.
+    // Если завтра прилетит новая разновидность — просто добавь сюда подстроку.
+    const SYSTEM_TITLE_PATTERNS = [
+      /пропущ.+\s*звонок/i,
+      /требуется\s*перезвонить/i,
+      /missed\s*call/i,
+      /^уведомлени/i,
+      /^crm.*уведомлен/i,
+    ];
+    function isSystemTitle(t: string): boolean {
+      return SYSTEM_TITLE_PATTERNS.some((re) => re.test(t));
+    }
+
     const out: BotChat[] = [];
     for (const it of items) {
       const type = String(it.type ?? "").toLowerCase();
       const rawId = it.id;
       const titleRaw = it.title ?? "";
       if (type === "chat") {
+        const title = String(titleRaw) || "";
+        if (isSystemTitle(title)) continue; // пропускаем системный спам
         // id для чата может приходить как число (CHAT_ID) либо как "chatN"
         const idStr =
           typeof rawId === "string" && rawId.startsWith("chat")
@@ -144,7 +161,7 @@ export async function listBotChats(): Promise<BotChat[]> {
             : `chat${rawId}`;
         out.push({
           id: idStr,
-          title: String(titleRaw) || `Чат ${idStr}`,
+          title: title || `Чат ${idStr}`,
           type: "chat",
         });
       } else if (type === "user" || type === "private") {
