@@ -110,14 +110,24 @@ async function processQueueTick() {
   } catch (e) {
     const err = e as Error;
     const msg = err.message;
-    // Различаем три класса ошибок:
+    // Различаем классы ошибок:
     //  - NoRecordingError — Bitrix не вернул файл (no_recording)
     //  - BudgetExceededError — §4.4 закончился лимит токенов/секунд на тенант (budget_exceeded)
+    //  - ProviderQuotaError — квота/биллинг/auth провайдера исчерпаны (failed, НЕ-retryable)
     //  - всё остальное — failed
     if (err.name === "NoRecordingError") {
       console.warn(`[worker] ⊘ #${row.id} no recording:`, msg);
       await getDbAsync().prepare(
         `UPDATE calls SET status='no_recording', error=?, updated_at=datetime('now') WHERE id=?`
+      ).run(msg, row.id);
+    } else if (err.name === "ProviderQuotaError") {
+      // Перманентная проблема провайдера (квота/биллинг/отозванный ключ).
+      // Помечаем failed с явным текстом. Текст НЕ содержит подстрок из
+      // RETRYABLE_ERROR_PATTERNS, поэтому autoRetryFailedTick его НЕ подберёт —
+      // звонок не будет бесконечно циклить, пока проблема не решена.
+      console.error(`[worker] 🚫 #${row.id} provider quota/billing:`, msg);
+      await getDbAsync().prepare(
+        `UPDATE calls SET status='failed', error=?, updated_at=datetime('now') WHERE id=?`
       ).run(msg, row.id);
     } else if (err.name === "BudgetExceededError") {
       console.warn(`[worker] 💰 #${row.id} budget exceeded:`, msg);

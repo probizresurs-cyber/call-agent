@@ -1,6 +1,12 @@
 import fs from "fs";
 import OpenAI from "openai";
 import { checkBudget, recordUsage } from "./budget";
+import {
+  probeOpenAiHealth,
+  setProviderHealth,
+  clearProviderHealthIfDegraded,
+  ProviderQuotaError,
+} from "./provider-health";
 
 const WHISPER_MODEL = "whisper-1"; // у OpenAI это пока самая стабильная транскрипция
 
@@ -30,8 +36,9 @@ export async function transcribeFile(
   // OPENAI_BASE_URL — для прокси (Cloudflare Worker) обхода гео-блока РФ.
   const baseURL = process.env.OPENAI_BASE_URL?.trim() || undefined;
   // timeout — чтобы зависшее соединение через прокси не блокировало воркер навсегда.
+  // 120 сек (2 мин): 5 мин — слишком долго держать очередь на одном звонке.
   // maxRetries — SDK сам переповторяет connection/5xx ошибки (поверх нашего цикла ниже).
-  const client = new OpenAI({ apiKey, baseURL, timeout: 300_000, maxRetries: 3 });
+  const client = new OpenAI({ apiKey, baseURL, timeout: 120_000, maxRetries: 3 });
 
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -56,6 +63,14 @@ export async function transcribeFile(
         const lastSegment = raw.segments?.[raw.segments.length - 1];
         const seconds = lastSegment?.end ?? Math.floor(fs.statSync(filePath).size / 16000);
         await recordUsage(opts.tenantId, "openai_seconds", seconds, opts.callId);
+      }
+
+      // Успешная транскрипция — провайдер жив. Если баннер «квота/auth» висел,
+      // тихо гасим его (в try/catch, чтобы сбой записи не уронил пайплайн).
+      try {
+        await clearProviderHealthIfDegraded();
+      } catch {
+        // не критично — баннер погаснет при следующем успехе
       }
 
       return {
@@ -89,6 +104,50 @@ export async function transcribeFile(
         name.includes("apiconnection");
       const retriable =
         status === 403 || status === 429 || status >= 500 || isNetwork;
+
+      // Перед тем как окончательно сдаться: если попытки исчерпаны И ошибка
+      // сетевая (status 0 / «Connection error» / APIConnection), это может быть
+      // НЕ транзиент, а исчерпание квоты OpenAI — он обрывает multipart-загрузку
+      // аудио в середине, и SDK видит лишь «Connection error.» без статуса.
+      // Делаем дешёвый probe (max_tokens:1, тело маленькое → ответ не обрывается)
+      // и, если это квота/auth, бросаем явную НЕ-retryable ProviderQuotaError +
+      // пишем статус провайдера (баннер на дашборде). probe вызывается ТОЛЬКО тут
+      // (исчерпаны ретраи), не на каждый звонок — не жжёт лишнего.
+      if (attempt === MAX_ATTEMPTS && isNetwork) {
+        let probe;
+        try {
+          probe = await probeOpenAiHealth();
+        } catch {
+          probe = null; // probe сам упал — считаем транзиентом, бросаем исходное
+        }
+        if (probe?.kind === "quota") {
+          await setProviderHealth({
+            status: "quota",
+            provider: "openai",
+            message: "OpenAI: квота/биллинг исчерпан (429 insufficient_quota)",
+            detected_at: new Date().toISOString(),
+          });
+          throw new ProviderQuotaError(
+            "OpenAI: квота/биллинг исчерпан — пополните баланс",
+            "openai",
+            "quota"
+          );
+        }
+        if (probe?.kind === "auth") {
+          await setProviderHealth({
+            status: "auth",
+            provider: "openai",
+            message: "OpenAI: неверный или отозванный API-ключ (401)",
+            detected_at: new Date().toISOString(),
+          });
+          throw new ProviderQuotaError(
+            "OpenAI: неверный или отозванный API-ключ (401)",
+            "openai",
+            "auth"
+          );
+        }
+        // kind="ok"/"network" — это реальный транзиент: бросаем исходную ошибку как раньше.
+      }
 
       if (!retriable || attempt === MAX_ATTEMPTS) throw e;
 
