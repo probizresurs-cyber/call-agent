@@ -54,6 +54,28 @@ function periodSuffix(periodLabel?: string): string {
   return p ? ` ${p}` : "";
 }
 
+/** ISO YYYY-MM-DD → DD.MM.YYYY. Пусто если не распарсилось. */
+function formatDateRu(iso?: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return "";
+  return `${d}.${m}.${y}`;
+}
+
+/**
+ * Строка с конкретной датой периода под заголовком:
+ *   один день  → «🗓 09.06.2026»
+ *   диапазон   → «🗓 09.06.2026 — 10.06.2026»
+ *   нет дат    → "" (период «за всё время» — конкретной даты нет)
+ */
+function periodDateLine(from?: string, to?: string): string {
+  const f = formatDateRu(from);
+  const t = formatDateRu(to);
+  if (!f && !t) return "";
+  if (f && t && f !== t) return `🗓 ${f} — ${t}`;
+  return `🗓 ${f || t}`;
+}
+
 const DASHBOARD_URL = "https://marketradar24.ru/call-agent/dashboard";
 
 export async function generateReport(opts: ReportOpts): Promise<GeneratedReport> {
@@ -81,6 +103,9 @@ async function buildManagerReport(opts: ReportOpts): Promise<GeneratedReport> {
 
   const lines: string[] = [];
   lines.push(`[B]${title}[/B]`);
+  // Конкретная дата периода — чтобы «Вчера» не оставляло вопросов какое это число
+  const dateLine = periodDateLine(opts.from, opts.to);
+  if (dateLine) lines.push(dateLine);
   lines.push("");
   lines.push(`Звонков: ${totals.total} (входящих ${totals.incoming} / исходящих ${totals.outgoing})`);
   lines.push(`Пропущенных: ${missed}`);
@@ -127,6 +152,9 @@ async function buildTeamReport(opts: ReportOpts): Promise<GeneratedReport> {
 
   const lines: string[] = [];
   lines.push(`[B]${title}[/B]`);
+  // Конкретная дата периода — чтобы «Вчера» не оставляло вопросов какое это число
+  const dateLine = periodDateLine(opts.from, opts.to);
+  if (dateLine) lines.push(dateLine);
   lines.push("");
   lines.push(`Всего звонков: ${totals.total}, проанализировано: ${totals.done}`);
   lines.push(`Средняя оценка команды: ${formatScore(aggs.avg_score)}/10`);
