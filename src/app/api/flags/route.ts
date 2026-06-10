@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
-import { getFlagsSummary, setDryRunForTenant } from "@/lib/flags";
+import { getFlagsSummary, setDryRunForTenant, type DryRunKind } from "@/lib/flags";
 
 export const runtime = "nodejs";
 
@@ -23,11 +23,15 @@ export async function POST(req: NextRequest) {
   if (me.role !== "owner" && me.role !== "admin") {
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
-  const body = (await req.json().catch(() => ({}))) as { dry_run?: boolean };
+  // Body: { dry_run: boolean, kind?: "crm" | "messages" }
+  // Без kind — пишет legacy общий ключ (старый UI). С kind — переключает только этот класс.
+  const body = (await req.json().catch(() => ({}))) as { dry_run?: boolean; kind?: string };
   if (typeof body.dry_run !== "boolean") {
     return NextResponse.json({ ok: false, error: "dry_run boolean required" }, { status: 400 });
   }
-  await setDryRunForTenant(me.tenantId, body.dry_run);
+  const kind: DryRunKind | undefined =
+    body.kind === "crm" || body.kind === "messages" ? body.kind : undefined;
+  await setDryRunForTenant(me.tenantId, body.dry_run, kind);
   const summary = await getFlagsSummary(me.tenantId);
   return NextResponse.json({ ok: true, ...summary });
 }

@@ -69,7 +69,9 @@ export async function imSendMessage(
   message: string,
   tenantId: number
 ): Promise<ImSendResult> {
-  const dry = await isDryRunForTenant(tenantId);
+  // Отчёты — отдельный класс «messages», независим от CRM-write «crm».
+  // Можно слать отчёты вживую, не открывая запись в timeline сделок.
+  const dry = await isDryRunForTenant(tenantId, "messages");
   if (dry) {
     return { ok: true, mode: "dry" };
   }
