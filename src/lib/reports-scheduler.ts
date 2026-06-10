@@ -272,14 +272,17 @@ export async function createSchedule(input: ScheduleInput): Promise<ScheduleRow>
 
   const enabled = input.enabled === false ? false : true;
 
-  const res = await db
+  // INSERT ... RETURNING id — единый путь для PG (lastInsertRowid в нашем
+  // PG-адаптере не выставляется после run()) и SQLite (RETURNING с 3.35.0).
+  const inserted = await db
     .prepare(
       `INSERT INTO report_schedules
         (tenant_id, name, scope, manager_id, recipient_kind, recipient_id, recipient_name,
          frequency, time_hhmm, days_of_week, period_kind, enabled, next_run_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       RETURNING id`
     )
-    .run(
+    .get<{ id: number }>(
       input.tenantId,
       input.name,
       input.scope,
@@ -295,7 +298,8 @@ export async function createSchedule(input: ScheduleInput): Promise<ScheduleRow>
       toDbTimestamp(nextRun)
     );
 
-  const id = Number(res.lastInsertRowid ?? 0);
+  const id = Number(inserted?.id ?? 0);
+  if (!id) throw new Error("INSERT не вернул id");
   const created = await getSchedule(id, input.tenantId);
   if (!created) throw new Error("Не удалось создать расписание (запись не найдена после INSERT)");
   return created;
