@@ -134,6 +134,24 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
   const periodSql = "WHERE " + where.join(" AND ");
   const andSql = "AND " + where.join(" AND ");
 
+  // Отдельный WHERE БЕЗ фильтра по дате — для блоков, которые НЕ должны зависеть
+  // от выбранного периода в календаре. Сейчас это «Динамика 14 дней»: она всегда
+  // показывает последние 14 дней, независимо от того какой период выбран в фильтре.
+  // Фильтр по менеджеру/CRM сохраняем (динамика конкретного менеджера — логична).
+  const whereNoDate: string[] = ["c.tenant_id = ?"];
+  const paramsNoDate: unknown[] = [opts.tenantId];
+  if (opts.managerBitrixId) {
+    whereNoDate.push("c.manager_id = ?"); paramsNoDate.push(opts.managerBitrixId);
+  } else if (opts.managerId) {
+    whereNoDate.push("c.manager_id = ?"); paramsNoDate.push(opts.managerId);
+  }
+  if (opts.withCrmOnly) {
+    whereNoDate.push(
+      "(c.bitrix_deal_id IS NOT NULL OR c.bitrix_lead_id IS NOT NULL OR c.bitrix_contact_id IS NOT NULL OR (c.bitrix_activity_id IS NOT NULL AND c.bitrix_activity_id != '0'))"
+    );
+  }
+  const andSqlNoDate = "AND " + whereNoDate.join(" AND ");
+
   // ── managersList ── (для не-manager-режима)
   const managersList = opts.managerBitrixId ? [] : await db
     .prepare(
@@ -209,6 +227,8 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
   ).all<ManagerStatsRow>(contactThreshold, contactThreshold, ...params);
 
   // ── Динамика по дням (14) ──
+  // ВАЖНО: используем andSqlNoDate (без from/to) — динамика всегда показывает
+  // последние 14 дней независимо от выбранного в календаре периода.
   const daily = await db.prepare(
     `SELECT substr(c.started_at, 1, 10) AS day,
             COUNT(*) AS total,
@@ -218,9 +238,9 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
      FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
      WHERE c.started_at IS NOT NULL
        AND substr(c.started_at,1,10) >= date('now','-13 day')
-       ${andSql}
+       ${andSqlNoDate}
      GROUP BY day ORDER BY day ASC`
-  ).all<DailyRow>(...params);
+  ).all<DailyRow>(...paramsNoDate);
 
   const series: DailyRow[] = [];
   const today = new Date();
@@ -244,7 +264,9 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
       const arr = JSON.parse(r.objections_json) as string[];
       for (const o of arr || []) {
         const k = o.trim().toLowerCase();
-        if (!k) continue;
+        // Отсекаем мусор: пустые, одиночные буквы/символы (AI иногда возвращает
+        // «Е», «Т», обрывки) — возражение это всегда фраза/слово ≥ 3 символов.
+        if (!k || k.length < 3) continue;
         objCount.set(k, (objCount.get(k) || 0) + 1);
       }
     } catch {}
@@ -265,7 +287,8 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
       const arr = JSON.parse(r.topics_json) as string[];
       for (const t of arr || []) {
         const k = t.trim().toLowerCase();
-        if (!k) continue;
+        // Тот же фильтр мусора: тема ≥ 3 символов (отсекаем одиночные буквы/обрывки).
+        if (!k || k.length < 3) continue;
         topicCount.set(k, (topicCount.get(k) || 0) + 1);
       }
     } catch {}
