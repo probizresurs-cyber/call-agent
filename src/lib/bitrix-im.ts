@@ -50,19 +50,35 @@ export async function imSendMessage(
   if (dry) {
     return { ok: true, mode: "dry" };
   }
+  const target = String(bitrixUserId);
+  const isChat = target.startsWith("chat");
+
   try {
-    // DIALOG_ID: число (либо строка из цифр) → личка пользователю по USER_ID;
-    //             "chatN" → групповой чат с CHAT_ID=N. im.message.add поддерживает оба.
-    const messageId = await callBitrixApi<number>("im.message.add", {
-      DIALOG_ID: String(bitrixUserId),
-      MESSAGE: message,
-    });
+    let messageId: number;
+    if (isChat) {
+      // Групповой чат — DIALOG_ID="chatN". im.message.add нормально шлёт от
+      // имени вебхук-юзера в чат (он должен быть участником чата).
+      messageId = await callBitrixApi<number>("im.message.add", {
+        DIALOG_ID: target,
+        MESSAGE: message,
+      });
+    } else {
+      // Личное сообщение — USER_ID. ВАЖНО: im.message.add НЕ даёт отправить
+      // сообщение самому себе (ERROR_NO_ACCESS — типовое ограничение Bitrix).
+      // Поэтому используем im.notify.personal.add — отдельный канал
+      // нотификаций. Работает для любого USER_ID, включая self-send, и
+      // выглядит у получателя как нормальное сообщение в мессенджере.
+      messageId = await callBitrixApi<number>("im.notify.personal.add", {
+        USER_ID: target,
+        MESSAGE: message,
+      });
+    }
     return { ok: true, mode: "live", messageId };
   } catch (e) {
     const msg = (e as Error).message;
     // Понятная подсказка для типовых проблем
-    const friendly = /access\s*denied|insufficient/i.test(msg)
-      ? `${msg} — проверьте право «im» (Чат и уведомления) у вебхука`
+    const friendly = /access\s*denied|insufficient|no_access/i.test(msg)
+      ? `${msg} — проверьте право «im» (Чат и уведомления) у вебхука; для чатов бот должен быть участником`
       : msg;
     return { ok: false, mode: "live", error: friendly };
   }
