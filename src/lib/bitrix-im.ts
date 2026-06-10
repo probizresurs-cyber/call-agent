@@ -1,23 +1,24 @@
 /**
- * Отправка сообщений в Bitrix24-мессенджер через чат-бота «Call-Agent».
+ * Отправка сообщений в Bitrix24-мессенджер.
  *
- * Бот регистрируется один раз (imbot.register) — BOT_ID кэшируется в settings.
- * Сообщения уходят от имени бота с аватаркой/названием «Call-Agent», а НЕ от
- * имени сотрудника, под которым создан вебхук. Это выглядит как автоматический
- * сервис, что корректнее для рассылки отчётов.
+ * ВАЖНОЕ ОГРАНИЧЕНИЕ BITRIX24: `imbot.register` НЕ работает через входящий
+ * вебхук — требует client_id от OAuth-приложения. Ошибка «Client ID not
+ * specified», даже когда право «imbot» отмечено в вебхуке. Поэтому
+ * красивого бота «Call-Agent» через webhook сделать нельзя.
  *
- * **Безопасность по умолчанию:** под per-tenant DRY_RUN (lib/flags.ts
- * isDryRunForTenant) ничего наружу не уходит — возвращается mode:'dry'.
+ * Текущий путь: `im.message.add` — обычная отправка сообщения от имени
+ * вебхук-пользователя (тот, кто создал webhook). Для получателя выглядит
+ * как «Иван прислал отчёт». Это даже естественнее, чем безличный бот.
  *
- * Требует у вебхука прав `imbot`. Если их нет — регистрация/отправка падает;
- * мы НЕ бросаем, а возвращаем { ok:false, error } с понятным сообщением.
+ * Если в будущем нужен именно бот — нужно регистрировать локальное
+ * приложение Bitrix24 (тип «бот») и переключаться на OAuth (отдельная
+ * задача). Тогда `imbot.register` пройдёт и можно вернуть старый путь.
+ *
+ * **Безопасность по умолчанию:** под per-tenant DRY_RUN
+ * (kind='messages') ничего наружу не уходит — возвращается mode:'dry'.
  */
 import { callBitrixApi } from "./bitrix";
 import { isDryRunForTenant } from "./flags";
-import { getSetting, setSetting } from "./db";
-
-const BOT_ID_KEY = "bitrix_bot_id";
-const BOT_CODE = "call_agent_reports_bot";
 
 export interface ImSendResult {
   ok: boolean;
@@ -27,40 +28,15 @@ export interface ImSendResult {
 }
 
 /**
- * Гарантирует что чат-бот «Call-Agent» зарегистрирован в Bitrix.
- * Возвращает BOT_ID. Кэширует в settings — регистрация выполняется
- * только один раз на портал.
+ * Отправить сообщение в Bitrix-мессенджер. Работает и для лички (USER_ID),
+ * и для групповых чатов (DIALOG_ID="chatN").
  *
- * imbot.register требует EVENT_* URL-обработчики. Наш бот не интерактивный
- * (только шлёт), поэтому указываем заглушку-endpoint, отвечающую 200.
- */
-async function ensureBot(): Promise<string> {
-  const cached = await getSetting(BOT_ID_KEY);
-  if (cached && cached.trim()) return cached.trim();
-
-  // Базовый URL для обработчиков событий бота (заглушка — бот не отвечает).
-  const handlerUrl = "https://marketradar24.ru/call-agent/api/bitrix-bot/handler";
-
-  const botId = await callBitrixApi<number>("imbot.register", {
-    CODE: BOT_CODE,
-    TYPE: "B",
-    EVENT_MESSAGE_ADD: handlerUrl,
-    EVENT_WELCOME_MESSAGE: handlerUrl,
-    EVENT_BOT_DELETE: handlerUrl,
-    PROPERTIES: {
-      NAME: "Call-Agent",
-      WORK_POSITION: "AI-аналитик звонков",
-      COLOR: "AQUA",
-    },
-  });
-
-  await setSetting(BOT_ID_KEY, String(botId));
-  return String(botId);
-}
-
-/**
- * Отправить сообщение в личный чат Bitrix-пользователю (по его Bitrix USER_ID)
- * от имени бота «Call-Agent». MESSAGE поддерживает BBCode ([B], [URL], \n).
+ * Использует `im.message.add` — обычная отправка от имени вебхук-пользователя.
+ * Это единственный путь через входящий вебхук: `imbot.message.add` требует
+ * предварительной регистрации бота через `imbot.register`, а та НЕ работает
+ * через webhook (нужен OAuth-app, client_id). См. docblock сверху.
+ *
+ * MESSAGE поддерживает BBCode ([B], [URL], \n).
  *
  * Под DRY_RUN — не отправляет, только возвращает mode:'dry'.
  */
@@ -70,27 +46,23 @@ export async function imSendMessage(
   tenantId: number
 ): Promise<ImSendResult> {
   // Отчёты — отдельный класс «messages», независим от CRM-write «crm».
-  // Можно слать отчёты вживую, не открывая запись в timeline сделок.
   const dry = await isDryRunForTenant(tenantId, "messages");
   if (dry) {
     return { ok: true, mode: "dry" };
   }
   try {
-    const botId = await ensureBot();
-    // imbot.message.add возвращает ID сообщения (число).
     // DIALOG_ID: число (либо строка из цифр) → личка пользователю по USER_ID;
-    //             "chatN" → групповой чат с CHAT_ID=N. Здесь поддерживаются оба варианта.
-    const messageId = await callBitrixApi<number>("imbot.message.add", {
-      BOT_ID: botId,
+    //             "chatN" → групповой чат с CHAT_ID=N. im.message.add поддерживает оба.
+    const messageId = await callBitrixApi<number>("im.message.add", {
       DIALOG_ID: String(bitrixUserId),
       MESSAGE: message,
     });
     return { ok: true, mode: "live", messageId };
   } catch (e) {
     const msg = (e as Error).message;
-    // Понятная подсказка если нет прав imbot
-    const friendly = /imbot|access|insufficient|method not found/i.test(msg)
-      ? `${msg} — проверьте что у вебхука включено право «imbot» (Чат-боты)`
+    // Понятная подсказка для типовых проблем
+    const friendly = /access\s*denied|insufficient/i.test(msg)
+      ? `${msg} — проверьте право «im» (Чат и уведомления) у вебхука`
       : msg;
     return { ok: false, mode: "live", error: friendly };
   }
