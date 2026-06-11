@@ -12,7 +12,8 @@
  *   4 — email
  *   6 — Open Lines (PROVIDER_ID начинается с 'IMOL_')
  *
- * Здесь тянем 4 и 6 — звонки идут отдельным путём (importer.ts).
+ * Здесь тянем 1 (встречи, завершённые), 4 (email) и 6 (Open Lines чаты).
+ * Звонки идут отдельным путём (importer.ts).
  */
 import { callBitrixApi } from "./bitrix";
 import { saveInteraction, type NormalizedInteraction } from "./interaction-source";
@@ -88,7 +89,15 @@ function normalizeActivity(raw: BitrixActivityRaw, tenantId: number): Normalized
   let interactionType: NormalizedInteraction["type"];
   let channel: NormalizedInteraction["channel"];
 
-  if (typeId === "4" || providerId === "CRM_EMAIL") {
+  if (typeId === "1") {
+    // Встреча (CRM-активность «Встреча»). Анализируем ТОЛЬКО завершённые —
+    // у запланированных (COMPLETED=N) ещё нет итога, анализировать рано.
+    // Текст для анализа = тема (SUBJECT) + описание/итог (DESCRIPTION),
+    // который менеджер заполняет руками после встречи.
+    if (raw.COMPLETED !== "Y") return null;
+    interactionType = "meeting";
+    channel = "other";
+  } else if (typeId === "4" || providerId === "CRM_EMAIL") {
     interactionType = "email";
     channel = "email_imap";
   } else if (providerId.startsWith("IMOL_")) {
@@ -170,12 +179,12 @@ export interface FetchResult {
 }
 
 /**
- * Тянет email и Open Lines чаты из Bitrix24.
+ * Тянет встречи, email и Open Lines чаты из Bitrix24.
  * Идемпотентно — повторный запуск не создаст дублей.
  *
  * Фильтры:
- *  - TYPE_ID IN (4, 6) — email и Open Lines
- *  - COMPLETED = Y или N — оба (email прочитан = Y, новый = N)
+ *  - TYPE_ID IN (1, 4, 6) — встречи (только завершённые), email и Open Lines
+ *  - COMPLETED = Y или N — для email/чатов оба; для встреч только Y
  *  - CREATED >= since — если передан
  *
  * Лимит на прогон — пагинация через start. Если activities в Bitrix больше limit —
@@ -187,12 +196,17 @@ export async function fetchEmailAndChats(opts: FetchOptions): Promise<FetchResul
   let start = 0;
   let processed = 0;
 
-  // Два отдельных запроса: TYPE_ID=4 (email) и TYPE_ID=6 (всё что Bitrix считает прочим —
-  // потом фильтруем на нашей стороне через normalizeActivity: только PROVIDER_ID IMOL_*).
-  for (const typeId of ["4", "6"]) {
+  // Три отдельных запроса:
+  //  TYPE_ID=1 — встречи (берём только COMPLETED=Y — завершённые, с итогом)
+  //  TYPE_ID=4 — email
+  //  TYPE_ID=6 — всё прочее, фильтруем на нашей стороне (только PROVIDER_ID IMOL_*)
+  for (const typeId of ["1", "4", "6"]) {
     while (processed < limit) {
       const filter: Record<string, unknown> = { TYPE_ID: typeId };
       if (opts.since) filter[">=CREATED"] = opts.since;
+      // Встречи — только завершённые (запланированные без итога анализировать рано).
+      // Дублируем серверным фильтром, чтобы не тянуть лишнее (в normalizeActivity тоже есть guard).
+      if (typeId === "1") filter.COMPLETED = "Y";
       // Для TYPE_ID=6 ограничиваем PROVIDER_ID — иначе тянем кучу CRM_TODO/CRM_TASKS_TASK
       // (внутренние задачи менеджеров). Bitrix принимает % wildcard через специальный синтаксис.
       if (typeId === "6") {
