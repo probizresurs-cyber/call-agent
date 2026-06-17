@@ -8,7 +8,9 @@ import { getDbAsync } from "@/lib/db-compat";
 const COOKIE_NAME = "ca_session";
 const SESSION_TTL_HOURS = 24 * 14;
 
-export type UserRole = "owner" | "admin" | "head" | "manager";
+// "demo" — публичный демо-аккаунт (ООО Ромашка): видит командные дашборды,
+// но ничего не может менять (read-only обеспечивается middleware + cookie ca_demo).
+export type UserRole = "owner" | "admin" | "head" | "manager" | "demo";
 
 export interface SessionUser {
   id: number;
@@ -18,6 +20,8 @@ export interface SessionUser {
   name: string | null;
   email: string | null;
   bitrixManagerId: string | null;
+  /** true для demo-роли — подсказка UI чтобы дизейблить кнопки сохранения. Реальную блокировку делает middleware. */
+  readOnly: boolean;
 }
 
 /**
@@ -85,6 +89,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       name: u.name,
       email: u.email,
       bitrixManagerId: u.bitrix_manager_id,
+      readOnly: u.role === "demo",
     };
   }
 
@@ -92,15 +97,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   // В новой схеме у всех сессий есть user_id, поэтому этот путь не должен срабатывать.
   // Оставлен для совместимости с очень старыми сессиями.
   return null;
-  return {
-    id: u.id,
-    tenantId: u.tenant_id,
-    login: u.login,
-    role: u.role,
-    name: u.name,
-    email: u.email,
-    bitrixManagerId: u.bitrix_manager_id,
-  };
 }
 
 /** Создаёт сессию для пользователя по login+password. Возвращает true/false. */
@@ -111,15 +107,34 @@ export async function login(loginRaw: string, password: string): Promise<boolean
   // 1. Пытаемся через users-таблицу
   const u = await db
     .prepare(
-      `SELECT id, tenant_id, password_hash, is_active
+      `SELECT id, tenant_id, role, password_hash, is_active
        FROM users WHERE login = ? LIMIT 1`
     )
-    .get<{ id: number; tenant_id: number; password_hash: string; is_active: number }>(loginRaw.trim());
+    .get<{ id: number; tenant_id: number; role: UserRole; password_hash: string; is_active: number }>(loginRaw.trim());
   if (!u || !u.is_active) return false;
 
   const ok = await bcrypt.compare(password, u.password_hash);
   if (!ok) return false;
 
+  await createSessionFor(u.id, u.tenant_id, loginRaw.trim(), u.role);
+  return true;
+}
+
+/**
+ * Создаёт сессию для уже найденного пользователя (без проверки пароля).
+ * Ставит cookie ca_session, обновляет updated_at, и ДОПОЛНИТЕЛЬНО ставит
+ * cookie ca_demo=1 для demo-роли (включает read-only защиту в middleware).
+ *
+ * Используется и обычным login() (после проверки пароля), и публичным
+ * входом в демо (/demo — без пароля).
+ */
+export async function createSessionFor(
+  userId: number,
+  tenantId: number,
+  loginName: string,
+  role: UserRole
+): Promise<void> {
+  const db = getDbAsync();
   const token = crypto.randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + SESSION_TTL_HOURS * 3600_000);
   await db
@@ -127,10 +142,10 @@ export async function login(loginRaw: string, password: string): Promise<boolean
       `INSERT INTO sessions (id, user, user_id, tenant_id, expires_at)
        VALUES (?, ?, ?, ?, ?)`
     )
-    .run(token, loginRaw.trim(), u.id, u.tenant_id, expires.toISOString().replace("T", " ").slice(0, 19));
+    .run(token, loginName, userId, tenantId, expires.toISOString().replace("T", " ").slice(0, 19));
 
-  // Обновляем last_login для отслеживания активности
-  await db.prepare(`UPDATE users SET updated_at = datetime('now') WHERE id = ?`).run(u.id);
+  // Обновляем updated_at для отслеживания активности
+  await db.prepare(`UPDATE users SET updated_at = datetime('now') WHERE id = ?`).run(userId);
 
   const c = await cookies();
   c.set(COOKIE_NAME, token, {
@@ -140,6 +155,36 @@ export async function login(loginRaw: string, password: string): Promise<boolean
     path: "/",
     expires,
   });
+
+  // Для demo-роли — поднимаем флаг read-only режима (его читает middleware).
+  // path:"/" чтобы cookie уходила и на /call-agent/api/..., и на /api/...
+  if (role === "demo") {
+    c.set("ca_demo", "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires,
+    });
+  }
+}
+
+/**
+ * Публичный вход в демо-режим без пароля.
+ * Находит активного demo-пользователя (role='demo') и создаёт ему сессию.
+ * Возвращает true если демо-пользователь найден и сессия создана.
+ */
+export async function loginDemo(): Promise<boolean> {
+  const db = getDbAsync();
+  const u = await db
+    .prepare(
+      `SELECT id, tenant_id, login, is_active
+       FROM users WHERE role = 'demo' AND is_active = 1
+       ORDER BY id ASC LIMIT 1`
+    )
+    .get<{ id: number; tenant_id: number; login: string; is_active: number }>();
+  if (!u) return false;
+  await createSessionFor(u.id, u.tenant_id, u.login, "demo");
   return true;
 }
 
@@ -150,6 +195,8 @@ export async function logout() {
     await getDbAsync().prepare(`DELETE FROM sessions WHERE id = ?`).run(token);
   }
   c.delete(COOKIE_NAME);
+  // Снимаем флаг демо-режима (если был) — иначе после выхода read-only останется.
+  c.delete("ca_demo");
 }
 
 /** Хелпер для route handlers — возвращает 401 если нет сессии */
@@ -185,9 +232,9 @@ export function canManage(role: UserRole): boolean {
   return role === "owner" || role === "admin";
 }
 
-/** True для owner/admin/head (видят данные всей команды) */
+/** True для owner/admin/head + demo (видят данные всей команды). demo — только просмотр. */
 export function canViewTeam(role: UserRole): boolean {
-  return role === "owner" || role === "admin" || role === "head";
+  return role === "owner" || role === "admin" || role === "head" || role === "demo";
 }
 
 /**

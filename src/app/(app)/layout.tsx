@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { Eye } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
 import { MobileNav, type NavItem } from "./MobileNav";
@@ -8,6 +9,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Администратор",
   head: "РОП",
   manager: "Менеджер",
+  demo: "Демо-доступ",
 };
 
 export default async function AuthedLayout({ children }: { children: React.ReactNode }) {
@@ -20,13 +22,21 @@ export default async function AuthedLayout({ children }: { children: React.React
     redirect("/login");
   }
 
+  // Демо-режим (ООО Ромашка): только просмотр витрины — урезанное меню + баннер.
+  const isDemo = user.role === "demo";
+
   // Менеджер видит «Мои звонки» вместо общего «Звонки», и не видит «Настройки»
-  const showSettings = canManage(user.role) || user.role === "head";
+  // В демо-режиме «Настройки» показываем (read-only) — чтобы клиент увидел скрипты/чек-листы.
+  const showSettings = canManage(user.role) || user.role === "head" || isDemo;
   const callsLabel = user.role === "manager" ? "Мои звонки" : "Звонки";
   const dashboardLabel = user.role === "manager" ? "Мой кабинет" : "Дашборд";
 
-  // Показывать «Расхождения» только для owner/admin/head
-  const showDiscrepancies = canViewTeam(user.role);
+  // Показывать «Расхождения»/«Отчёты» — owner/admin/head. В демо-режиме скрываем
+  // (это операционные инструменты, в витрине не нужны).
+  const showDiscrepancies = canViewTeam(user.role) && !isDemo;
+  // Тяжёлые операционные пункты (загрузка/очередь/CRM-журнал) — только для управленцев,
+  // в демо-режиме скрываем даже несмотря на showSettings=true.
+  const showOps = showSettings && !isDemo;
 
   // Число pending-расхождений для бейджа в навигации
   let pendingDiscrepanciesCount = 0;
@@ -56,7 +66,7 @@ export default async function AuthedLayout({ children }: { children: React.React
   if (user.role !== "manager") {
     navItems.push({ href: "/leaderboard", label: "Лидерборд", icon: "Trophy" });
   }
-  if (showSettings) {
+  if (showOps) {
     navItems.push({ href: "/interactions/upload", label: "Загрузить запись", icon: "FilePlus2" });
     navItems.push({ href: "/queue", label: "Очередь", icon: "Activity" });
     navItems.push({ href: "/crm-log", label: "CRM-журнал", icon: "Upload" });
@@ -93,7 +103,32 @@ export default async function AuthedLayout({ children }: { children: React.React
         roleIcon={roleIcon}
         logoutAction={doLogout}
       />
-      <main className="shell-main">{children}</main>
+      <main className="shell-main">
+        {isDemo && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 14px",
+              marginBottom: 16,
+              background: "rgba(124,112,224,0.10)",
+              border: "1px solid rgba(124,112,224,0.35)",
+              borderRadius: 8,
+              color: "var(--foreground)",
+              fontSize: 13,
+              lineHeight: 1.4,
+            }}
+          >
+            <Eye size={18} strokeWidth={2} style={{ flexShrink: 0, color: "#7c70e0" }} />
+            <span>
+              <b>Демо-режим</b> — данные вымышленные (ООО «Ромашка»). Доступен только просмотр,
+              изменения недоступны.
+            </span>
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

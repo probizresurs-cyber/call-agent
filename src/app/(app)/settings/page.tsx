@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Bot, BookOpen, Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale } from "lucide-react";
+import { Bot, BookOpen, Cloud, Download, ListChecks, RefreshCw, Users, Settings as SettingsIcon, RotateCcw, UserCog, Shield, Coins, Share2, Scale, Eye } from "lucide-react";
 import { ImportForm } from "./ImportForm";
 import { AutoImportCard } from "./AutoImportCard";
 import { ManagersCard } from "./ManagersCard";
@@ -27,8 +27,14 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const me = await getSessionUser();
   if (!me) redirect("/login");
-  // Менеджер не имеет доступа к настройкам платформы
-  if (!canManage(me.role) && me.role !== "head") redirect("/dashboard");
+  // Менеджер не имеет доступа к настройкам платформы.
+  // Демо (role=demo) — пускаем (read-only витрина: показать скрипты/чек-листы).
+  if (!canManage(me.role) && me.role !== "head" && me.role !== "demo") redirect("/dashboard");
+
+  // Демо-режим: страница в режиме «только просмотр». Все мутации всё равно
+  // блокирует middleware (cookie ca_demo); здесь — визуальная подсказка + CSS,
+  // который дизейблит кнопки сохранения (defense-in-depth, минимально).
+  const readOnly = me.readOnly;
 
   const webhookSet = !!process.env.BITRIX_WEBHOOK_URL?.trim();
   const dryRun = process.env.BITRIX_DRY_RUN !== "false";
@@ -166,8 +172,43 @@ export default async function SettingsPage() {
   }
 
   return (
-    <>
+    <div className={readOnly ? "demo-readonly" : undefined}>
+      {/* В демо-режиме дизейблим все интерактивные элементы внутри настроек.
+          Это лишь UX-подсказка — реальную блокировку мутаций делает middleware. */}
+      {readOnly && (
+        <style>{`
+          .demo-readonly button[type="submit"],
+          .demo-readonly .ds-btn-primary,
+          .demo-readonly .ds-btn-secondary,
+          .demo-readonly input:not([readonly]),
+          .demo-readonly textarea,
+          .demo-readonly select {
+            pointer-events: none;
+            opacity: 0.55;
+            cursor: not-allowed;
+          }
+        `}</style>
+      )}
       <h1 className="ds-h1" style={{ marginBottom: 20 }}>Настройки</h1>
+
+      {readOnly && (
+        <div
+          className="ds-card"
+          style={{
+            marginBottom: 16,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            borderColor: "rgba(124,112,224,0.35)",
+            background: "rgba(124,112,224,0.06)",
+          }}
+        >
+          <Eye size={18} strokeWidth={2} style={{ flexShrink: 0, color: "#7c70e0" }} />
+          <span className="ds-body-sm">
+            Демо-режим — настройки доступны <b>только для просмотра</b>. Изменения сохранить нельзя.
+          </span>
+        </div>
+      )}
 
       {/* ───────── Системные флаги (видно только owner/admin) ───────── */}
       {isManager && (
@@ -343,7 +384,7 @@ export default async function SettingsPage() {
         </h2>
         <ReanalyzeCard />
       </div>
-    </>
+    </div>
   );
 }
 
