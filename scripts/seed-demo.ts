@@ -267,15 +267,17 @@ async function main() {
 
     const callRes = await db.prepare(
       `INSERT INTO calls
-         (bitrix_call_id, bitrix_deal_id, manager_id, manager_name, client_phone, client_name, direction,
+         (bitrix_call_id, bitrix_deal_id, manager_id, manager_name, client_phone, direction,
           started_at, duration_sec, recording_url, status, interaction_type, channel,
           detected_product, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
-      bitrixCallId, bitrixDealId, c.manager.id, c.manager.name, c.client.phone, c.client.name, c.direction,
+      bitrixCallId, bitrixDealId, c.manager.id, c.manager.name, c.client.phone, c.direction,
       started, c.duration, recordingUrl, c.status, c.type, c.channel,
       c.product, DEMO_TENANT
     );
+    // Имя заказчика хранится в analyses.client_name (в таблице calls этой колонки нет) —
+    // см. insertAnalysisAndTranscript: туда передаётся c.client.name.
     const callId = Number(callRes.lastInsertRowid);
     if (!callId || Number.isNaN(callId)) {
       // На некоторых конфигурациях lastInsertRowid может не вернуться — подстрахуемся выборкой.
