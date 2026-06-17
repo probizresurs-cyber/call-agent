@@ -174,6 +174,7 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
     tenantId: row.tenant_id ?? 1,
     callId,
     productOverride: scriptProductOverride ?? undefined,
+    managerId: row.manager_id ?? undefined,
   });
   if (product) {
     await db.prepare(`UPDATE calls SET detected_product = ? WHERE id = ?`).run(product, callId);
@@ -272,12 +273,33 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   // 6.6. §Фаза-2 CRM-карточка: запускаем async, не ждём — не блокируем основной пайплайн
   detectDiscrepancies(callId).catch((e) => console.error("[discrepancy]", e));
 
-  // 7. Sync back в Bitrix — пропускаем если DRY_RUN или нет webhook URL
+  // 7. Sync back в Bitrix — пропускаем если DRY_RUN, нет webhook URL,
+  //    или у менеджера выключен перенос анализа в CRM (managers.crm_sync_enabled).
+  //    Все три условия должны разрешать запись: DRY_RUN off И webhook задан И crm_sync_enabled on.
   await setCallStatus(callId, "syncing");
   const dryRun = await isDryRunForTenant(row.tenant_id ?? 1);
   const hasWebhook = !!process.env.BITRIX_WEBHOOK_URL?.trim();
-  if (dryRun || !hasWebhook) {
-    const reason = dryRun ? "DRY_RUN=true (per-tenant or global)" : "BITRIX_WEBHOOK_URL не задан";
+
+  // Per-manager флаг переноса в CRM. Default off: пишем только для явно включённых менеджеров.
+  // Если менеджера нет в таблице / колонки ещё нет — считаем выключенным (безопасно).
+  let crmSyncEnabled = false;
+  if (row.manager_id) {
+    try {
+      const mrow = await db
+        .prepare(`SELECT crm_sync_enabled FROM managers WHERE id = ?`)
+        .get<{ crm_sync_enabled: number | boolean | null }>(row.manager_id);
+      crmSyncEnabled = mrow?.crm_sync_enabled === 1 || mrow?.crm_sync_enabled === true;
+    } catch (e) {
+      console.warn(`[pipeline] #${callId} load crm_sync_enabled failed:`, (e as Error).message);
+    }
+  }
+
+  if (dryRun || !hasWebhook || !crmSyncEnabled) {
+    const reason = dryRun
+      ? "DRY_RUN=true (per-tenant or global)"
+      : !hasWebhook
+        ? "BITRIX_WEBHOOK_URL не задан"
+        : "CRM-sync выключен для менеджера";
     await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
       `sync skipped: ${reason}`,
       callId
@@ -350,11 +372,14 @@ async function loadActiveScripts(): Promise<ResolvedScript[]> {
  *  4. Любой активный (fallback)
  *
  * productOverride — принудительно задать продукт (МП / МК) без auto-detect.
+ * managerId — bitrix id менеджера звонка: если за ним закреплён default_product,
+ *   он передаётся в detectProduct как ПРИОРИТЕТНАЯ подсказка (bias) и используется
+ *   как fallback если AI не уверен. Ручной productOverride всегда главнее.
  */
 async function pickScriptForCall(
   transcript: string,
   callDirection: "in" | "out" | null,
-  opts: { tenantId?: number; callId?: number; productOverride?: string } = {}
+  opts: { tenantId?: number; callId?: number; productOverride?: string; managerId?: string } = {}
 ): Promise<{ product: string | null; script: ResolvedScript | null }> {
   const scripts = await loadActiveScripts();
   if (scripts.length === 0) return { product: null, script: null };
@@ -366,6 +391,20 @@ async function pickScriptForCall(
     product = opts.productOverride;
     console.log(`[pipeline] productOverride="${product}" — auto-detect пропущен`);
   } else {
+    // Закреплённый за менеджером продукт — приоритетная подсказка AI + fallback.
+    let managerDefaultProduct: string | null = null;
+    if (opts.managerId) {
+      try {
+        const mrow = await getDbAsync()
+          .prepare(`SELECT default_product FROM managers WHERE id = ?`)
+          .get<{ default_product: string | null }>(opts.managerId);
+        managerDefaultProduct = mrow?.default_product ?? null;
+      } catch (e) {
+        // Колонка может ещё не существовать на старой БД — мягко игнорируем
+        console.warn("[pipeline] load manager default_product failed:", (e as Error).message);
+      }
+    }
+
     const productCodes = [...new Set(scripts.map((s) => s.product).filter((p): p is string => !!p))];
     const candidates: ProductCandidate[] = productCodes.map((code) => {
       // Собираем ключевые фразы из всех активных скриптов этого продукта —
@@ -381,10 +420,18 @@ async function pickScriptForCall(
     });
 
     if (candidates.length > 1) {
-      try { product = await detectProduct(transcript, candidates, opts); }
+      try { product = await detectProduct(transcript, candidates, { ...opts, hintProduct: managerDefaultProduct }); }
       catch (e) { console.warn("[pipeline] detectProduct failed:", (e as Error).message); }
     } else if (candidates.length === 1) {
       product = candidates[0].code;
+    }
+
+    // Fallback: AI не уверен (null) — берём закреплённый продукт менеджера,
+    // если он валиден (есть среди кандидатов).
+    if (!product && managerDefaultProduct &&
+        candidates.some((c) => c.code.toLowerCase() === managerDefaultProduct.toLowerCase())) {
+      product = candidates.find((c) => c.code.toLowerCase() === managerDefaultProduct.toLowerCase())!.code;
+      console.log(`[pipeline] detect unsure → fallback to manager default_product="${product}"`);
     }
   }
 
@@ -411,41 +458,15 @@ async function syncBackToBitrix(row: CallRow, analysis: CallAnalysis) {
   const ownerId = row.bitrix_deal_id || row.bitrix_lead_id || row.bitrix_contact_id;
   if (!ownerType || !ownerId) return;
 
-  const sentimentLabel =
-    analysis.sentiment === "positive" ? "положительное" :
-    analysis.sentiment === "negative" ? "отрицательное" : "нейтральное";
-
-  const checklistBlock = (analysis.checklist_scores || [])
-    .map((c) => {
-      const pct = Math.round(c.score * 100);
-      const mark = c.score >= 0.8 ? "[V]" : c.score >= 0.4 ? "[~]" : "[X]";
-      return `${mark} ${c.title} — ${pct}% ${c.notes ? `(${c.notes})` : ""}`;
-    })
-    .join("\n") || "—";
-
+  // По запросу заказчика комментарий максимально короткий: только краткое
+  // содержание + следующий шаг. Настроение/оценка/чек-лист/возражения/темы/
+  // «что хочет заказчик» (client_intent) НЕ переносим. Полный разбор — в Call-Agent.
   const comment = `[B]Анализ звонка (Call-Agent)[/B]
-Настроение: ${sentimentLabel}
-Оценка менеджера: ${analysis.manager_score}/10
-Чек-лист QC: ${Math.round((analysis.checklist_compliance || 0) * 100)}%
-${analysis.client_name ? `Заказчик: ${analysis.client_name}` : ""}
 
 [B]Краткое содержание:[/B]
 ${analysis.summary}
 
-[B]Что хочет заказчик:[/B] ${analysis.client_intent}
-
-[B]Возражения:[/B]
-${(analysis.objections || []).map((o) => `- ${o}`).join("\n") || "—"}
-
-[B]По чек-листу:[/B]
-${checklistBlock}
-
-[B]Темы:[/B] ${(analysis.topics || []).join(", ") || "—"}
-
-[B]Следующий шаг:[/B] ${analysis.next_action}
-
------
-[I]Полная стенограмма и диалог сохранены в Call-Agent.[/I]`;
+[B]Следующий шаг:[/B] ${analysis.next_action}`;
 
   await crmTimelineCommentAdd({
     entityTypeId: ownerType,

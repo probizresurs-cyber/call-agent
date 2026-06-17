@@ -69,7 +69,9 @@ export default async function AuthedLayout({ children }: { children: React.React
       badge: pendingDiscrepanciesCount,
     });
     navItems.push({ href: "/reports", label: "Отчёты", icon: "FileText" });
-    navItems.push({ href: "/onboarding-requests", label: "Заявки", icon: "ClipboardList" });
+    // «Заявки» (онбординг новых клиентов) — внутренний инструмент, в меню платформы
+    // не показываем. Просмотр заявок — в админ-кабинете Call-Agent (MarketRadar).
+    // Роут /onboarding-requests остаётся доступен по прямой ссылке для владельца.
   }
   if (showSettings) {
     navItems.push({ href: "/settings", label: "Настройки", icon: "Settings" });

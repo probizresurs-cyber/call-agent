@@ -78,6 +78,16 @@ function applyAlterMigrations(db: Database.Database) {
   ensureColumn("managers", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn("sales_scripts", "tenant_id", "INTEGER NOT NULL DEFAULT 1");
 
+  // ─────── Per-manager: закреплённый продукт + перенос анализа в CRM ───────
+  // default_product — ПРИОРИТЕТНАЯ подсказка AI-детекту (не жёсткая привязка):
+  //   NULL = продукт не закреплён, AI определяет сам.
+  //   код продукта (МП/МК/...) = склоняем AI к нему при прочих равных + fallback.
+  ensureColumn("managers", "default_product", "TEXT");
+  // crm_sync_enabled — разрешить перенос комментария анализа в timeline сделки Bitrix.
+  //   Default 0 (выключено): включается осознанно для конкретных менеджеров.
+  //   Работает В ДОПОЛНЕНИЕ к DRY_RUN-гарду (оба должны разрешать запись).
+  ensureColumn("managers", "crm_sync_enabled", "INTEGER NOT NULL DEFAULT 0");
+
   // user_id у platform-пользователей кто может видеть звонок (linked manager)
   ensureColumn("calls", "user_id", "INTEGER"); // NULL = не привязан к пользователю платформы
 
@@ -344,6 +354,8 @@ CREATE TABLE IF NOT EXISTS managers (
   name TEXT,
   email TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
+  default_product TEXT,            -- закреплённый продукт (приоритетная подсказка AI), NULL = не закреплён
+  crm_sync_enabled INTEGER NOT NULL DEFAULT 0,  -- переносить анализ в CRM Bitrix (default off)
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

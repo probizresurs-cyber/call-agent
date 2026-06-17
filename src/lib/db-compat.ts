@@ -76,7 +76,7 @@ function adaptSqlToPg(sql: string): string {
   // SQLite хранит boolean как INT 0/1; PG — настоящий boolean. Конвертируем литералы для известных
   // boolean-колонок в SQL (только сравнения = 1 / = 0 и COALESCE(...,1/0)). Параметры (?$N) Adapter
   // не знает по типу — boolean параметры должны передаваться в код как true/false (better-sqlite3 OK).
-  const boolCols = ["is_active", "is_service", "is_admin", "is_owner"];
+  const boolCols = ["is_active", "is_service", "is_admin", "is_owner", "crm_sync_enabled"];
   for (const col of boolCols) {
     out = out.replace(new RegExp(`(\\b${col})\\s*=\\s*1\\b`, "gi"), "$1 = TRUE");
     out = out.replace(new RegExp(`(\\b${col})\\s*=\\s*0\\b`, "gi"), "$1 = FALSE");
@@ -355,6 +355,8 @@ function makePgDb(): CompatDb {
       `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS key_phrases      TEXT`,
       `ALTER TABLE sales_scripts ADD COLUMN IF NOT EXISTS tenant_id        INTEGER NOT NULL DEFAULT 1`,
       `ALTER TABLE managers  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER NOT NULL DEFAULT 1`,
+      `ALTER TABLE managers  ADD COLUMN IF NOT EXISTS default_product      TEXT`,
+      `ALTER TABLE managers  ADD COLUMN IF NOT EXISTS crm_sync_enabled     BOOLEAN NOT NULL DEFAULT FALSE`,
       `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS user_id              INTEGER`,
       `ALTER TABLE sessions  ADD COLUMN IF NOT EXISTS tenant_id            INTEGER`,
       `ALTER TABLE tenants   ADD COLUMN IF NOT EXISTS discrepancy_enabled           BOOLEAN DEFAULT FALSE`,

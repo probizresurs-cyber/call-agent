@@ -20,7 +20,16 @@ interface DetectResult {
 export async function detectProduct(
   transcript: string,
   candidates: ProductCandidate[],
-  opts: { tenantId?: number; callId?: number } = {}
+  opts: {
+    tenantId?: number;
+    callId?: number;
+    /**
+     * Приоритетная подсказка: код продукта, закреплённый за менеджером звонка.
+     * НЕ жёсткая привязка — AI склоняется к нему при прочих равных, но может
+     * выбрать другой продукт если разговор явно о нём.
+     */
+    hintProduct?: string | null;
+  } = {}
 ): Promise<string | null> {
   if (candidates.length === 0) return null;
   if (candidates.length === 1) return candidates[0].code;
@@ -42,6 +51,17 @@ export async function detectProduct(
       `\nЕсли в разговоре встречаются эти фразы или похожие по смыслу — выбирай соответствующий скрипт.\n`
     : "";
 
+  // Приоритетная подсказка от закреплённого за менеджером продукта.
+  // Валидна только если совпадает с одним из кандидатов (иначе игнорируем).
+  const hint = (opts.hintProduct || "").trim();
+  const hintCandidate = hint
+    ? candidates.find((p) => p.code.toLowerCase() === hint.toLowerCase())
+    : undefined;
+  const hintBlock = hintCandidate
+    ? `\nУ этого менеджера обычно продукт "${hintCandidate.code}" — при прочих равных склоняйся к нему. ` +
+      `Но если разговор явно о другом продукте из списка — выбери правильный, не цепляйся за подсказку.\n`
+    : "";
+
   const codes = candidates.map((p) => p.code);
   const snippet = transcript.length > 2000 ? transcript.slice(0, 2000) + "..." : transcript;
 
@@ -60,7 +80,7 @@ export async function detectProduct(
   const system = "Ты классификатор B2B-звонков. Отвечаешь только через инструмент save_detection. Никаких лишних слов.";
   const user = `Определи о каком продукте идёт речь в звонке. Возможные варианты:
 ${productsList}
-${keyPhrasesBlock}
+${keyPhrasesBlock}${hintBlock}
 Если разговор слишком короткий или непонятно — product_code='unknown'.
 Если упоминаются оба продукта — верни тот о котором говорят больше.
 
