@@ -11,3 +11,6 @@ data/*.db-shm
 storage/recordings/*
 !storage/recordings/.gitkeep
 .DS_Store
+
+# TS incremental build cache
+tsconfig.tsbuildinfo
