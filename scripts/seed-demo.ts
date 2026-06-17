@@ -219,14 +219,14 @@ async function main() {
   const hash = await bcrypt.hash(DEMO_PASSWORD, 10);
   await db.prepare(
     `INSERT INTO users (tenant_id, login, password_hash, role, name, is_active)
-     VALUES (?, ?, ?, 'demo', ?, 1)`
+     VALUES (?, ?, ?, 'demo', ?, TRUE)`
   ).run(DEMO_TENANT, DEMO_LOGIN, hash, "Демо-доступ (ООО Ромашка)");
   console.log(`[seed-demo] ✓ пользователь login=${DEMO_LOGIN} (role=demo)`);
 
   // ── 4. МЕНЕДЖЕРЫ ──────────────────────────────────────────────
   for (const m of MANAGERS) {
     await db.prepare(
-      `INSERT INTO managers (id, name, is_active, tenant_id) VALUES (?, ?, 1, ?)`
+      `INSERT INTO managers (id, name, is_active, tenant_id) VALUES (?, ?, TRUE, ?)`
     ).run(m.id, m.name, DEMO_TENANT);
   }
   console.log(`[seed-demo] ✓ менеджеров: ${MANAGERS.length}`);
@@ -234,7 +234,7 @@ async function main() {
   // ── 5. СКРИПТЫ ────────────────────────────────────────────────
   await db.prepare(
     `INSERT INTO sales_scripts (name, content_md, is_active, checklist_json, product, direction, key_phrases, tenant_id)
-     VALUES (?, ?, 1, ?, 'МП', 'all', ?, ?)`
+     VALUES (?, ?, TRUE, ?, 'МП', 'all', ?, ?)`
   ).run(
     "Продажа модульных павильонов (МП)",
     "# Скрипт продажи модульных павильонов\n\nЦель — выявить задачу заказчика и продать павильон под ключ.\n\n1. Приветствие\n2. Выявление потребности (размер, назначение, сроки)\n3. Презентация выгод\n4. Отработка возражений\n5. Цена и условия\n6. Договорённость о следующем шаге.",
@@ -244,7 +244,7 @@ async function main() {
   );
   await db.prepare(
     `INSERT INTO sales_scripts (name, content_md, is_active, checklist_json, product, direction, key_phrases, tenant_id)
-     VALUES (?, ?, 1, ?, 'МК', 'all', ?, ?)`
+     VALUES (?, ?, TRUE, ?, 'МК', 'all', ?, ?)`
   ).run(
     "Продажа металлоконструкций (МК)",
     "# Скрипт продажи металлоконструкций\n\nЦель — квалифицировать проект и довести до договора.\n\n1. Приветствие\n2. Выявление потребности (вес, проект, сроки)\n3. Презентация технологии\n4. Отработка возражений\n5. Цена и условия\n6. Договорённость о следующем шаге.",
@@ -267,12 +267,12 @@ async function main() {
 
     const callRes = await db.prepare(
       `INSERT INTO calls
-         (bitrix_call_id, bitrix_deal_id, manager_id, manager_name, client_phone, direction,
+         (bitrix_call_id, bitrix_deal_id, manager_id, manager_name, client_phone, client_name, direction,
           started_at, duration_sec, recording_url, status, interaction_type, channel,
           detected_product, tenant_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
-      bitrixCallId, bitrixDealId, c.manager.id, c.manager.name, c.client.phone, c.direction,
+      bitrixCallId, bitrixDealId, c.manager.id, c.manager.name, c.client.phone, c.client.name, c.direction,
       started, c.duration, recordingUrl, c.status, c.type, c.channel,
       c.product, DEMO_TENANT
     );
