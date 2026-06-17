@@ -25,8 +25,10 @@ export async function GET(request: NextRequest) {
   } catch (e) {
     console.error("[demo] loginDemo failed:", (e as Error).message);
   }
-  // basePath /call-agent включаем в путь явно (NextResponse.redirect требует
-  // абсолютный URL; new URL подставит хост из request.url).
-  const dest = ok ? "/call-agent/dashboard" : "/call-agent/login";
-  return NextResponse.redirect(new URL(dest, request.url));
+  // ВАЖНО: за nginx-прокси request.url = внутренний http://localhost:3030/...
+  // Если редиректить от него — браузер уйдёт на localhost:3030 (ERR_CONNECTION_REFUSED).
+  // Поэтому берём ПУБЛИЧНЫЙ хост из NEXT_PUBLIC_BASE_URL (как в ShareDashboardButton).
+  const base = (process.env.NEXT_PUBLIC_BASE_URL || "https://marketradar24.ru").replace(/\/+$/, "");
+  const dest = ok ? `${base}/call-agent/dashboard` : `${base}/call-agent/login`;
+  return NextResponse.redirect(dest);
 }
