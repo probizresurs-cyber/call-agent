@@ -2,17 +2,23 @@
  * seed-demo.ts — наполнение публичного ДЕМО-режима (витрина для клиентов).
  *
  * Создаёт изолированный тенант id=9999 «ООО Ромашка» с вымышленными, но
- * правдоподобными данными: 5 менеджеров, 2 скрипта, ~23 взаимодействия
- * (звонки/чаты/email/встреча) + анализы + транскрипты, и demo-пользователя
- * (login=test, role=demo) для входа без пароля через /call-agent/demo.
+ * правдоподобными данными: 5 менеджеров, 2 скрипта, ~130-150 взаимодействий
+ * (звонки/чаты/email/встречи) за последние 30 дней + анализы + транскрипты +
+ * расхождения с CRM, и demo-пользователя (login=test, role=demo) для входа
+ * без пароля через /call-agent/demo.
  *
  * Запуск (как остальные scripts — через tsx, см. package.json):
  *   npx tsx scripts/seed-demo.ts
  * На проде (Postgres) — заранее экспортировать DB_DRIVER=postgres и DATABASE_URL
  * (они и так в .env, loadEnv их подхватит).
  *
- * Идемпотентно: при каждом запуске сначала полностью удаляет данные тенанта 9999,
- * затем создаёт заново. Безопасно гонять сколько угодно раз.
+ * Идемпотентно: при каждом запуске сначала полностью удаляет данные тенанта 9999
+ * (включая card_discrepancies), затем создаёт заново. Безопасно гонять сколько угодно раз.
+ *
+ * ВАЖНО про идемпотентность генератора: взаимодействия генерируются ДЕТЕРМИНИРОВАННО
+ * (счётчик i + арифметика по индексам массивов), БЕЗ Math.random()/Date.now() в значениях,
+ * чтобы повторный запуск давал тот же набор. Даты считаем от new Date() через вычитание
+ * daysAgo — это обычный Node-скрипт, не workflow, так что текущая дата допустима.
  *
  * Изоляция: ВСЁ привязано к tenant_id = 9999. Боевые данные (tenant 1 и др.) не трогаются.
  */
@@ -29,16 +35,23 @@ const DEMO_TENANT_NAME = "ООО Ромашка";
 const DEMO_LOGIN = "test";
 const DEMO_PASSWORD = "test";
 
-// Менеджеры (Bitrix-id 900001..900005)
+// Сколько взаимодействий генерируем (в диапазоне «как у живого клиента ~150 звонков»).
+const TOTAL_INTERACTIONS = 140;
+// Глубина истории в днях (динамика 14 дней + помесячные графики наполнены).
+const DAYS_SPAN = 30;
+
+// Менеджеры (Bitrix-id 900001..900005).
+// baseScore — «средний уровень» менеджера: задаёт разброс лидерборда (одни сильнее других).
 const MANAGERS = [
-  { id: "900001", name: "Иванов Иван" },
-  { id: "900002", name: "Петрова Анна" },
-  { id: "900003", name: "Сидоров Пётр" },
-  { id: "900004", name: "Кузнецова Мария" },
-  { id: "900005", name: "Орлов Дмитрий" },
+  { id: "900001", name: "Иванов Иван", baseScore: 7.8 },
+  { id: "900002", name: "Петрова Анна", baseScore: 8.6 },
+  { id: "900003", name: "Сидоров Пётр", baseScore: 5.9 },
+  { id: "900004", name: "Кузнецова Мария", baseScore: 8.1 },
+  { id: "900005", name: "Орлов Дмитрий", baseScore: 6.4 },
 ];
 
 // Заказчики — повторяются у разных взаимодействий (чтобы в /clients были профили с историей).
+// Расширено до 20 (разные ООО/ИП/ЗАО).
 const CLIENTS = [
   { name: "ООО СтройМир", phone: "+79001112201" },
   { name: "ИП Васильев", phone: "+79001112202" },
@@ -48,11 +61,63 @@ const CLIENTS = [
   { name: "ООО ГрадМонтаж", phone: "+79001112206" },
   { name: "ИП Соколова", phone: "+79001112207" },
   { name: "ООО Запад", phone: "+79001112208" },
+  { name: "ООО МеталлТорг", phone: "+79001112209" },
+  { name: "ИП Григорьев", phone: "+79001112210" },
+  { name: "ООО ПромКаркас", phone: "+79001112211" },
+  { name: "ЗАО СеверСталь-Сервис", phone: "+79001112212" },
+  { name: "ООО Уют-Павильон", phone: "+79001112213" },
+  { name: "ИП Морозова", phone: "+79001112214" },
+  { name: "ООО ГорТорг", phone: "+79001112215" },
+  { name: "ООО ТехСнаб", phone: "+79001112216" },
+  { name: "ИП Лебедев", phone: "+79001112217" },
+  { name: "ООО СтальМонтажСервис", phone: "+79001112218" },
+  { name: "ЗАО ВолгаСтрой", phone: "+79001112219" },
+  { name: "ООО КиоскГрупп", phone: "+79001112220" },
 ];
 
-const OBJECTIONS = ["дорого", "посоветоваться", "работаем с другими", "не сезон"];
-const TOPICS_MP = ["модульные павильоны", "сроки изготовления", "монтаж под ключ", "размеры", "цена за модуль"];
-const TOPICS_MK = ["металлоконструкции", "вес конструкции", "проектная документация", "доставка", "оцинковка"];
+const OBJECTIONS = ["дорого", "посоветоваться", "работаем с другими", "не сезон", "нет бюджета", "долгие сроки"];
+const TOPICS_MP = ["модульные павильоны", "сроки изготовления", "монтаж под ключ", "размеры", "цена за модуль", "комплектация", "гарантия"];
+const TOPICS_MK = ["металлоконструкции", "вес конструкции", "проектная документация", "доставка", "оцинковка", "монтаж на объекте", "спецификация"];
+
+// Шаблоны summary под продукт — комбинируем по индексам, чтобы звучало по-разному.
+const SUMMARIES_MP = [
+  "Презентовал модульный павильон {size} м, клиент заинтересован, запросил КП. Договорились о расчёте под ключ.",
+  "Повторный контакт по павильону. Клиент думает, попросил скидку и сравнение с конкурентами.",
+  "Входящий по модульному павильону для торговой точки. Уточнял сроки изготовления и комплектацию.",
+  "Эталонный звонок: полная квалификация, презентация выгод, договорённость о сделке с датой.",
+  "Клиент недоволен сроками изготовления. Менеджер отработал возражение, предложил ускоренную сборку.",
+  "Согласовали павильон для летнего кафе, обсудили монтаж под ключ и рассрочку.",
+  "Короткий входящий — уточнение цены за модуль. Менеджер выслал каталог и предложил созвон.",
+  "Клиент выбирает между павильоном 4×4 и 6×3. Менеджер помог определиться по задаче.",
+];
+const SUMMARIES_MK = [
+  "Обсудили проект металлокаркаса ангара. Клиент попросил оцинковку, согласовали доплату.",
+  "Входящий по крупному заказу металлоконструкций. Хорошая квалификация, бюджет подтверждён.",
+  "Согласовали спецификацию металлокаркаса. Клиент подтвердил готовность к договору.",
+  "Жалоба на задержку доставки металлоконструкций. Менеджер согласовал новую дату.",
+  "Уточняли вес фермы и проектную документацию. Передали запрос проектировщикам.",
+  "Закрыл возражение «работаем с другими», показал преимущество по срокам и оцинковке.",
+  "Обсудили монтаж металлоконструкций на объекте, клиент доволен подходом и сроками.",
+  "Входящее письмо с ТЗ на металлоконструкции. Менеджер ответил с уточняющими вопросами.",
+];
+
+const NEXT_ACTIONS = [
+  "Отправить КП до завтра, перезвонить через 2 дня",
+  "Выставить счёт, согласовать монтаж на след. неделе",
+  "Запросить чертёж, подготовить смету",
+  "Согласовать скидку с руководителем",
+  "Назначить встречу с инженером",
+  "Выезд замерщика на этой неделе",
+  "Отправить сравнительное КП и кейсы",
+  "Контрольный звонок через 2 дня",
+  "Подготовить договор и счёт",
+  "Перезвонить с расчётом",
+];
+
+const STAGES = ["cold", "qualification", "deal_followup", "informational", "no_contact"];
+
+// Типоразмеры павильонов для подстановки в summary {size}.
+const MP_SIZES = ["6×3", "4×4", "3×3", "6×4", "5×2,5", "8×4"];
 
 // ─────────────────────────────────────────────────────────────
 // Описание одного демо-взаимодействия (план — потом раскладываем по датам/менеджерам).
@@ -76,36 +141,135 @@ interface DemoCall {
   withDeal: boolean;
 }
 
-// 23 взаимодействия. type-микс: 18 call / 2 chat / 2 email / 1 meeting.
-// duration: большинство 60..600, 2 пропущенных (duration=0), статус 1 no_recording.
-const PLAN: DemoCall[] = [
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 312, status: "done", client: CLIENTS[0], manager: MANAGERS[0], daysAgo: 0, product: "МП", sentiment: "positive", score: 8.5, compliance: 0.86, summary: "Презентовал модульный павильон 6×3 м, клиент заинтересован, запросил КП. Договорились о расчёте под ключ.", nextAction: "Отправить КП до завтра, перезвонить через 2 дня", stage: "qualification", objections: [], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "in", duration: 145, status: "done", client: CLIENTS[1], manager: MANAGERS[1], daysAgo: 0, product: "МК", sentiment: "neutral", score: 6, compliance: 0.62, summary: "Входящий по металлоконструкциям. Уточнял вес фермы и сроки. Менеджер не выявил бюджет.", nextAction: "Запросить чертёж, подготовить смету", stage: "cold", objections: ["посоветоваться"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 0, status: "no_recording", client: CLIENTS[2], manager: MANAGERS[2], daysAgo: 1, product: "МК", sentiment: "neutral", score: 0, compliance: 0, summary: "Недозвон — клиент не взял трубку.", nextAction: "Перезвонить через 1 день", stage: "no_contact", objections: [], withDeal: false },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 487, status: "done", client: CLIENTS[3], manager: MANAGERS[3], daysAgo: 1, product: "МП", sentiment: "positive", score: 9, compliance: 0.91, summary: "Отличный звонок: выявил потребность (павильон для летнего кафе), отработал «дорого» через рассрочку. Клиент готов к сделке.", nextAction: "Выставить счёт, согласовать монтаж на след. неделе", stage: "deal_followup", objections: ["дорого"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "in", duration: 78, status: "done", client: CLIENTS[4], manager: MANAGERS[0], daysAgo: 2, product: "МП", sentiment: "negative", score: 4, compliance: 0.4, summary: "Клиент недоволен сроками изготовления. Менеджер не смог удержать, разговор скомкан.", nextAction: "Эскалация РОПу, перезвонить с решением", stage: "qualification", objections: ["не сезон", "работаем с другими"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 256, status: "done", client: CLIENTS[5], manager: MANAGERS[1], daysAgo: 2, product: "МК", sentiment: "positive", score: 7.5, compliance: 0.78, summary: "Согласовали проект металлокаркаса ангара. Клиент попросил оцинковку, обсудили доплату.", nextAction: "Подготовить договор с учётом оцинковки", stage: "deal_followup", objections: [], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 198, status: "done", client: CLIENTS[6], manager: MANAGERS[2], daysAgo: 3, product: "МП", sentiment: "neutral", score: 6.5, compliance: 0.68, summary: "Повторный контакт по павильону. Клиент думает, попросил скидку.", nextAction: "Согласовать скидку 5% с руководителем", stage: "qualification", objections: ["дорого", "посоветоваться"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "in", duration: 423, status: "done", client: CLIENTS[7], manager: MANAGERS[3], daysAgo: 3, product: "МК", sentiment: "positive", score: 8, compliance: 0.83, summary: "Входящий по большому заказу металлоконструкций. Хорошая квалификация, бюджет подтверждён.", nextAction: "Назначить встречу с инженером", stage: "qualification", objections: [], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 0, status: "done", client: CLIENTS[0], manager: MANAGERS[4], daysAgo: 4, product: "МП", sentiment: "neutral", score: 3, compliance: 0.3, summary: "Дозвонился, но клиент попросил перезвонить позже. Короткий контакт.", nextAction: "Перезвонить завтра в 11:00", stage: "no_contact", objections: [], withDeal: false },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 367, status: "done", client: CLIENTS[1], manager: MANAGERS[0], daysAgo: 4, product: "МК", sentiment: "positive", score: 8.2, compliance: 0.88, summary: "Закрыл возражение «работаем с другими», показал преимущество по срокам. Клиент готов рассмотреть КП.", nextAction: "Отправить сравнительное КП", stage: "qualification", objections: ["работаем с другими"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "in", duration: 132, status: "done", client: CLIENTS[2], manager: MANAGERS[1], daysAgo: 5, product: "МП", sentiment: "neutral", score: 5.5, compliance: 0.55, summary: "Уточнял комплектацию павильона. Менеджер дал ответ, но не предложил следующий шаг чётко.", nextAction: "Уточнить потребность, выслать каталог", stage: "cold", objections: [], withDeal: false },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 289, status: "done", client: CLIENTS[3], manager: MANAGERS[2], daysAgo: 5, product: "МК", sentiment: "positive", score: 7.8, compliance: 0.8, summary: "Обсудили монтаж металлоконструкций на объекте, клиент доволен подходом.", nextAction: "Выезд замерщика в четверг", stage: "deal_followup", objections: [], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 521, status: "done", client: CLIENTS[4], manager: MANAGERS[3], daysAgo: 6, product: "МП", sentiment: "positive", score: 9.2, compliance: 0.93, summary: "Эталонный звонок: полная квалификация, презентация выгод, договорённость о сделке с датой.", nextAction: "Подписание договора в понедельник", stage: "deal_followup", objections: ["дорого"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "in", duration: 167, status: "done", client: CLIENTS[5], manager: MANAGERS[4], daysAgo: 6, product: "МК", sentiment: "negative", score: 4.5, compliance: 0.45, summary: "Жалоба на задержку доставки. Менеджер извинился, но решения не предложил.", nextAction: "Согласовать новую дату доставки, перезвонить", stage: "deal_followup", objections: ["не сезон"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 234, status: "done", client: CLIENTS[6], manager: MANAGERS[0], daysAgo: 7, product: "МП", sentiment: "neutral", score: 6.8, compliance: 0.7, summary: "Повторный контакт, клиент всё ещё выбирает. Нужно усилить аргументацию.", nextAction: "Отправить кейсы похожих проектов", stage: "qualification", objections: ["посоветоваться"], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 398, status: "done", client: CLIENTS[7], manager: MANAGERS[1], daysAgo: 8, product: "МК", sentiment: "positive", score: 8.4, compliance: 0.87, summary: "Согласовали спецификацию металлокаркаса. Клиент подтвердил готовность к договору.", nextAction: "Подготовить договор и счёт", stage: "deal_followup", objections: [], withDeal: true },
-  { type: "call", channel: "bitrix_telephony", direction: "in", duration: 91, status: "done", client: CLIENTS[0], manager: MANAGERS[2], daysAgo: 9, product: "МП", sentiment: "neutral", score: 5, compliance: 0.5, summary: "Короткий входящий, уточнение цены. Без развития диалога.", nextAction: "Перезвонить с расчётом", stage: "cold", objections: ["дорого"], withDeal: false },
-  { type: "call", channel: "bitrix_telephony", direction: "out", duration: 312, status: "done", client: CLIENTS[1], manager: MANAGERS[3], daysAgo: 10, product: "МК", sentiment: "positive", score: 7.6, compliance: 0.79, summary: "Хороший контакт по проекту ангара, клиент запросил проектную документацию.", nextAction: "Передать запрос проектировщикам", stage: "qualification", objections: [], withDeal: true },
-  // ─── чаты (2) ───
-  { type: "chat", channel: "openlines", direction: "in", duration: 0, status: "done", client: CLIENTS[2], manager: MANAGERS[4], daysAgo: 1, product: "МП", sentiment: "positive", score: 7, compliance: 0.72, summary: "Чат WhatsApp: клиент уточнил наличие павильонов 4×4, менеджер быстро ответил и предложил расчёт.", nextAction: "Отправить расчёт в чат", stage: "qualification", objections: [], withDeal: true },
-  { type: "chat", channel: "openlines", direction: "in", duration: 0, status: "done", client: CLIENTS[5], manager: MANAGERS[0], daysAgo: 3, product: "МК", sentiment: "neutral", score: 6, compliance: 0.6, summary: "Чат Telegram: вопрос по весу конструкции. Ответ дан, но без призыва к действию.", nextAction: "Предложить созвон", stage: "cold", objections: ["посоветоваться"], withDeal: false },
-  // ─── email (2) ───
-  { type: "email", channel: "email_imap", direction: "in", duration: 0, status: "done", client: CLIENTS[3], manager: MANAGERS[1], daysAgo: 2, product: "МК", sentiment: "neutral", score: 6.5, compliance: 0.66, summary: "Входящее письмо с ТЗ на металлоконструкции. Менеджер ответил с уточняющими вопросами.", nextAction: "Получить ответы, подготовить смету", stage: "qualification", objections: [], withDeal: true },
-  { type: "email", channel: "email_imap", direction: "out", duration: 0, status: "done", client: CLIENTS[7], manager: MANAGERS[2], daysAgo: 5, product: "МП", sentiment: "positive", score: 7.4, compliance: 0.75, summary: "Отправлено КП на модульный павильон. Письмо структурное, с выгодами и сроками.", nextAction: "Контрольный звонок через 2 дня", stage: "deal_followup", objections: [], withDeal: true },
-  // ─── встреча (1) ───
-  { type: "meeting", channel: "zoom", direction: "out", duration: 1680, status: "done", client: CLIENTS[4], manager: MANAGERS[3], daysAgo: 4, product: "МК", sentiment: "positive", score: 8.8, compliance: 0.9, summary: "Онлайн-встреча по крупному проекту металлоконструкций. Презентация, обсуждение этапов, бюджет согласован.", nextAction: "Подготовить договор поэтапной оплаты", stage: "deal_followup", objections: ["дорого"], withDeal: true },
-];
+// ─────────────────────────────────────────────────────────────
+// Детерминированный генератор взаимодействий.
+// Никакого Math.random()/Date.now() — всё от индекса i и простой арифметики,
+// чтобы повторный запуск давал тот же набор (идемпотентность).
+function buildPlan(): DemoCall[] {
+  const plan: DemoCall[] = [];
+  for (let i = 0; i < TOTAL_INTERACTIONS; i++) {
+    // ── Тип взаимодействия: ~80% call, ~8% chat, ~6% email, ~6% meeting ──
+    const typeRoll = i % 25; // 0..24: 0-19 call(20/25=80%), 20-21 chat(8%), 22-23 email(8%→правим), 24 meeting
+    let type: DemoCall["type"];
+    let channel: string;
+    if (typeRoll < 20) {
+      type = "call";
+      channel = "bitrix_telephony";
+    } else if (typeRoll < 22) {
+      type = "chat";
+      channel = i % 2 === 0 ? "openlines" : "openlines";
+    } else if (typeRoll < 24) {
+      type = "email";
+      channel = "email_imap";
+    } else {
+      type = "meeting";
+      channel = i % 2 === 0 ? "zoom" : "yandex_telemost";
+    }
+
+    // ── Менеджер и заказчик — крутим по индексам (разные шаги, чтобы не залипали пары) ──
+    const manager = MANAGERS[i % MANAGERS.length];
+    const client = CLIENTS[(i * 3 + 1) % CLIENTS.length];
+
+    // ── Дата: раскидываем по 0..(DAYS_SPAN-1) дням; ближе к сегодня — чуть плотнее ──
+    const daysAgo = (i * 7) % DAYS_SPAN;
+
+    // ── Продукт: баланс МП/МК (чётные → МП, нечётные → МК, с небольшим перекосом) ──
+    const product: "МП" | "МК" = (i + (i % 3)) % 2 === 0 ? "МП" : "МК";
+
+    // ── Статус: ~88% done, ~8% no_recording, остальное done ──
+    // no_recording даём только звонкам (у чатов/email/встреч записи нет смысла).
+    const statusRoll = i % 12;
+    const status: DemoCall["status"] =
+      type === "call" && (statusRoll === 3 || statusRoll === 9) ? "no_recording" : "done";
+
+    // ── Длительность 0..900: для звонков разнообразная, для остального 0 (или длинная встреча) ──
+    let duration = 0;
+    if (type === "call") {
+      duration = status === "no_recording" ? 0 : 45 + ((i * 53) % 800); // 45..845
+    } else if (type === "meeting") {
+      duration = 900 + ((i * 31) % 1500); // встречи длиннее
+    }
+
+    // ── Тональность: ~45% positive, ~40% neutral, ~15% negative ──
+    const sentRoll = i % 20;
+    const sentiment: DemoCall["sentiment"] =
+      sentRoll < 9 ? "positive" : sentRoll < 17 ? "neutral" : "negative";
+
+    // ── Оценка менеджера: вокруг baseScore менеджера + вариация от индекса, негатив тянет вниз ──
+    const jitter = (((i * 37) % 30) - 15) / 10; // -1.5..+1.4
+    let score = manager.baseScore + jitter;
+    if (sentiment === "negative") score -= 2.2;
+    if (sentiment === "positive") score += 0.6;
+    score = Math.max(3.0, Math.min(9.5, score));
+    score = Math.round(score * 10) / 10;
+
+    // ── Compliance 0.3..0.95: коррелирует со score ──
+    let compliance = 0.3 + ((score - 3.0) / 6.5) * 0.6 + (((i * 17) % 11) - 5) / 100;
+    compliance = Math.max(0.3, Math.min(0.95, compliance));
+    compliance = Math.round(compliance * 100) / 100;
+
+    // ── Этап сделки ──
+    let stage: string;
+    if (status === "no_recording") {
+      stage = "no_contact";
+    } else if (score >= 8) {
+      stage = "deal_followup";
+    } else if (score >= 6) {
+      stage = "qualification";
+    } else {
+      stage = STAGES[i % STAGES.length];
+    }
+
+    // ── Возражения: 0-2 штуки детерминированно; у negative чаще ──
+    const objections: string[] = [];
+    if (sentiment !== "positive" || i % 3 === 0) {
+      objections.push(OBJECTIONS[i % OBJECTIONS.length]);
+      if (sentiment === "negative" || i % 5 === 0) {
+        objections.push(OBJECTIONS[(i * 2 + 3) % OBJECTIONS.length]);
+      }
+    }
+    // дедуп
+    const uniqObj = Array.from(new Set(objections));
+
+    // ── Summary из шаблонов под продукт ──
+    const tmpl = product === "МП"
+      ? SUMMARIES_MP[i % SUMMARIES_MP.length]
+      : SUMMARIES_MK[i % SUMMARIES_MK.length];
+    const summary = tmpl.replace("{size}", MP_SIZES[i % MP_SIZES.length]);
+
+    const nextAction = NEXT_ACTIONS[i % NEXT_ACTIONS.length];
+
+    // ── Направление: чаты/входящие письма чаще in, звонки/встречи — микс ──
+    const direction: DemoCall["direction"] =
+      type === "chat" ? "in" : i % 2 === 0 ? "out" : "in";
+
+    // ── bitrix_deal_id у ~75% (чтобы фильтр «только с CRM» имел смысл) ──
+    const withDeal = i % 4 !== 0; // 3 из 4 = 75%
+
+    plan.push({
+      type,
+      channel,
+      direction,
+      duration,
+      status,
+      client,
+      manager,
+      daysAgo,
+      product,
+      sentiment,
+      score: status === "no_recording" ? 0 : score,
+      compliance: status === "no_recording" ? 0 : compliance,
+      summary,
+      nextAction,
+      stage,
+      objections: uniqObj,
+      withDeal,
+    });
+  }
+  return plan;
+}
+
+const PLAN: DemoCall[] = buildPlan();
 
 // ─────────────────────────────────────────────────────────────
 // Чек-листы скриптов (5-6 пунктов) — общая структура для МП и МК.
@@ -142,6 +306,7 @@ function coachingTips(c: DemoCall): string[] {
   const tips: string[] = [];
   if (c.compliance < 0.6) tips.push("Чётче фиксируйте следующий шаг с конкретной датой.");
   if (c.objections.includes("дорого")) tips.push("На «дорого» переходите к ценности и рассрочке, а не к скидке сразу.");
+  if (c.objections.includes("нет бюджета")) tips.push("При «нет бюджета» выясните горизонт планирования и предложите этапную оплату.");
   if (c.sentiment === "negative") tips.push("При негативе сначала присоединитесь к эмоции клиента, затем предложите решение.");
   if (tips.length === 0) tips.push("Сильный звонок — закрепите результат повторным касанием в срок.");
   return tips;
@@ -149,9 +314,11 @@ function coachingTips(c: DemoCall): string[] {
 
 function topicsFor(c: DemoCall): string[] {
   const base = c.product === "МП" ? TOPICS_MP : TOPICS_MK;
-  // 2-3 темы детерминированно
+  // 2-3 темы детерминированно, со сдвигом по длительности чтобы наборы различались
+  const start = c.duration % 3;
   const n = 2 + (c.duration % 2);
-  return base.slice(0, n);
+  const out = base.slice(start, start + n);
+  return out.length ? out : base.slice(0, 2);
 }
 
 // started_at в формате 'YYYY-MM-DD HH:MM:SS' (как хранит SQLite и понимает PG-адаптер).
@@ -162,6 +329,31 @@ function startedAt(daysAgo: number, idx: number): string {
   d.setHours(9 + (idx % 9), (idx * 13) % 60, (idx * 7) % 60, 0);
   return d.toISOString().replace("T", " ").slice(0, 19);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Описание одного расхождения карточки CRM ↔ стенограммы (для раздела «Расхождения»).
+interface DemoDiscrepancy {
+  entityType: "deal" | "lead" | "contact";
+  fieldName: string;
+  fieldLabel: string;
+  cardValue: string;
+  suggestedValue: string;
+  evidence: string;
+  severity: "low" | "medium" | "high";
+  status: "pending" | "accepted"; // accepted = разрешённое (UI считает его «принято»)
+}
+
+// Шаблоны расхождений — привяжем к первым done-звонкам с deal_id.
+const DISCREPANCY_TEMPLATES: DemoDiscrepancy[] = [
+  { entityType: "deal", fieldName: "OPPORTUNITY", fieldLabel: "Сумма сделки", cardValue: "150 000", suggestedValue: "250 000", evidence: "Клиент согласовал бюджет 250 тыс на встрече, обсуждали комплект под ключ.", severity: "high", status: "pending" },
+  { entityType: "deal", fieldName: "STAGE_ID", fieldLabel: "Этап сделки", cardValue: "Первичный контакт", suggestedValue: "Согласование договора", evidence: "Договорились о подписании договора на следующей неделе.", severity: "medium", status: "pending" },
+  { entityType: "contact", fieldName: "NAME", fieldLabel: "Контактное лицо", cardValue: "—", suggestedValue: "Сергей (снабжение)", evidence: "Представился: Сергей, отвечаю за снабжение по объекту.", severity: "low", status: "pending" },
+  { entityType: "deal", fieldName: "UF_CRM_DELIVERY", fieldLabel: "Срок поставки", cardValue: "30 дней", suggestedValue: "14 дней", evidence: "Уточнили: нужно за 2 недели, иначе срывается монтаж.", severity: "high", status: "pending" },
+  { entityType: "deal", fieldName: "UF_CRM_PRODUCT", fieldLabel: "Продукт", cardValue: "Павильон 4×4", suggestedValue: "Павильон 6×3", evidence: "В разговоре остановились на 6×3, не 4×4.", severity: "medium", status: "pending" },
+  { entityType: "lead", fieldName: "PHONE", fieldLabel: "Телефон", cardValue: "+7 900 000-00-00", suggestedValue: "+7 901 112-22-09", evidence: "Клиент продиктовал новый рабочий номер для связи.", severity: "low", status: "accepted" },
+  { entityType: "deal", fieldName: "UF_CRM_PAYMENT", fieldLabel: "Условия оплаты", cardValue: "100% предоплата", suggestedValue: "50/50 предоплата и по факту", evidence: "Согласовали оплату 50% аванс, 50% после монтажа.", severity: "medium", status: "pending" },
+  { entityType: "deal", fieldName: "UF_CRM_COATING", fieldLabel: "Покрытие", cardValue: "—", suggestedValue: "Оцинковка", evidence: "Клиент попросил оцинковку, обсудили доплату.", severity: "low", status: "accepted" },
+];
 
 // ─────────────────────────────────────────────────────────────
 async function main() {
@@ -186,6 +378,12 @@ async function main() {
 
   // ── 1. ОЧИСТКА (идемпотентность) ──────────────────────────────
   console.log("[seed-demo] очистка прежних демо-данных...");
+  // card_discrepancies по тенанту (оборачиваем в try — таблицы может не быть на старой SQLite).
+  try {
+    await db.prepare(`DELETE FROM card_discrepancies WHERE tenant_id = ?`).run(DEMO_TENANT);
+  } catch (e) {
+    console.warn("[seed-demo] пропуск очистки card_discrepancies:", (e as Error).message.split("\n")[0]);
+  }
   // analyses + transcripts по call_id из calls тенанта 9999
   await db.prepare(
     `DELETE FROM analyses WHERE call_id IN (SELECT id FROM calls WHERE tenant_id = ?)`
@@ -255,6 +453,8 @@ async function main() {
   console.log("[seed-demo] ✓ скриптов: 2 (МП, МК)");
 
   // ── 6. ЗВОНКИ + АНАЛИЗЫ + ТРАНСКРИПТЫ ─────────────────────────
+  // Запоминаем id созданных done-звонков с deal_id — к ним привяжем расхождения.
+  const doneCallIdsWithDeal: number[] = [];
   let inserted = 0;
   for (let i = 0; i < PLAN.length; i++) {
     const c = PLAN[i];
@@ -278,18 +478,43 @@ async function main() {
     );
     // Имя заказчика хранится в analyses.client_name (в таблице calls этой колонки нет) —
     // см. insertAnalysisAndTranscript: туда передаётся c.client.name.
-    const callId = Number(callRes.lastInsertRowid);
+    let callId = Number(callRes.lastInsertRowid);
     if (!callId || Number.isNaN(callId)) {
       // На некоторых конфигурациях lastInsertRowid может не вернуться — подстрахуемся выборкой.
       const row = await db.prepare(`SELECT id FROM calls WHERE bitrix_call_id = ?`).get<{ id: number }>(bitrixCallId);
       if (!row) { console.warn(`[seed-demo] не удалось получить id для ${bitrixCallId}, пропуск анализа`); continue; }
-      await insertAnalysisAndTranscript(db, row.id, c);
-    } else {
-      await insertAnalysisAndTranscript(db, callId, c);
+      callId = row.id;
     }
+    await insertAnalysisAndTranscript(db, callId, c);
+    if (c.status === "done" && c.withDeal) doneCallIdsWithDeal.push(callId);
     inserted++;
   }
   console.log(`[seed-demo] ✓ взаимодействий: ${inserted} (+анализы +транскрипты)`);
+
+  // ── 7. РАСХОЖДЕНИЯ (card_discrepancies) ───────────────────────
+  // Привязываем шаблоны к существующим done-звонкам с deal_id. Оборачиваем в try,
+  // чтобы на чистой SQLite без таблицы seed не падал.
+  let discInserted = 0;
+  try {
+    for (let i = 0; i < DISCREPANCY_TEMPLATES.length; i++) {
+      const d = DISCREPANCY_TEMPLATES[i];
+      const callId = doneCallIdsWithDeal[(i * 7) % doneCallIdsWithDeal.length];
+      if (!callId) continue;
+      await db.prepare(
+        `INSERT INTO card_discrepancies
+           (tenant_id, call_id, entity_type, entity_id, field_name, field_label,
+            card_value, transcript_evidence, suggested_value, severity, status, ai_model)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        DEMO_TENANT, callId, d.entityType, String(50000 + callId), d.fieldName, d.fieldLabel,
+        d.cardValue, d.evidence, d.suggestedValue, d.severity, d.status, "demo-seed"
+      );
+      discInserted++;
+    }
+    console.log(`[seed-demo] ✓ расхождений: ${discInserted}`);
+  } catch (e) {
+    console.warn("[seed-demo] пропуск card_discrepancies (нет таблицы?):", (e as Error).message.split("\n")[0]);
+  }
 
   await db.close();
   console.log("[seed-demo] ГОТОВО. Вход: /call-agent/demo (без пароля) либо login=test / пароль=test");

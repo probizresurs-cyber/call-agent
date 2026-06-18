@@ -22,7 +22,9 @@ export default async function AuthedLayout({ children }: { children: React.React
     redirect("/login");
   }
 
-  // Демо-режим (ООО Ромашка): только просмотр витрины — урезанное меню + баннер.
+  // Демо-режим (ООО Ромашка): витрина «весь функционал». По просьбе заказчика
+  // показываем ВСЕ просмотровые пункты меню (полный обзор), а не урезанное меню.
+  // Read-only защита остаётся на middleware (мутации блокируются).
   const isDemo = user.role === "demo";
 
   // Менеджер видит «Мои звонки» вместо общего «Звонки», и не видит «Настройки»
@@ -31,12 +33,14 @@ export default async function AuthedLayout({ children }: { children: React.React
   const callsLabel = user.role === "manager" ? "Мои звонки" : "Звонки";
   const dashboardLabel = user.role === "manager" ? "Мой кабинет" : "Дашборд";
 
-  // Показывать «Расхождения»/«Отчёты» — owner/admin/head. В демо-режиме скрываем
-  // (это операционные инструменты, в витрине не нужны).
-  const showDiscrepancies = canViewTeam(user.role) && !isDemo;
-  // Тяжёлые операционные пункты (загрузка/очередь/CRM-журнал) — только для управленцев,
-  // в демо-режиме скрываем даже несмотря на showSettings=true.
-  const showOps = showSettings && !isDemo;
+  // Показывать «Расхождения»/«Отчёты» — owner/admin/head. В демо-режиме ТАКЖЕ показываем
+  // (заказчик хочет видеть весь функционал в витрине).
+  const showDiscrepancies = canViewTeam(user.role) || isDemo;
+  // Операционные пункты (очередь/CRM-журнал) — управленцам и в демо-режиме.
+  // «Загрузить запись» (мутация) для демо НЕ показываем — см. showUpload ниже.
+  const showOps = showSettings || isDemo;
+  // «Загрузить запись» — явное действие-мутация, в read-only витрине бессмысленно.
+  const showUpload = (canManage(user.role) || user.role === "head") && !isDemo;
 
   // Число pending-расхождений для бейджа в навигации
   let pendingDiscrepanciesCount = 0;
@@ -66,8 +70,10 @@ export default async function AuthedLayout({ children }: { children: React.React
   if (user.role !== "manager") {
     navItems.push({ href: "/leaderboard", label: "Лидерборд", icon: "Trophy" });
   }
-  if (showOps) {
+  if (showUpload) {
     navItems.push({ href: "/interactions/upload", label: "Загрузить запись", icon: "FilePlus2" });
+  }
+  if (showOps) {
     navItems.push({ href: "/queue", label: "Очередь", icon: "Activity" });
     navItems.push({ href: "/crm-log", label: "CRM-журнал", icon: "Upload" });
   }
