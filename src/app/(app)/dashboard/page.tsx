@@ -6,11 +6,13 @@
  * добавлен header c кнопкой «Поделиться» и DashboardFilters, а для роли manager —
  * CoachInsights вместо таблицы менеджеров.
  */
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
-import { getSessionUser } from "@/lib/auth";
+import { AlertTriangle, Tv } from "lucide-react";
+import { getSessionUser, canViewTeam } from "@/lib/auth";
 import { loadDashboardData } from "@/lib/dashboard-data";
 import { DashboardSections } from "@/app/_components/dashboard/DashboardSections";
+import { TvBoard } from "@/app/_components/dashboard/TvBoard";
 import { DashboardFilters } from "./DashboardFilters";
 import { CoachInsights } from "./CoachInsights";
 import { ShareDashboardButton } from "./ShareDashboardButton";
@@ -18,15 +20,35 @@ import { ProviderHealthCheckButton } from "./ProviderHealthCheckButton";
 import { getDashboardToken } from "@/lib/dashboard-share";
 import { getProviderHealth } from "@/lib/provider-health";
 
+type TvPeriod = "today" | "week" | "month";
+
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; with_crm?: string; manager_id?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; with_crm?: string; manager_id?: string; tv?: string; period?: string }>;
 }) {
   const me = await getSessionUser();
   if (!me) redirect("/login");
   const sp = await props.searchParams;
   const isManager = me.role === "manager";
+
+  // ── ТВ-режим за логином (?tv=1): полноэкранное табло по СВОЕМУ тенанту ──
+  // Доступен тем, кто видит командный дашборд (canViewTeam) + демо-витрине.
+  // Менеджеру (свой кабинет) ТВ-табло не нужно — для него tv игнорируется.
+  const tvAllowed = canViewTeam(me.role) || me.role === "demo";
+  if ((sp.tv === "1" || sp.tv === "") && tvAllowed) {
+    const period: TvPeriod = sp.period === "week" || sp.period === "month" ? sp.period : "today";
+    const { from, to } = tvRange(period);
+    const tvData = await loadDashboardData({ tenantId: me.tenantId, from, to });
+    return (
+      <TvBoard
+        data={tvData}
+        period={period}
+        basePath="/call-agent/dashboard"
+        exitHref="/call-agent/dashboard"
+      />
+    );
+  }
 
   const data = await loadDashboardData({
     tenantId: me.tenantId,
@@ -95,6 +117,17 @@ export default async function DashboardPage(props: {
           <span className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
             Период: <b style={{ color: "var(--foreground)" }}>{periodLabel}</b>
           </span>
+          {tvAllowed && (
+            <Link
+              href="/dashboard?tv=1"
+              target="_blank"
+              className="ds-btn ds-btn-secondary"
+              style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", fontSize: 14, textDecoration: "none" }}
+              title="Полноэкранное табло для ТВ в офисе"
+            >
+              <Tv size={16} /> ТВ-режим
+            </Link>
+          )}
           {!isManager && (
             <ShareDashboardButton initialToken={dashboardShareToken} baseUrl={baseUrl} />
           )}
@@ -114,6 +147,26 @@ export default async function DashboardPage(props: {
 function formatDate(s: string): string {
   if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   return `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}`;
+}
+
+// ── from/to для ТВ-периода (та же логика, что в DashboardFilters и публичном ТВ) ──
+function isoLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function tvRange(period: TvPeriod): { from: string; to: string } {
+  const now = new Date();
+  const to = isoLocal(now);
+  if (period === "today") return { from: to, to };
+  if (period === "week") {
+    const x = new Date(now);
+    const day = x.getDay();           // 0=вс..6=сб
+    const diff = day === 0 ? 6 : day - 1;
+    x.setDate(x.getDate() - diff);    // понедельник
+    return { from: isoLocal(x), to };
+  }
+  // month — с 1-го числа
+  return { from: isoLocal(new Date(now.getFullYear(), now.getMonth(), 1)), to };
 }
 
 /** ISO 8601 → "DD.MM.YYYY HH:MM" (для баннера статуса провайдера). */

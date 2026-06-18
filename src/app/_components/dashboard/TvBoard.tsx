@@ -20,6 +20,7 @@
  * с другим `?period=` (смена периода = перезагрузка страницы сервером). Без датпикера.
  */
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import type { DashboardData, ManagerStatsRow } from "@/lib/dashboard-data";
 
 // ── Самодостаточная тёмная палитра табло (не зависит от темы платформы) ──
@@ -43,11 +44,22 @@ interface Props {
   data: DashboardData;
   /** Текущий период (для подсветки кнопки) */
   period: "today" | "week" | "month";
-  /** Базовый путь публичного дашборда, напр. `/call-agent/public/dashboard/{token}` */
+  /**
+   * Базовый путь, на который ведут кнопки переключения периода (ссылки вида
+   * `${basePath}?tv=1&period=...`). Работает в обоих режимах:
+   *   - публичный: `/call-agent/public/dashboard/{token}`
+   *   - приватный (за логином): `/call-agent/dashboard`
+   */
   basePath: string;
+  /**
+   * Куда вести кнопку выхода (крестик в углу). Если задан — показываем крестик.
+   * В приватном режиме = `/call-agent/dashboard` (вернуться к обычному дашборду).
+   * В публичном режиме обычно не задаётся (крестик скрыт).
+   */
+  exitHref?: string;
 }
 
-export function TvBoard({ data, period, basePath }: Props) {
+export function TvBoard({ data, period, basePath, exitHref }: Props) {
   // Менеджеры для пер-менеджерских слайдов: только с оценкой, по убыванию оценки.
   // Без оценки (avg_score == null) — пропускаем в персональных слайдах, но в обзоре
   // показываем всех (отсортированных по оценке, безоценочные — в конце).
@@ -76,6 +88,7 @@ export function TvBoard({ data, period, basePath }: Props) {
 
   return (
     <div
+      className="tvboard"
       style={{
         position: "fixed",
         inset: 0,
@@ -87,16 +100,50 @@ export function TvBoard({ data, period, basePath }: Props) {
         display: "flex",
         flexDirection: "column",
         fontFamily: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
-        // Базовый размер шрифта табло: 1vw → крупно на ТВ, масштабируется с экраном
+        // Базовый размер шрифта табло: 1vw → крупно на ТВ, масштабируется с экраном.
+        // На узком экране (телефон) 1vw слишком мелко — поднимаем нижнюю границу
+        // clamp до 16px и добавляем vw-компонент покрупнее (переопределяется в CSS).
         fontSize: "clamp(14px, 1vw, 26px)",
         zIndex: 9999,
         userSelect: "none",
       }}
     >
+      {/* Адаптивные правила (media queries нельзя в inline-style → инжектим <style>).
+          На узком экране (≤600px): шрифт крупнее (vw-based), все сетки в 1 колонку,
+          вертикальный скролл внутри слайда вместо обрезки, перенос навигации. */}
+      <TvResponsiveStyles />
+
+      {/* Крестик выхода (только приватный режим — когда задан exitHref) */}
+      {exitHref && (
+        <a
+          href={exitHref}
+          aria-label="Выйти из ТВ-режима"
+          title="Выйти из ТВ-режима"
+          style={{
+            position: "absolute",
+            top: "1.6vh",
+            right: "1.4vw",
+            zIndex: 10000,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "clamp(34px, 3vw, 52px)",
+            height: "clamp(34px, 3vw, 52px)",
+            borderRadius: 999,
+            border: `1px solid ${C.border}`,
+            background: "rgba(22,26,43,0.85)",
+            color: C.textDim,
+            textDecoration: "none",
+          }}
+        >
+          <X size={20} />
+        </a>
+      )}
+
       <TvHeader period={period} basePath={basePath} />
 
       {/* Основная область — карусель. Один слайд видим, остальные fade-out. */}
-      <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
+      <div className="tvboard-stage" style={{ flex: 1, position: "relative", minHeight: 0 }}>
         {!hasManagers ? (
           <EmptyState />
         ) : (
@@ -125,6 +172,49 @@ export function TvBoard({ data, period, basePath }: Props) {
   );
 }
 
+// ───────────────────────── Адаптивные стили (media queries) ─────────────────────────
+
+/**
+ * Инжектит media-query CSS, которое нельзя выразить инлайн-стилями.
+ * На узком экране (≤600px, телефон в портрете) перестраивает табло на вертикальную
+ * читаемую раскладку, при этом на ТВ/десктопе (>600px) ничего не меняется.
+ *
+ * Завязка на className-хуки: .tvboard (корень), .tvboard-stage (область карусели),
+ * .tv-kpi-grid / .tv-rating-row / .tv-mgr-main / .tv-mgr-metrics / .tv-mgr-bottom /
+ * .tv-header / .tv-period-nav (см. соответствующие компоненты).
+ */
+function TvResponsiveStyles() {
+  return (
+    <style>{`
+      @media (max-width: 600px) {
+        /* Базовый шрифт покрупнее: на телефоне 1vw мелковат → даём ~2.6vw */
+        .tvboard { font-size: clamp(15px, 2.6vw, 22px) !important; }
+
+        /* Шапка: название + период + часы переносятся, не наезжают */
+        .tv-header { flex-wrap: wrap !important; gap: 1vh 3vw !important; padding: 1.4vh 4vw !important; }
+        .tv-period-nav { flex-wrap: wrap !important; justify-content: center !important; order: 3; width: 100%; gap: 2vw !important; }
+        .tv-period-link { padding: 0.8vh 4vw !important; }
+
+        /* Слайд может скроллиться по вертикали, чтобы контент не обрезался */
+        .tvboard-slide { overflow-y: auto !important; padding: 2vh 4vw !important; }
+
+        /* KPI-плитки обзора — в две колонки (вместо шести) */
+        .tv-kpi-grid { grid-template-columns: 1fr 1fr !important; gap: 2vw !important; }
+
+        /* Строки рейтинга — вертикально (ФИО сверху, метрики в ряд снизу) */
+        .tv-rating-row { flex-direction: column !important; align-items: stretch !important; gap: 1vh !important; }
+        .tv-rating-metrics { justify-content: space-between !important; gap: 4vw !important; }
+        .tv-rating-metrics > div { min-width: 0 !important; text-align: center !important; }
+
+        /* Слайд менеджера: огромная оценка над метриками (одна колонка) */
+        .tv-mgr-main { grid-template-columns: 1fr !important; }
+        .tv-mgr-metrics-grid { grid-template-columns: 1fr 1fr !important; }
+        .tv-mgr-bottom { grid-template-columns: 1fr !important; }
+      }
+    `}</style>
+  );
+}
+
 // ───────────────────────── Шапка ─────────────────────────
 
 function TvHeader({ period, basePath }: { period: Props["period"]; basePath: string }) {
@@ -140,6 +230,7 @@ function TvHeader({ period, basePath }: { period: Props["period"]; basePath: str
 
   return (
     <header
+      className="tv-header"
       style={{
         display: "flex",
         alignItems: "center",
@@ -159,7 +250,7 @@ function TvHeader({ period, basePath }: { period: Props["period"]; basePath: str
       </div>
 
       {/* По центру — переключатель периода крупными кнопками-ссылками */}
-      <nav style={{ display: "flex", gap: "0.8vw" }}>
+      <nav className="tv-period-nav" style={{ display: "flex", gap: "0.8vw" }}>
         <PeriodLink basePath={basePath} value="today" current={period} label="Сегодня" />
         <PeriodLink basePath={basePath} value="week" current={period} label="Неделя" />
         <PeriodLink basePath={basePath} value="month" current={period} label="Месяц" />
@@ -197,6 +288,7 @@ function PeriodLink({
   return (
     <a
       href={href}
+      className="tv-period-link"
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -221,6 +313,7 @@ function PeriodLink({
 function Slide({ active, children }: { active: boolean; children: React.ReactNode }) {
   return (
     <div
+      className="tvboard-slide"
       style={{
         position: "absolute",
         inset: 0,
@@ -248,6 +341,7 @@ function OverviewSlide({ data, ranked }: { data: DashboardData; ranked: ManagerS
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "2vh", minHeight: 0 }}>
       {/* Крупные KPI-плитки */}
       <div
+        className="tv-kpi-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(6, 1fr)",
@@ -348,9 +442,9 @@ function RatingRow({ m, rank }: { m: ManagerStatsRow; rank: number }) {
   const col = score != null ? scoreColor(score) : C.textDim;
   return (
     <div
+      className="tv-rating-row"
       style={{
-        display: "grid",
-        gridTemplateColumns: "auto 1fr auto auto auto",
+        display: "flex",
         alignItems: "center",
         gap: "1.4vw",
         background: C.panelAlt,
@@ -358,31 +452,37 @@ function RatingRow({ m, rank }: { m: ManagerStatsRow; rank: number }) {
         padding: "1vh 1.2vw",
       }}
     >
-      {/* Место */}
-      <div
-        style={{
-          width: "2.2em",
-          textAlign: "center",
-          fontSize: "1.3em",
-          fontWeight: 800,
-          color: rank <= 3 ? C.accent : C.textDim,
-        }}
-      >
-        {rank}
+      {/* Место + ФИО — занимают всё свободное место слева */}
+      <div className="tv-rating-head" style={{ display: "flex", alignItems: "center", gap: "1.4vw", flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            width: "2.2em",
+            textAlign: "center",
+            fontSize: "1.3em",
+            fontWeight: 800,
+            color: rank <= 3 ? C.accent : C.textDim,
+            flexShrink: 0,
+          }}
+        >
+          {rank}
+        </div>
+        {/* ФИО */}
+        <div style={{ fontSize: "1.4em", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {m.manager_name || `ID ${m.manager_id}`}
+        </div>
       </div>
-      {/* ФИО */}
-      <div style={{ fontSize: "1.4em", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {m.manager_name || `ID ${m.manager_id}`}
+      {/* Метрики справа (на мобиле — переносятся под имя одним рядом) */}
+      <div className="tv-rating-metrics" style={{ display: "flex", alignItems: "center", gap: "1.4vw", flexShrink: 0 }}>
+        {/* Оценка */}
+        <Metric label="оценка" value={score != null ? score.toFixed(1) : "—"} color={col} big />
+        {/* Чек-лист */}
+        <Metric
+          label="чек-лист"
+          value={m.avg_compliance != null ? `${Math.round(m.avg_compliance * 100)}%` : "—"}
+        />
+        {/* Звонки */}
+        <Metric label="звонки" value={String(m.calls)} />
       </div>
-      {/* Оценка */}
-      <Metric label="оценка" value={score != null ? score.toFixed(1) : "—"} color={col} big />
-      {/* Чек-лист */}
-      <Metric
-        label="чек-лист"
-        value={m.avg_compliance != null ? `${Math.round(m.avg_compliance * 100)}%` : "—"}
-      />
-      {/* Звонки */}
-      <Metric label="звонки" value={String(m.calls)} />
     </div>
   );
 }
