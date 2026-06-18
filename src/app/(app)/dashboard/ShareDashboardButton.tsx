@@ -96,7 +96,8 @@ export function ShareDashboardButton({ initialToken, baseUrl }: Props) {
             <>
               <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 12 }}>
                 Любой кто откроет ссылку увидит read-only дашборд: KPI и таблицу менеджеров.
-                Без логина. TV-режим — для большого экрана в офисе, обновляется каждые 30 сек.
+                Без логина. ТВ-режим — полноэкранное табло для экрана в офисе: карусель
+                по менеджерам с автолистанием и переключателем периода.
               </p>
               <button onClick={gen} disabled={busy} className="ds-btn ds-btn-primary" style={{ width: "100%", justifyContent: "center" }}>
                 {busy ? "Создаю..." : "Создать ссылку"}
@@ -130,7 +131,7 @@ export function ShareDashboardButton({ initialToken, baseUrl }: Props) {
 
               {/* TV-режим */}
               <div className="ds-body-sm" style={{ marginBottom: 4, fontSize: 11, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                <Tv size={10} style={{ verticalAlign: -1, marginRight: 4 }} /> TV-режим (крупный текст, авто-обновление)
+                <Tv size={10} style={{ verticalAlign: -1, marginRight: 4 }} /> ТВ-режим (полноэкранное табло, карусель по менеджерам)
               </div>
               <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
                 <input
