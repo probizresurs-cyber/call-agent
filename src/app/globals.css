@@ -324,3 +324,11 @@ details[open] > summary .ds-chevron {
   transform: rotate(180deg);
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Блюр клиентских ПД в демо-режиме (для записи ролика). Включается классом-
+   контейнером .pii-blur (ставится только в демо). На боевых класса нет — данные видны. */
+.pii-blur .pii {
+  filter: blur(7px);
+  user-select: none;
+  transition: filter 0.12s ease;
+}

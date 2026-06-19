@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { Eye } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
 import { MobileNav, type NavItem } from "./MobileNav";
+import { PiiBlurToggle } from "./PiiBlurToggle";
 
 const ROLE_LABELS: Record<UserRole, string> = {
   owner: "Владелец",
@@ -26,6 +28,15 @@ export default async function AuthedLayout({ children }: { children: React.React
   // показываем ВСЕ просмотровые пункты меню (полный обзор), а не урезанное меню.
   // Read-only защита остаётся на middleware (мутации блокируются).
   const isDemo = user.role === "demo";
+
+  // Блюр клиентских ПД — только в демо (для чистой записи ролика). По умолчанию ВКЛ:
+  // нет cookie ИЛИ "1" → блюр включён; "0" → пользователь его отключил тумблером.
+  // На боевых аккаунтах класс .pii-blur НЕ ставится — данные видны как есть.
+  let piiBlurOn = false;
+  if (isDemo) {
+    const piiCookie = (await cookies()).get("ca_pii_blur")?.value;
+    piiBlurOn = piiCookie !== "0";
+  }
 
   // Менеджер видит «Мои звонки» вместо общего «Звонки», и не видит «Настройки»
   // В демо-режиме «Настройки» показываем (read-only) — чтобы клиент увидел скрипты/чек-листы.
@@ -109,7 +120,7 @@ export default async function AuthedLayout({ children }: { children: React.React
         roleIcon={roleIcon}
         logoutAction={doLogout}
       />
-      <main className="shell-main">
+      <main className={isDemo && piiBlurOn ? "shell-main pii-blur" : "shell-main"}>
         {isDemo && (
           <div
             style={{
@@ -131,6 +142,7 @@ export default async function AuthedLayout({ children }: { children: React.React
               <b>Демо-режим</b> — данные вымышленные (ООО «Ромашка»). Доступен только просмотр,
               изменения недоступны.
             </span>
+            <PiiBlurToggle blurOn={piiBlurOn} />
           </div>
         )}
         {children}

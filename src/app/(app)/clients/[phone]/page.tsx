@@ -57,15 +57,15 @@ export default async function ClientProfilePage(props: { params: Promise<{ phone
             display: "grid", placeItems: "center",
             color: "white", fontSize: 22, fontWeight: 700, flexShrink: 0,
           }}>
-            {summary.name ? summary.name.charAt(0).toUpperCase() : <User size={28} />}
+            {summary.name ? <span className="pii">{summary.name.charAt(0).toUpperCase()}</span> : <User size={28} />}
           </div>
           <div style={{ flex: 1 }}>
             <h1 className="ds-h1" style={{ marginBottom: 2 }}>
-              {summary.name || summary.display_phone || "Без имени"}
+              <span className="pii">{summary.name || summary.display_phone || "Без имени"}</span>
             </h1>
             {summary.name && (
               <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 4 }}>
-                {summary.display_phone}
+                <span className="pii">{summary.display_phone}</span>
               </div>
             )}
             <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>

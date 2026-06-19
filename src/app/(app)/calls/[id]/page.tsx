@@ -109,7 +109,7 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
               fontWeight: 500, display: "inline-flex", alignItems: "center", gap: 6,
             }}>
               <User size={16} strokeWidth={2} />
-              с {analysis.client_name}
+              с <span className="pii">{analysis.client_name}</span>
             </span>
           )}
         </h1>
@@ -140,11 +140,11 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           <Row label="Заказчик" value={
             call.client_phone ? (
               <Link href={`/clients/${call.client_phone.replace(/\D/g, "").replace(/^8/, "7")}`} style={{ color: "var(--primary)" }}>
-                {call.client_phone} →
+                <span className="pii">{call.client_phone}</span> →
               </Link>
             ) : "—"
           } />
-          <Row label="Имя заказчика (из разговора)" value={analysis?.client_name || "—"} />
+          <Row label="Имя заказчика (из разговора)" value={analysis?.client_name ? <span className="pii">{analysis.client_name}</span> : "—"} />
           <Row
             label="Направление"
             value={

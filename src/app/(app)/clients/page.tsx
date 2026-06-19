@@ -70,11 +70,11 @@ export default async function ClientsListPage(props: {
                 <tr key={c.phone}>
                   <td>
                     <Link href={`/clients/${c.phone}`} style={{ color: "var(--primary)", fontWeight: 600 }}>
-                      {c.name || c.display_phone || c.phone}
+                      <span className="pii">{c.name || c.display_phone || c.phone}</span>
                     </Link>
                     {c.name && (
                       <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11 }}>
-                        {c.display_phone}
+                        <span className="pii">{c.display_phone}</span>
                       </div>
                     )}
                   </td>

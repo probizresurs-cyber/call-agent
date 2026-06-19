@@ -152,7 +152,7 @@ export default async function CallsListPage(props: {
                         : r.direction === "out"
                         ? <ArrowUpRight size={14} strokeWidth={2} color="var(--primary)" />
                         : null}
-                      {r.client_phone || "—"}
+                      {r.client_phone ? <span className="pii">{r.client_phone}</span> : "—"}
                     </span>
                   </td>
                   <td>{formatDuration(r.duration_sec)}</td>
