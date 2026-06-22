@@ -29,8 +29,12 @@ const AUTO_RETRY_INTERVAL_MS = 1_800_000;    // 30 минут — переана
 const ACTIVITIES_FETCH_INTERVAL_MS = 600_000; // 10 минут — забор email + Open Lines чатов
 const SCHEDULER_INTERVAL_MS = 60_000;        // 1 минута — авто-отправка отчётов по расписанию
 const MAX_ATTEMPTS = 3;                   // для pending/failed
-const MAX_NO_RECORDING_ATTEMPTS = 6;      // для no_recording — попыток в течение 6 часов
-const NO_RECORDING_RETRY_HOURS = 1;       // повтор раз в час
+const MAX_NO_RECORDING_ATTEMPTS = 10;     // для no_recording — до 10 попыток (≈2 часа покрытия)
+// Bitrix прикрепляет файл записи к активности с задержкой (несколько минут после
+// звонка). Поэтому свежий звонок часто сперва no_recording, а запись появляется
+// позже. Ретраим часто (каждые ~12 мин), чтобы запись подхватывалась за минуты,
+// а не за час. За ~2 часа (10×12мин) запись точно появится, иначе звонок реально без неё.
+const NO_RECORDING_RETRY_MINUTES = 12;
 const STALE_MINUTES = 10;                 // звонок в processing-статусе дольше этого — считается застрявшим
 
 // Паттерны "временных" ошибок Anthropic/OpenAI — failed-звонки с такими ошибками
@@ -70,7 +74,7 @@ async function processQueueTick() {
   //  - "stale" — застрявшие в processing-статусах больше STALE_MINUTES минут
   //    (это значит воркер крашнулся в их обработке; берём на повтор)
   // Интервалы захардкожены в SQL — datetime() с параметром не работает в PG-адаптере.
-  // Если NO_RECORDING_RETRY_HOURS или STALE_MINUTES меняются — отредактировать здесь.
+  // Если NO_RECORDING_RETRY_MINUTES или STALE_MINUTES меняются — отредактировать здесь.
   const row = await db
     .prepare(
       `SELECT id, status FROM calls
@@ -79,7 +83,7 @@ async function processQueueTick() {
          OR (status = 'failed' AND attempts < ?)
          OR (status = 'no_recording'
              AND attempts < ?
-             AND datetime(updated_at) <= datetime('now', '-${NO_RECORDING_RETRY_HOURS} hour'))
+             AND datetime(updated_at) <= datetime('now', '-${NO_RECORDING_RETRY_MINUTES} minute'))
          OR (status IN ('downloading','transcribing','analyzing','syncing')
              AND datetime(updated_at) <= datetime('now', '-${STALE_MINUTES} minute'))
        ORDER BY
