@@ -107,6 +107,36 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
     t = await transcribeFile(recordingPath, { tenantId: row.tenant_id ?? 1, callId });
   }
 
+  // ── Гард «нет полезной речи»: короткие звонки и галлюцинации Whisper ──
+  // На тишине/обрывке (1-2 сек) Whisper выдаёт мусорные фразы («Продолжение
+  // следует…», «Субтитры…», «Спасибо за просмотр»), а Claude по такому тексту
+  // отдаёт пустой итог без рекомендаций (баг «не прогрузился итог»). Поэтому
+  // короткие/пустые/галлюцинированные транскрипты НЕ анализируем — помечаем
+  // no_recording с честной пометкой (вместо мусорного разбора).
+  {
+    const speech = (t.text || "").trim();
+    const low = speech.toLowerCase();
+    const HALLUCINATIONS = ["продолжение следует", "субтитры", "спасибо за просмотр", "редактор субтитров", "amara.org", "благодарю за внимание"];
+    const isHallucination = speech.length > 0 && speech.length < 60 && HALLUCINATIONS.some((h) => low.includes(h));
+    const tooShort = speech.length < 15 || (row.duration_sec ?? 0) < 7;
+    if (tooShort || isHallucination) {
+      // Сохраняем транскрипт (кэш — чтобы ретрай не гонял Whisper заново) и помечаем no_recording.
+      await db.prepare(
+        `INSERT INTO transcripts (call_id, text, segments_json, dialogue_json, language, model)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(call_id) DO UPDATE SET text=excluded.text, segments_json=excluded.segments_json,
+           language=excluded.language, model=excluded.model, created_at=datetime('now')`
+      ).run(callId, t.text, JSON.stringify(t.segments), JSON.stringify([]), t.language, t.model);
+      await setCallStatus(callId, "no_recording");
+      await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
+        `Нет речи для анализа: звонок ${row.duration_sec ?? 0}с${isHallucination ? " (пустая/тихая запись)" : ""}`,
+        callId
+      );
+      console.log(`[pipeline] #${callId}: пропуск анализа — нет полезной речи (${row.duration_sec ?? 0}с, ${speech.length} симв.)`);
+      return;
+    }
+  }
+
   // 3. Контекст сделки — параллельно с шагом 4 не получится, потому что Claude его использует
   await setCallStatus(callId, "analyzing");
   const context: DealContext | null = await buildCallContext({
