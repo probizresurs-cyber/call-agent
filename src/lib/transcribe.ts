@@ -22,7 +22,7 @@ export interface TranscribeResult {
 
 export async function transcribeFile(
   filePath: string,
-  opts: { tenantId?: number; callId?: number } = {}
+  opts: { tenantId?: number; callId?: number; prompt?: string } = {}
 ): Promise<TranscribeResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY не задан");
@@ -49,6 +49,10 @@ export async function transcribeFile(
         language: "ru",
         response_format: "verbose_json",
         temperature: 0,
+        // prompt — контекст-подсказка Whisper (до ~224 токенов): правильные
+        // написания названий компании/брендов и термины. Резко улучшает
+        // распознавание имён собственных («Орлинк» вместо «Рынк/Орлинг»).
+        ...(opts.prompt ? { prompt: opts.prompt.slice(0, 600) } : {}),
       });
 
       const raw = res as unknown as {

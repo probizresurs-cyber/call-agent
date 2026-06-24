@@ -33,6 +33,15 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
 
   await db.prepare(`UPDATE calls SET attempts = attempts + 1 WHERE id = ?`).run(callId);
 
+  // Глоссарий тенанта (правильные написания названий/брендов) — нужен РАНО:
+  // его передаём Whisper как prompt-подсказку, чтобы он правильно распознавал
+  // имена собственные («Орлинк» вместо «Рынк/Орлинг») уже в транскрипте.
+  const tenantRow = await db
+    .prepare("SELECT analysis_model, glossary FROM tenants WHERE id = ?")
+    .get<{ analysis_model: string | null; glossary: string | null }>(row.tenant_id ?? 1)
+    .catch(() => null);
+  const whisperHint = buildWhisperHint(tenantRow?.glossary);
+
   // 0. Если транскрипт уже есть — переанализ, не платим Whisper заново.
   //    Полезно когда меняли скрипты / чек-листы и хотим переоценить старые звонки.
   const existingTranscript = await db
@@ -104,7 +113,7 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   } else {
     await setCallStatus(callId, "transcribing");
     if (!recordingPath) throw new Error(`recordingPath не найден на этапе транскрипции`);
-    t = await transcribeFile(recordingPath, { tenantId: row.tenant_id ?? 1, callId });
+    t = await transcribeFile(recordingPath, { tenantId: row.tenant_id ?? 1, callId, prompt: whisperHint });
   }
 
   // ── Гард «нет полезной речи»: короткие звонки и галлюцинации Whisper ──
@@ -214,11 +223,8 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   // 5. Анализ с выбранным чек-листом. tenantId/callId — для §4.4 бюджет-гарда.
   //    interactionType подстраивает терминологию (звонок vs переписка vs встреча).
   //    modelOverride — per-tenant настройка модели AI (из tenants.analysis_model).
-  //    glossary — per-tenant словарь правильных написаний названий (из tenants.glossary).
-  const tenantRow = await db
-    .prepare("SELECT analysis_model, glossary FROM tenants WHERE id = ?")
-    .get<{ analysis_model: string | null; glossary: string | null }>(row.tenant_id ?? 1)
-    .catch(() => null);
+  //    glossary — per-tenant словарь правильных написаний (tenantRow прочитан выше,
+  //    тот же что для Whisper-подсказки).
   const modelOverride = tenantRow?.analysis_model ?? undefined;
 
   const { analysis, raw, model } = await analyzeCall({
@@ -349,6 +355,19 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   }
 
   await setCallStatus(callId, "done");
+}
+
+/**
+ * prompt-подсказка для Whisper из глоссария тенанта. Whisper использует её как
+ * контекст и точнее распознаёт имена собственные (название компании, бренды),
+ * которые иначе слышит неправильно («Орлинк» → «Рынк/Орлинг»). Глоссарий
+ * передаём как контекст (обрезаем по длине — у prompt лимит ~224 токена).
+ */
+function buildWhisperHint(glossary?: string | null): string | undefined {
+  const g = (glossary || "").trim();
+  if (!g) return undefined;
+  const flat = g.replace(/\s*\n+\s*/g, ", ").slice(0, 500);
+  return `Деловой разговор менеджера по продажам. Правильные названия компаний, брендов и терминов: ${flat}.`;
 }
 
 interface ResolvedScript {
