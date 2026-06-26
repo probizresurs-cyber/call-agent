@@ -68,6 +68,130 @@ interface AiDiscrepancy {
 }
 
 // ──────────────────────────────────────────────────────────────
+// Whitelist осмысленных бизнес-полей + маппинг кодов на русские названия.
+//
+// Идея ЗАДАЧИ A: не плодить мусор по техническим UF_CRM_*-полям, булевым
+// флагам и служебным комментариям. Сверяем только то, что реально важно РОПу.
+
+/**
+ * Стандартные поля Bitrix, которые имеют смысл для контроля качества.
+ * Ключ — имя поля в API, значение — человекочитаемый русский ярлык.
+ * Всё, чего здесь нет (и что не прошло проверку UF-поля по label), игнорируется.
+ */
+const BUSINESS_FIELD_LABELS: Record<string, string> = {
+  TITLE: "Название",
+  OPPORTUNITY: "Сумма сделки",
+  STAGE_ID: "Этап",
+  STATUS_ID: "Статус",
+  NAME: "Контактное лицо",
+  LAST_NAME: "Фамилия контакта",
+  SECOND_NAME: "Отчество контакта",
+  PHONE: "Телефон",
+  EMAIL: "Email",
+  COMMENTS: "Комментарий",
+  // Срок / дата закрытия
+  CLOSEDATE: "Срок (дата закрытия)",
+  DATE_CREATE: "Дата создания",
+  // Ответственный
+  ASSIGNED_BY_ID: "Ответственный",
+};
+
+/**
+ * Имена полей, которые НИКОГДА не должны попадать в расхождения,
+ * даже если AI их предложит (системные/технические).
+ */
+const SYSTEM_FIELD_BLACKLIST = new Set<string>([
+  "ID",
+  "CATEGORY_ID",
+  "CURRENCY_ID",
+  "OPPORTUNITY_ACCOUNT",
+  "TAX_VALUE",
+  "OPENED",
+  "CLOSED",
+  "IS_MANUAL_OPPORTUNITY",
+  "IS_NEW",
+  "IS_RECURRING",
+  "IS_RETURN_CUSTOMER",
+  "IS_REPEATED_APPROACH",
+  "MODIFY_BY_ID",
+  "CREATED_BY_ID",
+  "MOVED_BY_ID",
+  "MOVED_TIME",
+  "LAST_ACTIVITY_TIME",
+  "LAST_ACTIVITY_BY",
+  "WEBFORM_ID",
+  "SOURCE_ID",
+  "SOURCE_DESCRIPTION",
+  "UTM_SOURCE",
+  "UTM_MEDIUM",
+  "UTM_CAMPAIGN",
+  "UTM_CONTENT",
+  "UTM_TERM",
+  "ADDITIONAL_INFO",
+  "ORIGINATOR_ID",
+  "ORIGIN_ID",
+  "LOCATION_ID",
+]);
+
+/**
+ * Возвращает человекочитаемый ярлык для поля или null,
+ * если поле осмысленным бизнес-полем не считается.
+ *
+ * Правила (ЗАДАЧА A):
+ *  - стандартные бизнес-поля — берём из BUSINESS_FIELD_LABELS;
+ *  - UF_CRM_* — только если у поля есть осмысленный label (не равный самому коду);
+ *  - чистый технический код без label — пропускаем.
+ */
+function resolveFieldLabel(fieldName: string, rawLabel: string): string | null {
+  // Системные поля — сразу отбрасываем
+  if (SYSTEM_FIELD_BLACKLIST.has(fieldName)) return null;
+
+  // Известное стандартное бизнес-поле
+  if (BUSINESS_FIELD_LABELS[fieldName]) return BUSINESS_FIELD_LABELS[fieldName];
+
+  // Пользовательское UF_CRM_* — берём только при наличии читаемого label
+  if (fieldName.startsWith("UF_")) {
+    const label = (rawLabel || "").trim();
+    // label пустой ИЛИ совпадает с самим кодом поля → нечитаемое поле, пропускаем
+    if (!label || label === fieldName) return null;
+    // label сам похож на технический код (UF_CRM_..., только цифры) — пропускаем
+    if (/^UF_/.test(label) || /^[0-9_]+$/.test(label)) return null;
+    return label;
+  }
+
+  // Прочие стандартные поля без явного бизнес-смысла — не сверяем
+  return null;
+}
+
+/**
+ * true, если значение — мусор для РОПа (булево, чистый код, служебный текст
+ * BitrixGPT, html-обрывки). Такие значения не должны порождать расхождение.
+ */
+function isNoiseValue(value: string | null | undefined): boolean {
+  if (value == null) return true;
+  const v = String(value).trim();
+  if (v === "") return true;
+
+  // Булевы / Y-N / 0-1 флаги без смысла для РОПа
+  if (/^(true|false|y|n|да|нет|0|1)$/i.test(v)) return true;
+
+  // Чистый числовой/буквенно-цифровой код-идентификатор без пробелов
+  // (например статус-код "C9:NEW", "UC_XXXX", голый хеш) — но НЕ суммы.
+  // Суммы это набор цифр; их допускаем (они проходят дальше как card_value суммы).
+  if (/^[A-Z]{1,3}\d*:[A-Z0-9_]+$/.test(v)) return true; // STAGE-коды вида C9:NEW
+  if (/^UC_[A-Z0-9]+$/i.test(v)) return true;
+
+  // Html-обрывки и BBCode-теги BitrixGPT: [p]...[/p], <p>, и т.п.
+  if (/\[\/?[a-z]+\]/i.test(v)) return true;
+  if (/<\/?[a-z][^>]*>/i.test(v)) return true;
+
+  // Служебные пометки автокомментариев BitrixGPT / роботов
+  if (/^(BitrixGPT|Автокомментарий|Робот|CRM-форма)/i.test(v)) return true;
+
+  return false;
+}
+
+// ──────────────────────────────────────────────────────────────
 // Порядковые значения severity для фильтрации
 
 const SEVERITY_ORDER: Record<DiscrepancySeverity, number> = {
@@ -201,7 +325,10 @@ async function loadBitrixCard(
         return null;
       }
 
-      const fields = extractCardFields(rawDeal, settings.customFields);
+      // Подгружаем человекочитаемые ярлыки полей (в т.ч. UF_CRM_*) — без них
+      // мы не сможем отличить осмысленное пользовательское поле от технического.
+      const labels = await loadFieldLabels("deal");
+      const fields = extractCardFields(rawDeal, settings.customFields, labels);
       return {
         entityType: "deal",
         entityId: String(call.bitrix_deal_id),
@@ -226,7 +353,8 @@ async function loadBitrixCard(
       return null;
     }
 
-    const fields = extractCardFields(rawLead, settings.customFields);
+    const labels = await loadFieldLabels("lead");
+    const fields = extractCardFields(rawLead, settings.customFields, labels);
     return {
       entityType: "lead",
       entityId: String(call.bitrix_lead_id),
@@ -239,52 +367,80 @@ async function loadBitrixCard(
 }
 
 /**
- * Извлекает поля карточки: стандартные + UF_CRM_* (с фильтрацией по whitelist).
- * Возвращает Record<fieldName, { label, value }>.
+ * Загружает карту человекочитаемых ярлыков полей сущности из Bitrix:
+ * crm.deal.fields / crm.lead.fields → { FIELD_CODE: "Русский ярлык" }.
+ *
+ * Кешируется в памяти процесса на время жизни (метаданные полей меняются редко).
+ * При ошибке возвращает пустую карту — детектор продолжит работать, просто
+ * UF-поля без известного ярлыка будут отфильтрованы как нечитаемые.
+ */
+const _fieldLabelCache = new Map<string, Record<string, string>>();
+
+async function loadFieldLabels(
+  entity: "deal" | "lead"
+): Promise<Record<string, string>> {
+  const cached = _fieldLabelCache.get(entity);
+  if (cached) return cached;
+
+  const labels: Record<string, string> = {};
+  try {
+    const method = entity === "deal" ? "crm.deal.fields" : "crm.lead.fields";
+    const raw = await callBitrixApi<Record<string, { formLabel?: string; listLabel?: string; title?: string }>>(
+      method
+    );
+    for (const [code, meta] of Object.entries(raw || {})) {
+      const label = (meta?.formLabel || meta?.listLabel || meta?.title || "").trim();
+      if (label) labels[code] = label;
+    }
+  } catch (e) {
+    console.warn(`[discrepancy] не удалось загрузить ярлыки полей ${entity}:`, (e as Error).message);
+  }
+
+  _fieldLabelCache.set(entity, labels);
+  return labels;
+}
+
+/**
+ * Извлекает ОСМЫСЛЕННЫЕ поля карточки для сверки (ЗАДАЧА A).
+ *
+ * Whitelist-подход:
+ *  - стандартные бизнес-поля (сумма/этап/название/контакт/срок/ответственный) — всегда;
+ *  - UF_CRM_* — только если у поля есть человекочитаемый ярлык (из loadFieldLabels);
+ *  - технические/системные поля и поля-мусор игнорируются.
+ *
+ * Возвращает Record<fieldName, { label, value }> уже с русскими ярлыками.
  */
 function extractCardFields(
   raw: Record<string, unknown>,
-  customFieldsWhitelist: string[] | null
+  customFieldsWhitelist: string[] | null,
+  fieldLabels: Record<string, string>
 ): Record<string, BitrixCardField> {
-  // Стандартные поля которые проверяем всегда
-  const STANDARD_FIELDS: Record<string, string> = {
-    TITLE: "Название",
-    COMMENTS: "Комментарий",
-    ADDITIONAL_INFO: "Дополнительная информация",
-    OPPORTUNITY: "Сумма сделки",
-    STAGE_ID: "Стадия",
-    NAME: "Имя",
-    LAST_NAME: "Фамилия",
-    STATUS_ID: "Статус",
-  };
-
   const fields: Record<string, BitrixCardField> = {};
 
-  // Стандартные поля
-  for (const [key, label] of Object.entries(STANDARD_FIELDS)) {
-    const val = raw[key];
-    if (val !== undefined && val !== null && val !== "") {
-      fields[key] = { label, value: String(val) };
-    }
-  }
-
-  // UF_CRM_* поля
   for (const [key, val] of Object.entries(raw)) {
-    if (!key.startsWith("UF_")) continue;
     if (val === undefined || val === null || val === "") continue;
 
-    // Если задан whitelist — берём только те поля что в нём
-    if (customFieldsWhitelist && customFieldsWhitelist.length > 0) {
-      if (!customFieldsWhitelist.includes(key)) continue;
+    // Если задан кастомный whitelist UF-полей — для UF_* пропускаем всё, чего в нём нет.
+    if (
+      key.startsWith("UF_") &&
+      customFieldsWhitelist &&
+      customFieldsWhitelist.length > 0 &&
+      !customFieldsWhitelist.includes(key)
+    ) {
+      continue;
     }
+
+    // Определяем человекочитаемый ярлык; null = поле нерелевантно, пропускаем.
+    const label = resolveFieldLabel(key, fieldLabels[key] || "");
+    if (!label) continue;
 
     const strVal = Array.isArray(val) ? val.join(", ") : String(val);
     if (strVal.trim() === "") continue;
 
-    fields[key] = {
-      label: key, // Bitrix API не возвращает label напрямую в get — используем имя поля
-      value: strVal,
-    };
+    // Значение-мусор (булево/код/служебный текст) — не сверяем.
+    if (isNoiseValue(strVal)) continue;
+
+    fields[key] = { label, value: strVal };
   }
 
   return fields;
@@ -313,10 +469,22 @@ async function detectWithAI(
 
   const system = `Ты — эксперт по контролю качества продаж. Тебе дан транскрипт звонка менеджера с заказчиком \
 и текущее содержимое CRM-карточки (сделка/лид в Bitrix24). \
-Найди ТОЛЬКО ФАКТИЧЕСКИЕ расхождения: информация была упомянута в звонке, \
-но отсутствует или неверно записана в карточке. \
-НЕ придумывай расхождения. НЕ считай расхождением отсутствие информации которую в принципе не обсуждали. \
-Верни список расхождений с конкретными цитатами из транскрипта как доказательство.`;
+Найди ТОЛЬКО ФАКТИЧЕСКИЕ, ВАЖНЫЕ ДЛЯ РОПа расхождения: в звонке прозвучала конкретная информация \
+(сумма сделки, этап/статус, контактное лицо, телефон, срок/дата, договорённость), \
+а в карточке она отсутствует или записана иначе.
+
+ЖЁСТКИЕ ПРАВИЛА (нарушение = брак):
+1. Создавай расхождение ТОЛЬКО если можешь привести ПРЯМУЮ ЦИТАТУ из транскрипта (поле transcript_evidence), \
+   которая доказывает другое значение. Нет цитаты — НЕ создавай расхождение.
+2. НЕ выдумывай расхождения и НЕ считай расхождением то, что в звонке не обсуждалось.
+3. ИГНОРИРУЙ технические/служебные поля: булевы флаги (да/нет, true/false), статус-коды, \
+   идентификаторы, UTM-метки, служебные комментарии роботов/BitrixGPT, html-обрывки.
+4. Сверяй только осмысленные бизнес-поля из переданной карточки. Если поля нет в карточке — \
+   не предлагай его, кроме случая когда в звонке явно прозвучала ключевая бизнес-величина \
+   (сумма, срок, контакт), которую обязательно нужно зафиксировать.
+5. field_label заполняй человекочитаемым русским названием поля (как в карточке).
+
+Лучше вернуть пустой список, чем нагенерить шум.`;
 
   const user = `## Транскрипт звонка\n\n${transcript.slice(0, 12000)}\n\n## CRM-карточка\n\n${cardBlock}`;
 
@@ -380,8 +548,32 @@ async function saveAndRoute(
   settings: TenantDiscrepancySettings,
   db: CompatDb
 ): Promise<number> {
+  // ── ЗАДАЧА A: пост-фильтр от шума ──────────────────────────────
+  // AI всё равно иногда возвращает мусор (поля без доказательства,
+  // технические/булевы значения, html-обрывки). Отсекаем здесь повторно.
+  const deNoised = discrepancies.filter((d) => {
+    // Порог: без непустого доказательства из разговора — отбрасываем.
+    const evidence = (d.transcript_evidence || "").trim();
+    if (evidence.length < 8) return false;
+
+    // Системные/технические поля — отбрасываем.
+    if (SYSTEM_FIELD_BLACKLIST.has(d.field_name)) return false;
+
+    // UF-поле без человекочитаемого ярлыка — отбрасываем.
+    const label = resolveFieldLabel(d.field_name, d.field_label || "");
+    if (!label) return false;
+    // Нормализуем ярлык на русское название (для системных кодов).
+    d.field_label = label;
+
+    // Значения-мусор: и текущее, и предлагаемое не должны быть техническим шумом.
+    // Если предлагаемое значение — мусор, расхождение бессмысленно.
+    if (isNoiseValue(d.suggested_value)) return false;
+
+    return true;
+  });
+
   // Фильтруем по минимальному порогу severity
-  const filtered = discrepancies.filter((d) =>
+  const filtered = deNoised.filter((d) =>
     severityAtLeast(d.severity as DiscrepancySeverity, settings.severityMin)
   );
 

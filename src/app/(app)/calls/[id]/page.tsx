@@ -7,8 +7,9 @@ import {
   Briefcase, UserPlus, ExternalLink,
 } from "lucide-react";
 import { getDbAsync } from "@/lib/db-compat";
-import { getSessionUser } from "@/lib/auth";
+import { getSessionUser, canViewTeam } from "@/lib/auth";
 import { ReprocessButton } from "./ReprocessButton";
+import { CallDiscrepancies, type CallDiscrepancyItem } from "./CallDiscrepancies";
 import { DeepAnalyzeButton } from "./DeepAnalyzeButton";
 import { ReassignScriptButton } from "./ReassignScriptButton";
 import { SendToCrmButton } from "./SendToCrmButton";
@@ -92,6 +93,30 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
   const coachingTips: string[] = analysis?.coaching_tips_json
     ? JSON.parse(analysis.coaching_tips_json) : [];
   const dialogue: Dialogue = transcript?.dialogue_json ? JSON.parse(transcript.dialogue_json) : [];
+
+  // ЗАДАЧА C: расхождения с CRM по этому звонку.
+  // Доступ — canViewTeam (РОП/админ/владелец/демо). Менеджеру блок не показываем,
+  // т.к. раздел /discrepancies для роли manager недоступен.
+  let discrepancies: CallDiscrepancyItem[] = [];
+  let discrepancyActionMode = "manual";
+  if (canViewTeam(me.role)) {
+    discrepancies = await db
+      .prepare(
+        `SELECT id, field_name, field_label, card_value, suggested_value,
+                transcript_evidence, severity, status
+         FROM card_discrepancies
+         WHERE call_id = ? AND tenant_id = ?
+         ORDER BY
+           CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
+           id DESC`
+      )
+      .all<CallDiscrepancyItem>(id, me.tenantId);
+
+    const tenantRow = await db
+      .prepare(`SELECT discrepancy_action_mode FROM tenants WHERE id = ? LIMIT 1`)
+      .get<{ discrepancy_action_mode: string | null }>(me.tenantId);
+    discrepancyActionMode = tenantRow?.discrepancy_action_mode ?? "manual";
+  }
 
   return (
     <>
@@ -300,6 +325,9 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
           )}
         </div>
       )}
+
+      {/* ЗАДАЧА C: расхождения с CRM по этому звонку (пустой список → блок не рендерится) */}
+      <CallDiscrepancies items={discrepancies} actionMode={discrepancyActionMode} />
 
       {checklistScores.length > 0 && (
         <div className="ds-card" style={{ marginBottom: 16, padding: 14 }}>

@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Scale, AlertCircle, CheckCircle2, XCircle, ExternalLink, Filter } from "lucide-react";
@@ -5,6 +6,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
 import { DiscrepanciesFilters } from "./DiscrepanciesFilters";
 import { ResolveButtons } from "./ResolveButtons";
+import { DiscrepancyDetail } from "./DiscrepancyDetail";
 import type { DiscrepancySeverity, DiscrepancyStatus } from "@/lib/discrepancy-types";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +32,7 @@ type DiscrepancyRow = {
   started_at: string | null;
   manager_name: string | null;
   manager_id: string | null;
+  bitrix_portal_url: string | null;
   routed_to_name: string | null;
   // action_mode from tenant settings
   action_mode: string | null;
@@ -221,7 +224,7 @@ export default async function DiscrepanciesPage(props: {
               cd.field_name, cd.field_label, cd.card_value, cd.suggested_value,
               cd.transcript_evidence, cd.severity, cd.status,
               cd.routed_to_user_id, cd.created_at, cd.resolved_at,
-              c.started_at, c.manager_name, c.manager_id,
+              c.started_at, c.manager_name, c.manager_id, c.bitrix_portal_url,
               u.name AS routed_to_name
        FROM card_discrepancies cd
        JOIN calls c ON c.id = cd.call_id
@@ -376,7 +379,8 @@ export default async function DiscrepanciesPage(props: {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id}>
+                <React.Fragment key={r.id}>
+                <tr>
                   {/* Date + link to call */}
                   <td style={{ whiteSpace: "nowrap", verticalAlign: "top", paddingTop: 10 }}>
                     <Link
@@ -483,6 +487,34 @@ export default async function DiscrepanciesPage(props: {
                     />
                   </td>
                 </tr>
+
+                {/* ЗАДАЧА B: раскрывающаяся строка детального просмотра */}
+                <tr>
+                  <td colSpan={7} style={{ padding: "0 12px 8px" }}>
+                    <DiscrepancyDetail
+                      data={{
+                        id: r.id,
+                        call_id: r.call_id,
+                        entity_type: r.entity_type,
+                        entity_id: r.entity_id,
+                        field_name: r.field_name,
+                        field_label: r.field_label,
+                        card_value: r.card_value,
+                        suggested_value: r.suggested_value,
+                        transcript_evidence: r.transcript_evidence,
+                        severity: r.severity,
+                        status: r.status,
+                        created_at: r.created_at,
+                        started_at: r.started_at,
+                        manager_name: r.manager_name,
+                        manager_id: r.manager_id,
+                        bitrix_portal_url: r.bitrix_portal_url,
+                        actionMode,
+                      }}
+                    />
+                  </td>
+                </tr>
+                </React.Fragment>
               ))}
             </tbody>
           </table>
