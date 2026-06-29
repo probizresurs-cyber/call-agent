@@ -93,6 +93,29 @@ export default function ContactForm() {
     );
   }
 
+  // ── Форма отключена: показываем уведомление вместо полей (ПД не собираем) ──
+  if (!FORM_ENABLED) {
+    return (
+      <div
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: 16,
+          padding: "40px 28px",
+          textAlign: "center",
+        }}
+      >
+        <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>
+          Приём заявок скоро откроется
+        </h3>
+        <p style={{ fontSize: 15, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.55 }}>
+          Мы дорабатываем форму под требования закона о персональных данных (152-ФЗ).
+          Совсем скоро здесь снова можно будет оставить заявку.
+        </p>
+      </div>
+    );
+  }
+
   const inputStyle: React.CSSProperties = {
     width: "100%",
     padding: "11px 14px",
