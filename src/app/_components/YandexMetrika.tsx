@@ -3,7 +3,7 @@
 /**
  * Счётчик Яндекс.Метрики для Call-Agent.
  *
- * ОТДЕЛЬНЫЙ счётчик именно Call-Agent (№110246171) — не пересекается со
+ * ОТДЕЛЬНЫЙ счётчик именно Call-Agent (№110246266) — не пересекается со
  * счётчиком основного сайта marketradar24.ru, потому что код стоит только
  * в приложении call-agent (под /call-agent/*).
  *
@@ -18,7 +18,7 @@
  */
 import Script from "next/script";
 
-const YM_ID = process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID ?? "110246171";
+const YM_ID = process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID ?? "110246266";
 
 export default function YandexMetrika() {
   if (!YM_ID) return null;
@@ -30,8 +30,8 @@ export default function YandexMetrika() {
         m[i].l=1*new Date();
         for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
         k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-        (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
-        ym(${YM_ID}, "init", {clickmap:true, trackLinks:true, accurateTrackBounce:true, webvisor:true});`}
+        (window, document, "script", "https://mc.yandex.ru/metrika/tag.js?id=${YM_ID}", "ym");
+        ym(${YM_ID}, "init", {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});`}
       </Script>
       <noscript>
         <div>
