@@ -15,7 +15,7 @@ import {
   PhoneCall, ArrowRight, Sparkles, ClipboardCheck, Scale, BarChart3,
   Download, FileText, BrainCircuit, LayoutDashboard, MessagesSquare,
   UserRound, Bot, Tv, Trophy, TrendingUp, Clock, ShieldCheck, Database,
-  ChevronRight, HelpCircle, Mail, Phone,
+  ChevronRight, HelpCircle,
 } from "lucide-react";
 import ContactForm from "./ContactForm";
 import CookieBanner from "../_components/CookieBanner";
@@ -604,20 +604,6 @@ export default function AboutPage() {
                 <Link href="/offer" style={footerLink}>Публичная оферта</Link>
                 <Link href="/consent" style={footerLink}>Согласие на обработку ПД</Link>
                 <Link href="/consent-marketing" style={footerLink}>Согласие на рассылку</Link>
-              </div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--muted-foreground)", marginBottom: 12 }}>
-                Контакты
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 9, fontSize: 14 }}>
-                {/* TODO: заменить плейсхолдеры на реальные контакты заказчика */}
-                <a href="mailto:hello@example.ru" style={{ ...footerLink, display: "inline-flex", alignItems: "center", gap: 7 }}>
-                  <Mail size={14} /> hello@example.ru
-                </a>
-                <a href="tel:+70000000000" style={{ ...footerLink, display: "inline-flex", alignItems: "center", gap: 7 }}>
-                  <Phone size={14} /> +7 (000) 000-00-00
-                </a>
               </div>
             </div>
           </div>
