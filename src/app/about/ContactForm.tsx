@@ -11,8 +11,11 @@
  * по умолчанию (согласие пользователь ставит сам — иначе оно невалидно):
  *   1) согласие на обработку ПД — ОБЯЗАТЕЛЬНЫЙ (ссылки: /consent + /privacy);
  *   2) согласие на рассылку      — НЕОБЯЗАТЕЛЬНЫЙ (ссылка: /consent-marketing).
- * Кнопка активна, когда указаны имя + телефон/email И отмечено согласие на ПДн.
- * Согласие на рассылку на активацию НЕ влияет (нельзя принуждать).
+ * Кнопка активна, когда указаны имя + ТЕЛЕФОН (обязателен) И отмечено согласие
+ * на ПДн. Согласие на рассылку на активацию НЕ влияет (нельзя принуждать).
+ *
+ * После успешной отправки СРАЗУ открываем демо-доступ: переход на /call-agent/demo
+ * (ставит read-only demo-сессию и ведёт на дашборд ?period=all).
  */
 
 import { useState } from "react";
@@ -38,9 +41,9 @@ export default function ContactForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Для осмысленной заявки нужны имя и хотя бы один способ связи.
-  const hasContact = name.trim().length > 0 && (phone.trim().length > 0 || email.trim().length > 0);
-  // Кнопка активна, если форма включена, заполнены контакты и отмечено согласие
+  // Телефон обязателен (по нему открываем демо и связываемся), имя — тоже.
+  const hasContact = name.trim().length > 0 && phone.trim().length > 0;
+  // Кнопка активна, если форма включена, заполнены имя+телефон и отмечено согласие
   // на ПДн (рекламная рассылка — необязательна, на активацию НЕ влияет).
   const canSubmit = FORM_ENABLED && agreePd && hasContact && !submitting;
 
@@ -66,6 +69,9 @@ export default function ContactForm() {
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
       if (res.ok && data?.ok) {
         setSent(true);
+        // Сразу открываем демо-доступ: /demo ставит read-only demo-сессию
+        // и редиректит на дашборд (?period=all).
+        window.location.href = "/call-agent/demo";
       } else {
         setError(data?.error || "Не удалось отправить заявку. Попробуйте позже.");
       }
@@ -103,10 +109,14 @@ export default function ContactForm() {
           <CheckCircle2 size={28} color={BRAND} />
         </div>
         <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>
-          Спасибо, заявка принята
+          Спасибо! Открываем демо-доступ…
         </h3>
         <p style={{ fontSize: 15, color: "var(--muted-foreground)", margin: 0, lineHeight: 1.55 }}>
-          Мы свяжемся с вами в ближайшее время.
+          Если демо не открылось автоматически —{" "}
+          <a href="/call-agent/demo" style={{ color: BRAND, fontWeight: 600 }}>
+            нажмите здесь
+          </a>
+          . Мы также свяжемся с вами по телефону.
         </p>
       </div>
     );
@@ -159,7 +169,7 @@ export default function ContactForm() {
     >
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }} className="form-grid">
         <div>
-          <label style={labelStyle}>Имя</label>
+          <label style={labelStyle}>Имя <span style={{ color: BRAND }}>*</span></label>
           <input
             type="text"
             value={name}
@@ -169,7 +179,7 @@ export default function ContactForm() {
           />
         </div>
         <div>
-          <label style={labelStyle}>Телефон</label>
+          <label style={labelStyle}>Телефон <span style={{ color: BRAND }}>*</span></label>
           <input
             type="tel"
             value={phone}
@@ -181,7 +191,9 @@ export default function ContactForm() {
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <label style={labelStyle}>Email</label>
+        <label style={labelStyle}>
+          Email <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>(необязательно)</span>
+        </label>
         <input
           type="email"
           value={email}
@@ -268,7 +280,7 @@ export default function ContactForm() {
           transition: "background 150ms, opacity 150ms",
         }}
       >
-        <Send size={17} /> {submitting ? "Отправляем…" : "Отправить заявку"}
+        <Send size={17} /> {submitting ? "Отправляем…" : "Получить демо-доступ"}
       </button>
 
       {/* Ошибка отправки */}

@@ -80,16 +80,16 @@ export default function AboutPage() {
             <Link href="/pricing" style={{ color: "var(--muted-foreground)", textDecoration: "none" }}>
               Тарифы
             </Link>
-            <Link
-              href="/demo"
+            <a
+              href="#request-demo"
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 background: BRAND, color: "#fff", padding: "9px 16px",
                 borderRadius: 9, fontWeight: 600, textDecoration: "none",
               }}
             >
-              Открыть демо <ArrowRight size={15} />
-            </Link>
+              Запросить демо <ArrowRight size={15} />
+            </a>
           </nav>
         </header>
 
@@ -149,16 +149,16 @@ export default function AboutPage() {
             </p>
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link
-                href="/demo"
+              <a
+                href="#request-demo"
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 8,
                   background: BRAND, color: "#fff", padding: "13px 24px",
                   borderRadius: 11, fontWeight: 700, fontSize: 16, textDecoration: "none",
                 }}
               >
-                Открыть демо <ArrowRight size={18} />
-              </Link>
+                Запросить демо <ArrowRight size={18} />
+              </a>
               <Link
                 href="/pricing"
                 style={{
@@ -514,12 +514,12 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ── ФОРМА ЗАЯВКИ ── */}
-        <section style={{ padding: "8px 0 64px" }}>
+        {/* ── ФОРМА ЗАЯВКИ → демо-доступ ── */}
+        <section id="request-demo" style={{ padding: "8px 0 64px", scrollMarginTop: 24 }}>
           <SectionHeading
-            kicker="Связаться"
-            title={<>Оставить <span style={{ color: BRAND }}>заявку</span></>}
-            subtitle="Расскажите про ваш отдел продаж — покажем, как Call-Agent сработает на ваших данных."
+            kicker="Демо-доступ"
+            title={<>Запросить <span style={{ color: BRAND }}>демо</span></>}
+            subtitle="Оставьте контакты — и сразу откроется живой демо-дашборд с разбором звонков. Телефон обязателен: по нему мы свяжемся и поможем подключить ваш отдел продаж."
           />
           <div style={{ maxWidth: 620, margin: "36px auto 0" }}>
             <ContactForm />
@@ -537,18 +537,18 @@ export default function AboutPage() {
             Посмотрите, как это выглядит на ваших данных
           </h2>
           <p style={{ fontSize: 17, color: "rgba(255,255,255,0.85)", margin: "0 0 28px", lineHeight: 1.5 }}>
-            Откройте демо — это живой дашборд с разбором звонков. Без регистрации.
+            Заполните короткую форму — и сразу откроется живой демо-дашборд с разбором звонков.
           </p>
-          <Link
-            href="/demo"
+          <a
+            href="#request-demo"
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               background: "#fff", color: BRAND, padding: "14px 30px",
               borderRadius: 12, fontWeight: 800, fontSize: 17, textDecoration: "none",
             }}
           >
-            Открыть демо <ArrowRight size={19} />
-          </Link>
+            Запросить демо <ArrowRight size={19} />
+          </a>
         </section>
       </div>
 
@@ -588,7 +588,7 @@ export default function AboutPage() {
                 Продукт
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9, fontSize: 14 }}>
-                <Link href="/demo" style={footerLink}>Демо</Link>
+                <a href="#request-demo" style={footerLink}>Демо</a>
                 <Link href="/pricing" style={footerLink}>Тарифы</Link>
                 <Link href="/login" style={footerLink}>Войти</Link>
               </div>
