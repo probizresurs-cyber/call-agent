@@ -278,6 +278,24 @@ function makePgDb(): CompatDb {
       CREATE INDEX IF NOT EXISTS idx_onboarding_requests_status
         ON onboarding_requests(status, created_at DESC);
 
+      -- ─────── Заявки с контактной формы лендинга (/about) ───────
+      -- marketing_consent — INTEGER 0/1 (как в SQLite, чтобы биндить число, не boolean).
+      CREATE TABLE IF NOT EXISTS contact_requests (
+        id                SERIAL PRIMARY KEY,
+        name              TEXT,
+        phone             TEXT,
+        email             TEXT,
+        message           TEXT,
+        marketing_consent INTEGER NOT NULL DEFAULT 0,
+        source            TEXT,
+        user_agent        TEXT,
+        status            TEXT NOT NULL DEFAULT 'new',
+        created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_contact_requests_status
+        ON contact_requests(status, created_at DESC);
+
       -- ─────── Расписания автоматической отправки отчётов в Bitrix ───────
       -- recipient_kind='user' → recipient_id это bitrix user_id (личка через imbot);
       -- recipient_kind='chat' → recipient_id это "chatN" (групповой чат бота).

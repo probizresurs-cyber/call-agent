@@ -3,23 +3,16 @@
 /**
  * Форма заявки на лендинге Call-Agent с 152-ФЗ обвязкой.
  *
- * ВАЖНО — флаг FORM_ENABLED:
- *   false → форма показывается (поля видны), но приём заявок ОТКЛЮЧЁН:
- *           кнопка всегда неактивна, под формой пометка о недоступности.
- *   true  → кнопка активируется, КОГДА отмечены ОБА ОБЯЗАТЕЛЬНЫХ чекбокса
- *           (согласие на ПД + оферта). При сабмите показывается заглушка
- *           «Спасибо, заявка принята» — РЕАЛЬНОЙ отправки/API НЕТ (бэкенда
- *           формы пока нет). Чтобы подключить отправку — см. TODO в handleSubmit.
+ * Приём включён (FORM_ENABLED=true): сабмит → POST /call-agent/api/contact,
+ * заявка сохраняется в БД (таблица contact_requests), смотрим на
+ * /contact-requests. FORM_ENABLED=false скрывает приём (форма видна, но не шлёт).
  *
- * Три чекбокса (по официальной инструкции заказчика по ПД), все НЕ отмечены
- * по умолчанию (согласие должно ставиться пользователем вручную):
+ * Два чекбокса (по официальной инструкции заказчика по ПД), оба НЕ отмечены
+ * по умолчанию (согласие пользователь ставит сам — иначе оно невалидно):
  *   1) согласие на обработку ПД — ОБЯЗАТЕЛЬНЫЙ (ссылки: /consent + /privacy);
- *   2) согласие на рассылку      — НЕОБЯЗАТЕЛЬНЫЙ (ссылка: /consent-marketing);
- *   3) принятие оферты           — ОБЯЗАТЕЛЬНЫЙ (ссылка: /offer).
- * Кнопка активна, когда отмечены ТОЛЬКО обязательные (1 и 3); рекламный (2)
- * на активацию НЕ влияет.
- *
- * Чтобы включить приём заявок: поменять FORM_ENABLED на true.
+ *   2) согласие на рассылку      — НЕОБЯЗАТЕЛЬНЫЙ (ссылка: /consent-marketing).
+ * Кнопка активна, когда указаны имя + телефон/email И отмечено согласие на ПДн.
+ * Согласие на рассылку на активацию НЕ влияет (нельзя принуждать).
  */
 
 import { useState } from "react";
@@ -29,32 +22,58 @@ import { Send, CheckCircle2 } from "lucide-react";
 const BRAND = "#7c70e0";
 
 // ── Главный рубильник формы ──
-// false = форма видна, но не отправляет (приём заявок временно отключён).
-// true  = кнопка активна при отмеченных обязательных чекбоксах, сабмит → заглушка.
-const FORM_ENABLED = false;
+// true  = приём заявок включён: сабмит → POST /call-agent/api/contact (БД).
+// false = форма видна, но не отправляет (приём временно отключён).
+const FORM_ENABLED = true;
 
 export default function ContactForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
-  // Три согласия. Обязательные: ПД и оферта. Необязательное: рассылка.
+  // Согласия. Обязательное: на обработку ПДн. Необязательное: рассылка.
   const [agreePd, setAgreePd] = useState(false); // обязательный
   const [agreeMarketing, setAgreeMarketing] = useState(false); // необязательный
-  const [agreeOffer, setAgreeOffer] = useState(false); // обязательный
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Кнопка активна, если форма включена И отмечены ОБА ОБЯЗАТЕЛЬНЫХ чекбокса
-  // (рекламная рассылка на активацию НЕ влияет).
-  const canSubmit = FORM_ENABLED && agreePd && agreeOffer;
+  // Для осмысленной заявки нужны имя и хотя бы один способ связи.
+  const hasContact = name.trim().length > 0 && (phone.trim().length > 0 || email.trim().length > 0);
+  // Кнопка активна, если форма включена, заполнены контакты и отмечено согласие
+  // на ПДн (рекламная рассылка — необязательна, на активацию НЕ влияет).
+  const canSubmit = FORM_ENABLED && agreePd && hasContact && !submitting;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
-    // TODO: подключить реальную отправку заявки (POST на /api/lead или
-    // интеграцию с лидгеном MR24). Пока бэкенда формы нет — показываем заглушку.
-    // В payload передавать также флаг согласия на рассылку (agreeMarketing).
-    setSent(true);
+    setSubmitting(true);
+    setError(null);
+    try {
+      // basePath /call-agent к fetch НЕ добавляется автоматически — пишем явно.
+      const res = await fetch("/call-agent/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          phone,
+          email,
+          message,
+          consent_pd: true, // обязательное согласие (иначе кнопка неактивна)
+          marketing_consent: agreeMarketing,
+        }),
+      });
+      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (res.ok && data?.ok) {
+        setSent(true);
+      } else {
+        setError(data?.error || "Не удалось отправить заявку. Попробуйте позже.");
+      }
+    } catch {
+      setError("Нет связи с сервером. Проверьте интернет и попробуйте снова.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // ── Экран успеха (заглушка после сабмита при FORM_ENABLED=true) ──
@@ -224,22 +243,6 @@ export default function ContactForm() {
             <span style={{ color: "var(--muted-foreground)", opacity: 0.85 }}>(необязательно)</span>
           </span>
         </label>
-
-        {/* 3. Принятие оферты — ОБЯЗАТЕЛЬНЫЙ */}
-        <label style={checkboxRowStyle}>
-          <input
-            type="checkbox"
-            checked={agreeOffer}
-            onChange={(e) => setAgreeOffer(e.target.checked)}
-            style={checkboxStyle}
-          />
-          <span>
-            Принимаю условия{" "}
-            <Link href="/offer" style={linkStyle} target="_blank">
-              Оферты
-            </Link>
-          </span>
-        </label>
       </div>
 
       {/* ── Кнопка отправки ── */}
@@ -265,8 +268,15 @@ export default function ContactForm() {
           transition: "background 150ms, opacity 150ms",
         }}
       >
-        <Send size={17} /> Отправить заявку
+        <Send size={17} /> {submitting ? "Отправляем…" : "Отправить заявку"}
       </button>
+
+      {/* Ошибка отправки */}
+      {error && (
+        <p style={{ fontSize: 13, color: "var(--destructive, #e5484d)", textAlign: "center", margin: "12px 0 0", lineHeight: 1.5, fontWeight: 500 }}>
+          {error}
+        </p>
+      )}
 
       {/* Подпись под кнопкой (требование 152-ФЗ) */}
       <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>

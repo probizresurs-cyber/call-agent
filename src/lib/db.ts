@@ -175,6 +175,25 @@ function applyAlterMigrations(db: Database.Database) {
       ON onboarding_requests(status, created_at DESC);
   `);
 
+  // Заявки с контактной формы лендинга (/about). Публичный приём, без тенанта.
+  // marketing_consent — INTEGER 0/1 (кросс-совместимо с PG, без boolean-binding).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS contact_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      phone TEXT,
+      email TEXT,
+      message TEXT,
+      marketing_consent INTEGER NOT NULL DEFAULT 0,
+      source TEXT,
+      user_agent TEXT,
+      status TEXT NOT NULL DEFAULT 'new',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_contact_requests_status
+      ON contact_requests(status, created_at DESC);
+  `);
+
   // ─────── Рефералки и промокоды (CA-admin) ───────
   db.exec(`
     CREATE TABLE IF NOT EXISTS ca_referrals (

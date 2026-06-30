@@ -601,8 +601,8 @@ export default function AboutPage() {
                 {/* Политика обработки ПД обязательно размещается в подвале сайта (152-ФЗ) */}
                 <Link href="/privacy" style={footerLink}>Политика обработки персональных данных</Link>
                 <Link href="/cookie-policy" style={footerLink}>Политика обработки файлов cookie</Link>
-                <Link href="/offer" style={footerLink}>Публичная оферта</Link>
-                <Link href="/consent" style={footerLink}>Согласие на обработку ПД</Link>
+                <Link href="/consent" style={footerLink}>Согласие на обработку ПДн</Link>
+                <Link href="/consent-metrika" style={footerLink}>Согласие на обработку через Яндекс.Метрику</Link>
                 <Link href="/consent-marketing" style={footerLink}>Согласие на рассылку</Link>
               </div>
             </div>
