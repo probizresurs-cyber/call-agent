@@ -20,7 +20,7 @@
  * с другим `?period=` (смена периода = перезагрузка страницы сервером). Без датпикера.
  */
 import { useEffect, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { DashboardData, ManagerStatsRow } from "@/lib/dashboard-data";
 
 // ── Самодостаточная тёмная палитра табло (не зависит от темы платформы) ──
@@ -39,6 +39,61 @@ const C = {
 };
 
 const SLIDE_MS = 10000; // автолистание ~10 сек
+
+// Разбивка рейтинга по обзорным слайдам — чтобы каждый влезал ровно в один экран
+// (на ТВ нельзя скроллить). Первый обзорный слайд несёт KPI-плитки → строк меньше;
+// последующие обзорные слайды только рейтинг → строк больше.
+const RATING_FIRST = 6;
+const RATING_CONT = 9;
+
+/** Описание одного слайда презентации. */
+type TvSlideDesc =
+  | {
+      kind: "overview";
+      rating: ManagerStatsRow[];
+      startRank: number; // 0-based смещение для нумерации рейтинга
+      showKpi: boolean; // KPI-плитки только на первом обзорном слайде
+      part: number; // номер обзорного слайда (1..parts) для подписи
+      parts: number; // всего обзорных слайдов
+    }
+  | { kind: "manager"; m: ManagerStatsRow; rank: number };
+
+/**
+ * Собирает плоский список слайдов: обзорные (рейтинг порциями) + по слайду на
+ * каждого менеджера с оценкой. Гарантирует, что контент каждого слайда влезает
+ * в экран (рейтинг бьётся на части RATING_FIRST/RATING_CONT).
+ */
+function buildSlides(ranked: ManagerStatsRow[], scored: ManagerStatsRow[]): TvSlideDesc[] {
+  const slides: TvSlideDesc[] = [];
+
+  // Обзорные слайды: рейтинг разбит на порции
+  const chunks: ManagerStatsRow[][] = [];
+  if (ranked.length === 0) {
+    chunks.push([]);
+  } else {
+    chunks.push(ranked.slice(0, RATING_FIRST));
+    for (let i = RATING_FIRST; i < ranked.length; i += RATING_CONT) {
+      chunks.push(ranked.slice(i, i + RATING_CONT));
+    }
+  }
+  let start = 0;
+  chunks.forEach((c, i) => {
+    slides.push({
+      kind: "overview",
+      rating: c,
+      startRank: start,
+      showKpi: i === 0,
+      part: i + 1,
+      parts: chunks.length,
+    });
+    start += c.length;
+  });
+
+  // Персональные слайды — каждый менеджер с оценкой, по убыванию оценки
+  scored.forEach((m, i) => slides.push({ kind: "manager", m, rank: i + 1 }));
+
+  return slides;
+}
 
 interface Props {
   data: DashboardData;
@@ -66,23 +121,46 @@ export function TvBoard({ data, period, basePath, exitHref }: Props) {
   const ranked = useMemo(() => rankManagers(data.allManagers), [data.allManagers]);
   const scored = useMemo(() => ranked.filter((m) => m.avg_score != null), [ranked]);
 
-  // Слайды: 0 — обзор, 1..N — менеджеры со оценкой
-  const slideCount = 1 + scored.length;
+  // Плоский список слайдов презентации: обзорные (рейтинг порциями) + по менеджеру.
+  // Каждый слайд гарантированно влезает в один экран — на ТВ нет скролла.
+  const slides = useMemo(() => buildSlides(ranked, scored), [ranked, scored]);
+  const slideCount = slides.length;
+
   const [slide, setSlide] = useState(0);
 
-  // Автолистание по кругу
+  // Перейти на dir слайдов вперёд/назад (с зацикливанием).
+  const go = (dir: number) =>
+    setSlide((s) => (slideCount ? (s + dir + slideCount) % slideCount : 0));
+
+  // Автолистание: setTimeout перезапускается при КАЖДОЙ смене слайда (в т.ч. ручной),
+  // поэтому после ручного переключения снова даётся полный интервал.
   useEffect(() => {
     if (slideCount <= 1) return; // нечего листать
-    const t = setInterval(() => {
-      setSlide((s) => (s + 1) % slideCount);
-    }, SLIDE_MS);
-    return () => clearInterval(t);
-  }, [slideCount]);
+    const t = setTimeout(() => setSlide((s) => (s + 1) % slideCount), SLIDE_MS);
+    return () => clearTimeout(t);
+  }, [slide, slideCount]);
 
   // Если число слайдов уменьшилось (новые данные) — не выходим за границы
   useEffect(() => {
-    if (slide >= slideCount) setSlide(0);
+    if (slide >= slideCount && slideCount > 0) setSlide(0);
   }, [slide, slideCount]);
+
+  // Навигация с клавиатуры / пульта ТВ: стрелки, Space, PageUp/PageDown.
+  // (На ТВ нельзя скроллить — листаем слайды как презентацию.)
+  useEffect(() => {
+    if (slideCount <= 1) return;
+    function onKey(e: KeyboardEvent) {
+      if (["ArrowRight", "ArrowDown", "PageDown", " ", "Spacebar"].includes(e.key)) {
+        e.preventDefault();
+        setSlide((s) => (s + 1) % slideCount);
+      } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(e.key)) {
+        e.preventDefault();
+        setSlide((s) => (s - 1 + slideCount) % slideCount);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [slideCount]);
 
   const hasManagers = ranked.length > 0;
 
@@ -148,18 +226,34 @@ export function TvBoard({ data, period, basePath, exitHref }: Props) {
           <EmptyState />
         ) : (
           <>
-            <Slide active={slide === 0}>
-              <OverviewSlide data={data} ranked={ranked} />
-            </Slide>
-            {scored.map((m, i) => (
-              <Slide key={m.manager_id} active={slide === i + 1}>
-                <ManagerSlide
-                  m={m}
-                  rank={i + 1}
-                  contactThreshold={data.contactThreshold}
-                />
+            {slides.map((sl, i) => (
+              <Slide key={i} active={slide === i}>
+                {sl.kind === "overview" ? (
+                  <OverviewSlide
+                    data={data}
+                    rating={sl.rating}
+                    startRank={sl.startRank}
+                    showKpi={sl.showKpi}
+                    part={sl.part}
+                    parts={sl.parts}
+                  />
+                ) : (
+                  <ManagerSlide
+                    m={sl.m}
+                    rank={sl.rank}
+                    contactThreshold={data.contactThreshold}
+                  />
+                )}
               </Slide>
             ))}
+
+            {/* Стрелки навигации — для пульта/мыши на ТВ (скролла нет) */}
+            {slideCount > 1 && (
+              <>
+                <NavArrow side="left" onClick={() => go(-1)} />
+                <NavArrow side="right" onClick={() => go(1)} />
+              </>
+            )}
           </>
         )}
       </div>
@@ -335,38 +429,54 @@ function Slide({ active, children }: { active: boolean; children: React.ReactNod
 
 // ───────────────────────── Слайд 0 — ОБЗОР ─────────────────────────
 
-function OverviewSlide({ data, ranked }: { data: DashboardData; ranked: ManagerStatsRow[] }) {
+function OverviewSlide({
+  data,
+  rating,
+  startRank,
+  showKpi,
+  part,
+  parts,
+}: {
+  data: DashboardData;
+  rating: ManagerStatsRow[];
+  startRank: number;
+  showKpi: boolean;
+  part: number;
+  parts: number;
+}) {
   const { totals, aggs } = data;
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: "2vh", minHeight: 0 }}>
-      {/* Крупные KPI-плитки */}
-      <div
-        className="tv-kpi-grid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(6, 1fr)",
-          gap: "1.2vw",
-          flexShrink: 0,
-        }}
-      >
-        <KpiTile label="Всего звонков" value={String(totals.total)} />
-        <KpiTile label="Проанализировано" value={String(totals.done)} color={C.good} />
-        <KpiTile
-          label="Ср. оценка"
-          value={aggs.avg_score != null ? `${aggs.avg_score.toFixed(1)}` : "—"}
-          suffix={aggs.avg_score != null ? "/ 10" : undefined}
-          color={aggs.avg_score != null ? scoreColor(aggs.avg_score) : undefined}
-        />
-        <KpiTile
-          label="Ср. чек-лист"
-          value={aggs.avg_compliance != null ? `${Math.round(aggs.avg_compliance * 100)}%` : "—"}
-          color={C.accent}
-        />
-        <KpiTile label="Вход / Исход" value={`${totals.incoming} / ${totals.outgoing}`} />
-        <KpiTile label="Время разговоров" value={fmtMinutes(totals.total_duration)} />
-      </div>
+      {/* Крупные KPI-плитки — только на первом обзорном слайде */}
+      {showKpi && (
+        <div
+          className="tv-kpi-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(6, 1fr)",
+            gap: "1.2vw",
+            flexShrink: 0,
+          }}
+        >
+          <KpiTile label="Всего звонков" value={String(totals.total)} />
+          <KpiTile label="Проанализировано" value={String(totals.done)} color={C.good} />
+          <KpiTile
+            label="Ср. оценка"
+            value={aggs.avg_score != null ? `${aggs.avg_score.toFixed(1)}` : "—"}
+            suffix={aggs.avg_score != null ? "/ 10" : undefined}
+            color={aggs.avg_score != null ? scoreColor(aggs.avg_score) : undefined}
+          />
+          <KpiTile
+            label="Ср. чек-лист"
+            value={aggs.avg_compliance != null ? `${Math.round(aggs.avg_compliance * 100)}%` : "—"}
+            color={C.accent}
+          />
+          <KpiTile label="Вход / Исход" value={`${totals.incoming} / ${totals.outgoing}`} />
+          <KpiTile label="Время разговоров" value={fmtMinutes(totals.total_duration)} />
+        </div>
+      )}
 
-      {/* Рейтинг всех менеджеров — компактный список */}
+      {/* Рейтинг менеджеров — порция, влезающая в экран */}
       <div
         style={{
           flex: 1,
@@ -388,11 +498,11 @@ function OverviewSlide({ data, ranked }: { data: DashboardData; ranked: ManagerS
             flexShrink: 0,
           }}
         >
-          Рейтинг менеджеров
+          Рейтинг менеджеров{parts > 1 ? ` · ${part}/${parts}` : ""}
         </div>
         <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: "0.7vh" }}>
-          {ranked.map((m, i) => (
-            <RatingRow key={m.manager_id} m={m} rank={i + 1} />
+          {rating.map((m, i) => (
+            <RatingRow key={m.manager_id} m={m} rank={startRank + i + 1} />
           ))}
         </div>
       </div>
@@ -656,6 +766,44 @@ function BigStat({
         {value}
       </div>
     </div>
+  );
+}
+
+// ───────────────────────── Стрелки навигации ─────────────────────────
+
+/**
+ * Большая полупрозрачная стрелка по краю экрана для ручного листания
+ * (мышью на ТВ-приставке или кликом). Клавиатура/пульт обрабатываются отдельно.
+ */
+function NavArrow({ side, onClick }: { side: "left" | "right"; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={side === "left" ? "Предыдущий слайд" : "Следующий слайд"}
+      className="tv-nav-arrow"
+      style={{
+        position: "absolute",
+        top: "50%",
+        left: side === "left" ? "1.2vw" : undefined,
+        right: side === "right" ? "1.2vw" : undefined,
+        transform: "translateY(-50%)",
+        zIndex: 20,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: "clamp(40px, 3.6vw, 68px)",
+        height: "clamp(40px, 3.6vw, 68px)",
+        borderRadius: 999,
+        border: `1px solid ${C.border}`,
+        background: "rgba(22,26,43,0.72)",
+        color: C.text,
+        cursor: "pointer",
+        padding: 0,
+      }}
+    >
+      {side === "left" ? <ChevronLeft size={30} /> : <ChevronRight size={30} />}
+    </button>
   );
 }
 
