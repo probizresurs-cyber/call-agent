@@ -47,7 +47,7 @@ export default function PrivacyPage() {
                   информации и данных, объединенных общим целевым назначением, посредством
                   технических средств, применяемых для связи между ЭВМ и сети Интернет. Сайт размещен
                   в сети Интернет по адресу{" "}
-                  <a href="https://probizresurs.ru" style={{ color: "#7c70e0" }}>https://probizresurs.ru</a>.
+                  <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>.
                 </>
               ),
             },
@@ -568,7 +568,7 @@ export default function PrivacyPage() {
           ИП Штумпф Юрий Геннадьевич, 123290, г. Москва, Шелепихинская набережная, д. 34, к. 2,
           оф. 704, ОГРН 317774600595262, ИНН 550615955642
           <br />
-          E-mail: admin@probizresurs.ru
+          E-mail: hello@marketradar24.ru
         </P>
       </Section>
 

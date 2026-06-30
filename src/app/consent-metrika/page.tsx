@@ -17,7 +17,7 @@ export default function ConsentMetrikaPage() {
     <LegalDoc title="Согласие на обработку персональных данных посредством сервиса «Яндекс.Метрика»">
       <Caption>
         Приложение № 3 к Политике обработки персональных данных Сайта{" "}
-        <a href="https://probizresurs.ru" style={{ color: "#7c70e0" }}>https://probizresurs.ru</a>
+        <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>
       </Caption>
 
       <OperatorBox>
@@ -29,13 +29,13 @@ export default function ConsentMetrikaPage() {
         <br />
         ОГРН 317774600595262, ИНН 550615955642
         <br />
-        E-mail: admin@probizresurs.ru
+        E-mail: hello@marketradar24.ru
       </OperatorBox>
 
       <Section title="">
         <P>
           При первом посещении Сайта{" "}
-          <a href="https://probizresurs.ru" style={{ color: "#7c70e0" }}>https://probizresurs.ru</a>{" "}
+          <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>{" "}
           (далее – Сайт), с помощью нового веб-браузера или в режиме приватного просмотра всплывает
           баннер, запрашивающий согласие Пользователя на обработку cookie-файлов и метрических данных
           в соответствии с требованиями законодательства Российской Федерации.
@@ -98,7 +98,7 @@ export default function ConsentMetrikaPage() {
         <P>Пользователь может:</P>
         <List
           items={[
-            "отозвать согласие, направив запрос Оператору на адрес электронной почты admin@probizresurs.ru с пометкой «Отзыв согласия на использование сервиса Яндекс.Метрика». Удаление данных будет произведено не позднее 10 (десяти) рабочих дней с момента получения запроса;",
+            "отозвать согласие, направив запрос Оператору на адрес электронной почты hello@marketradar24.ru с пометкой «Отзыв согласия на использование сервиса Яндекс.Метрика». Удаление данных будет произведено не позднее 10 (десяти) рабочих дней с момента получения запроса;",
             "отключить cookie — через настройки браузера. Однако это может повлиять на работу некоторых функций Сайта.",
           ]}
         />

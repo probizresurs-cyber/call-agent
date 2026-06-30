@@ -16,7 +16,7 @@ export default function ConsentPage() {
     <LegalDoc title="Согласие на обработку персональных данных">
       <Caption>
         Приложение № 2 к Политике обработки персональных данных Сайта{" "}
-        <a href="https://probizresurs.ru" style={{ color: "#7c70e0" }}>https://probizresurs.ru</a>
+        <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>
       </Caption>
 
       <OperatorBox>
@@ -28,7 +28,7 @@ export default function ConsentPage() {
         <br />
         ОГРН 317774600595262, ИНН 550615955642
         <br />
-        E-mail: admin@probizresurs.ru
+        E-mail: hello@marketradar24.ru
       </OperatorBox>
 
       <Section title="">
@@ -103,7 +103,7 @@ export default function ConsentPage() {
         </P>
         <P>
           Согласие может быть отозвано мной в любой момент путем направления письменного требования
-          на адрес электронной почты Оператора admin@probizresurs.ru с пометкой «Отзыв согласия на
+          на адрес электронной почты Оператора hello@marketradar24.ru с пометкой «Отзыв согласия на
           обработку ПДн». Удаление ПДн будет произведено не позднее 10 (десяти) рабочих дней с
           момента получения данного уведомления.
         </P>

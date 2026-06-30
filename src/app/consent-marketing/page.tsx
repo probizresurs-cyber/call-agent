@@ -16,7 +16,7 @@ export default function ConsentMarketingPage() {
     <LegalDoc title="Согласие на получение рекламных и маркетинговых рассылок">
       <Caption>
         Приложение № 4 к Политике обработки персональных данных Сайта{" "}
-        <a href="https://probizresurs.ru" style={{ color: "#7c70e0" }}>https://probizresurs.ru</a>
+        <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>
       </Caption>
 
       <OperatorBox>
@@ -28,7 +28,7 @@ export default function ConsentMarketingPage() {
         <br />
         ОГРН 317774600595262, ИНН 550615955642
         <br />
-        E-mail: admin@probizresurs.ru
+        E-mail: hello@marketradar24.ru
       </OperatorBox>
 
       <Section title="">
@@ -49,7 +49,7 @@ export default function ConsentMarketingPage() {
         <P>
           Подтверждаю, что для согласия я поставил(а) галочку в чек-боксе рядом с фразой: «Даю
           согласие на получение рекламных и маркетинговых рассылок» на сайте{" "}
-          <a href="https://probizresurs.ru" style={{ color: "#7c70e0" }}>https://probizresurs.ru</a>.
+          <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>.
         </P>
         <P>Подтверждаю, что:</P>
         <List
@@ -66,7 +66,7 @@ export default function ConsentMarketingPage() {
         <List
           items={[
             "через ссылку «Отписаться» в каждом e-mail (при наличии такой ссылки);",
-            "путем письменного уведомления на e-mail admin@probizresurs.ru с пометкой «Отказ от рассылки».",
+            "путем письменного уведомления на e-mail hello@marketradar24.ru с пометкой «Отказ от рассылки».",
           ]}
         />
         <P>
