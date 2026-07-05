@@ -3,13 +3,17 @@
  * DELETE — удалить
  */
 import { NextRequest, NextResponse } from "next/server";
-import { guard } from "@/lib/auth";
+import { getSessionUser, canManage } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!canManage(me.role)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
   const { id: idStr } = await ctx.params;
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id)) {
@@ -43,18 +47,24 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ ok: false, error: "nothing to update" }, { status: 400 });
   }
 
-  params.push(id);
-  await db.prepare(`UPDATE sales_scripts SET ${fields.join(", ")} WHERE id = ?`).run(...params);
+  // Tenant-скоуп: правим только свой скрипт.
+  params.push(id, me.tenantId);
+  await db.prepare(`UPDATE sales_scripts SET ${fields.join(", ")} WHERE id = ? AND tenant_id = ?`).run(...params);
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!canManage(me.role)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
   const { id: idStr } = await ctx.params;
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id)) {
     return NextResponse.json({ ok: false, error: "bad id" }, { status: 400 });
   }
-  await getDbAsync().prepare(`DELETE FROM sales_scripts WHERE id = ?`).run(id);
+  // Tenant-скоуп: удаляем только свой скрипт.
+  await getDbAsync().prepare(`DELETE FROM sales_scripts WHERE id = ? AND tenant_id = ?`).run(id, me.tenantId);
   return NextResponse.json({ ok: true });
 }

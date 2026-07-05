@@ -14,6 +14,7 @@
  */
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
+import { getDbAsync } from "@/lib/db-compat";
 import { sendCallToBitrix } from "@/lib/bitrix-write";
 
 export const runtime = "nodejs";
@@ -30,6 +31,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   if (!callId || isNaN(callId)) {
     return NextResponse.json({ ok: false, error: "bad call id" }, { status: 400 });
   }
+
+  // Проверка владения ДО вызова общего sendCallToBitrix (его сигнатуру не меняем —
+  // его же дёргает системный код по всем тенантам). owner/admin/head видят весь тенант.
+  const owned = await getDbAsync()
+    .prepare(`SELECT id FROM calls WHERE id = ? AND tenant_id = ?`)
+    .get<{ id: number }>(callId, me.tenantId);
+  if (!owned) {
+    return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+  }
+
   try {
     const results = await sendCallToBitrix(callId);
     return NextResponse.json({ ok: true, results });

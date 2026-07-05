@@ -25,6 +25,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ru" suppressHydrationWarning>
       <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('ca-theme');if(t==='dark'||t==='warm')document.documentElement.classList.add(t);}catch(e){}",
+          }}
+        />
         {children}
         <YandexMetrika />
       </body>

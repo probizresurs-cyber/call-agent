@@ -3,26 +3,32 @@
  * POST — создать новый скрипт
  */
 import { NextRequest, NextResponse } from "next/server";
-import { guard } from "@/lib/auth";
+import { getSessionUser, canManage } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const db = getDbAsync();
   const rows = await db
     .prepare(
       `SELECT id, name, product, direction, content_md, checklist_json, key_phrases, is_active, updated_at
        FROM sales_scripts
+       WHERE tenant_id = ?
        ORDER BY is_active DESC, COALESCE(product, '') ASC, name ASC`
     )
-    .all();
+    .all(me.tenantId);
   return NextResponse.json({ ok: true, items: rows });
 }
 
 export async function POST(req: NextRequest) {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+  if (!canManage(me.role)) {
+    return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
+  }
   const body = (await req.json()) as {
     name?: string;
     product?: string | null;
@@ -38,9 +44,10 @@ export async function POST(req: NextRequest) {
 
   const db = getDbAsync();
   const result = await db.prepare(
-    `INSERT INTO sales_scripts (name, product, direction, content_md, checklist_json, key_phrases, is_active)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO sales_scripts (tenant_id, name, product, direction, content_md, checklist_json, key_phrases, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
+    me.tenantId,
     body.name,
     body.product?.trim() || null,
     body.direction || "all",

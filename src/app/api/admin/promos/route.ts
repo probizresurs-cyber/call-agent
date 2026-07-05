@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { code, description, discount_pct, bonus_calls, max_uses, expires_at } = body as Record<string, string | number | null | undefined>;
+    const { code, description, discount_pct, bonus_calls, bonus_tokens, max_uses, expires_at } = body as Record<string, string | number | null | undefined>;
 
     const err = (msg: string) => NextResponse.json({ ok: false, error: msg }, { status: 400 });
     const discount = Number(discount_pct ?? 0);
@@ -55,19 +55,22 @@ export async function POST(req: NextRequest) {
     if (description && String(description).length > 1000) return err('description max 1000 chars');
     if (!Number.isFinite(discount) || discount < 0 || discount > 100) return err('discount_pct 0..100');
     if (!Number.isFinite(bonus) || bonus < 0 || bonus > 100_000) return err('bonus_calls 0..100_000');
+    const bonusTok = Number(bonus_tokens ?? 0);
+    if (!Number.isFinite(bonusTok) || bonusTok < 0 || bonusTok > 10_000_000) return err('bonus_tokens 0..10_000_000');
     if (maxUses !== null && (!Number.isFinite(maxUses) || maxUses < 1)) return err('max_uses must be positive');
 
     const db = getDbAsync();
     const result = await db
       .prepare(
-        `INSERT INTO ca_promos (code, description, discount_pct, bonus_calls, max_uses, expires_at)
-         VALUES (?, ?, ?, ?, ?, ?)`
+        `INSERT INTO ca_promos (code, description, discount_pct, bonus_calls, bonus_tokens, max_uses, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         String(code).trim(),
         description ? String(description).trim() : null,
         discount_pct != null ? Number(discount_pct) : 0,
         bonus_calls != null ? Number(bonus_calls) : 0,
+        bonus_tokens != null ? Number(bonus_tokens) : 0,
         max_uses != null ? Number(max_uses) : null,
         expires_at ? String(expires_at) : null,
       );

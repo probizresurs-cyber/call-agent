@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
 import { getDbAsync } from "@/lib/db-compat";
-import { guard } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
+import { rlsFor } from "@/lib/rls";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   const db = getDbAsync();
+
+  // Tenant + (для manager) manager-скоуп. analyses не имеет tenant_id —
+  // скоупим через EXISTS/JOIN по calls.
+  const rls = rlsFor(me, { table: "c" });
 
   const totals = await db
     .prepare(
@@ -15,17 +21,29 @@ export async function GET() {
          SUM(CASE WHEN status='done' THEN 1 ELSE 0 END) AS done,
          SUM(CASE WHEN status IN ('pending','downloading','transcribing','analyzing','syncing') THEN 1 ELSE 0 END) AS in_progress,
          SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END) AS failed
-       FROM calls`
+       FROM calls c
+       WHERE ${rls.sql}`
     )
-    .get();
+    .get(...rls.params);
 
   const sentiments = await db
-    .prepare(`SELECT sentiment, COUNT(*) AS n FROM analyses GROUP BY sentiment`)
-    .all();
+    .prepare(
+      `SELECT a.sentiment, COUNT(*) AS n
+       FROM analyses a
+       JOIN calls c ON c.id = a.call_id
+       WHERE ${rls.sql}
+       GROUP BY a.sentiment`
+    )
+    .all(...rls.params);
 
   const avgScore = await db
-    .prepare(`SELECT AVG(manager_score) AS avg FROM analyses`)
-    .get<{ avg: number | null }>();
+    .prepare(
+      `SELECT AVG(a.manager_score) AS avg
+       FROM analyses a
+       JOIN calls c ON c.id = a.call_id
+       WHERE ${rls.sql}`
+    )
+    .get<{ avg: number | null }>(...rls.params);
 
   const topManagers = await db
     .prepare(
@@ -33,11 +51,11 @@ export async function GET() {
               COUNT(*) AS calls,
               AVG(a.manager_score) AS avg_score
        FROM calls c LEFT JOIN analyses a ON a.call_id = c.id
-       WHERE c.manager_id IS NOT NULL
+       WHERE ${rls.sql} AND c.manager_id IS NOT NULL
        GROUP BY c.manager_id
        ORDER BY calls DESC LIMIT 10`
     )
-    .all();
+    .all(...rls.params);
 
   return NextResponse.json({
     ok: true,

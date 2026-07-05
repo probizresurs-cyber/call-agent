@@ -186,6 +186,7 @@ export default async function QueuePage() {
         <h2 className="ds-h3" style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
           <AlertTriangle size={16} strokeWidth={2} /> Источники ошибок
         </h2>
+        <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: -6, marginBottom: 12 }}>Откуда пришли техсбои обработки звонков (не сами звонки). Обычно это временные ошибки AI-провайдера — повторная попытка проходит автоматически.</p>
         {errorBuckets.length === 0 ? (
           <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
             Нет failed-звонков. Все звонки либо обработаны успешно, либо без записи.

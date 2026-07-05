@@ -4,6 +4,7 @@ import { Eye } from "lucide-react";
 import { getSessionUser, logout, canManage, canViewTeam, type UserRole } from "@/lib/auth";
 import { getDbAsync } from "@/lib/db-compat";
 import { MobileNav, type NavItem } from "./MobileNav";
+import { TokenBalanceBanner } from "./TokenBalanceBanner";
 import { PiiBlurToggle } from "./PiiBlurToggle";
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -80,6 +81,8 @@ export default async function AuthedLayout({ children }: { children: React.React
   }
   if (user.role !== "manager") {
     navItems.push({ href: "/leaderboard", label: "Лидерборд", icon: "Trophy" });
+    navItems.push({ href: "/objections", label: "Возражения", icon: "ClipboardList" });
+    navItems.push({ href: "/dynamics", label: "Динамика", icon: "TrendingUp" });
   }
   if (showUpload) {
     navItems.push({ href: "/interactions/upload", label: "Загрузить запись", icon: "FilePlus2" });
@@ -103,6 +106,7 @@ export default async function AuthedLayout({ children }: { children: React.React
   if (showSettings) {
     navItems.push({ href: "/settings", label: "Настройки", icon: "Settings" });
   }
+  navItems.push({ href: "/knowledge", label: "Центр знаний", icon: "BookOpen" });
 
   const roleIcon =
     user.role === "owner" || user.role === "admin"
@@ -121,6 +125,7 @@ export default async function AuthedLayout({ children }: { children: React.React
         logoutAction={doLogout}
       />
       <main className={isDemo && piiBlurOn ? "shell-main pii-blur" : "shell-main"}>
+        <TokenBalanceBanner />
         {isDemo && (
           <div
             style={{

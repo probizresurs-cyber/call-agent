@@ -6,19 +6,23 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { getDbAsync } from "@/lib/db-compat";
-import { guard } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
+import { rlsFor } from "@/lib/rls";
 
 export const runtime = "nodejs";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return new Response("Unauthorized", { status: 401 });
   const { id: idStr } = await ctx.params;
   const id = parseInt(idStr, 10);
   if (!Number.isFinite(id)) return new Response("bad id", { status: 400 });
 
+  // Tenant + (для manager) manager-скоуп: чужую запись отдавать нельзя.
+  const rls = rlsFor(me, { table: "calls" });
   const row = await getDbAsync()
-    .prepare(`SELECT recording_path FROM calls WHERE id = ?`)
-    .get<{ recording_path: string | null }>(id);
+    .prepare(`SELECT recording_path FROM calls WHERE id = ? AND ${rls.sql}`)
+    .get<{ recording_path: string | null }>(id, ...rls.params);
 
   if (!row?.recording_path || !fs.existsSync(row.recording_path)) {
     return new Response("recording not found", { status: 404 });

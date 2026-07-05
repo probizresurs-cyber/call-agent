@@ -14,6 +14,7 @@
  * статус провайдера в settings, откуда дашборд рисует баннер.
  */
 import { getSetting, setSetting } from "./db";
+import { sendOwnerAlert } from "./alert";
 
 const PROVIDER_HEALTH_KEY = "provider_health";
 
@@ -121,7 +122,26 @@ export interface ProviderHealth {
 
 /** Сохранить статус провайдера (JSON в settings["provider_health"]). */
 export async function setProviderHealth(h: ProviderHealth): Promise<void> {
+  const prev = await getProviderHealth();
   await setSetting(PROVIDER_HEALTH_KEY, JSON.stringify(h));
+
+  // Алерт ТОЛЬКО на переходе в деградацию (ok/нет-статуса → quota/auth/network),
+  // а не на каждый упавший звонок — иначе спам. Восстановление алертит отдельно
+  // в clearProviderHealthIfDegraded.
+  const wasOk = !prev || prev.status === "ok";
+  if (h.status !== "ok" && wasOk) {
+    const label =
+      h.status === "quota" ? "квота/биллинг исчерпаны"
+      : h.status === "auth" ? "ключ недействителен (auth)"
+      : "провайдер недоступен (сеть)";
+    await sendOwnerAlert(
+      `🔴 Call-Agent: анализ звонков ОСТАНОВЛЕН.\n` +
+      `Провайдер «${h.provider}»: ${label}.\n` +
+      (h.message ? `${h.message.slice(0, 200)}\n` : "") +
+      `Звонки копятся в очереди — пополните баланс / проверьте ключ. ` +
+      `Как заработает — придёт «возобновлён».`
+    ).catch(() => {});
+  }
 }
 
 /** Прочитать статус провайдера. null — если ещё ни разу не записывали. */
@@ -149,5 +169,8 @@ export async function clearProviderHealthIfDegraded(): Promise<void> {
       message: "Провайдер снова доступен",
       detected_at: new Date().toISOString(),
     });
+    await sendOwnerAlert(
+      `🟢 Call-Agent: провайдер «${current.provider}» снова доступен — анализ звонков возобновлён, очередь разбирается.`
+    ).catch(() => {});
   }
 }

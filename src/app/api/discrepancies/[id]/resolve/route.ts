@@ -7,8 +7,9 @@
  *  - owner / admin / head — могут резолвить любое расхождение тенанта
  *  - manager — только своё (routed_to_user_id = me.id)
  *
- * Если action='accepted' и tenant.discrepancy_action_mode='auto_approve':
- *  вызываем applyDiscrepancyToBitrix() для записи нового значения в карточку CRM.
+ * Если action='accepted' — ВСЕГДА вызываем applyDiscrepancyToBitrix() для записи
+ * нового значения в карточку CRM. Функция сама учитывает dry-run (симуляцию) для
+ * тенанта — в этом режиме запись в Bitrix не уходит, только логируется.
  */
 
 import { NextResponse } from "next/server";
@@ -67,25 +68,21 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
-  // Если принято — проверяем auto_approve и применяем в Bitrix ДО обновления статуса.
+  // Если принято — применяем в Bitrix ДО обновления статуса, в любом режиме.
   // Bitrix должен подтвердить успех прежде чем мы помечаем расхождение как resolved.
+  // applyDiscrepancyToBitrix сам проверяет dry-run тенанта (симуляция — не пишет)
+  // и идемпотентность (пропускает, если запись уже не в статусе 'pending').
   if (action === "accepted") {
-    const tenant = await db
-      .prepare(`SELECT discrepancy_action_mode FROM tenants WHERE id = ?`)
-      .get<{ discrepancy_action_mode: string | null }>(me.tenantId);
-
-    if (tenant?.discrepancy_action_mode === "auto_approve") {
-      try {
-        await applyDiscrepancyToBitrix(row);
-      } catch (e) {
-        // Bitrix недоступен или вернул ошибку — НЕ обновляем статус, сообщаем клиенту.
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn(`[resolve] applyDiscrepancyToBitrix failed for #${discrepancyId}:`, msg);
-        return NextResponse.json(
-          { ok: false, error: `Не удалось записать в Bitrix: ${msg}` },
-          { status: 502 }
-        );
-      }
+    try {
+      await applyDiscrepancyToBitrix(row);
+    } catch (e) {
+      // Bitrix недоступен или вернул ошибку — НЕ обновляем статус, сообщаем клиенту.
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[resolve] applyDiscrepancyToBitrix failed for #${discrepancyId}:`, msg);
+      return NextResponse.json(
+        { ok: false, error: `Не удалось записать в Bitrix: ${msg}` },
+        { status: 502 }
+      );
     }
   }
 

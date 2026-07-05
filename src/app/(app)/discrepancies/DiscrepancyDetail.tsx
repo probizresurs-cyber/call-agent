@@ -316,6 +316,7 @@ export function DiscrepancyDetail({ data }: { data: DiscrepancyDetailData }) {
                   className="ds-btn ds-btn-primary"
                   disabled={loading}
                   onClick={() => resolve("accept")}
+                  title="Принять расхождение — записать предложенное значение в карточку Bitrix"
                   style={{ fontSize: 13, padding: "6px 14px", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
                   <CheckCircle2 size={14} strokeWidth={2.5} /> Принять
@@ -325,6 +326,7 @@ export function DiscrepancyDetail({ data }: { data: DiscrepancyDetailData }) {
                   className="ds-btn ds-btn-secondary"
                   disabled={loading}
                   onClick={() => resolve("reject")}
+                  title="Отклонить — оставить карточку без изменений"
                   style={{ fontSize: 13, padding: "6px 14px", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
                   <XCircle size={14} strokeWidth={2.5} /> Отклонить

@@ -17,3 +17,10 @@ tsconfig.tsbuildinfo
 
 # Next.js auto-generated (регенерируется при build, не трекаем — иначе конфликты при pull)
 next-env.d.ts
+
+# secrets / backups — не коммитить
+.env.bak*
+*.bak
+*.pre-coaching-*
+
+data/

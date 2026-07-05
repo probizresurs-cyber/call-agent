@@ -78,6 +78,7 @@ export async function getLeaderboard(opts: {
        LEFT JOIN analyses a ON a.call_id = c.id
        WHERE c.tenant_id = ?
          AND c.manager_id IS NOT NULL AND c.manager_id != ''
+         AND NOT EXISTS (SELECT 1 FROM managers mx WHERE mx.id = c.manager_id AND mx.excluded_from_reports = true)
          AND substr(c.started_at, 1, 10) >= date('now', '-${days} day')
        GROUP BY c.manager_id
        HAVING SUM(CASE WHEN c.status = 'done' THEN 1 ELSE 0 END) >= 3`

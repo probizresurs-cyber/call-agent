@@ -16,6 +16,7 @@ import { TvBoard } from "@/app/_components/dashboard/TvBoard";
 import { DashboardFilters } from "./DashboardFilters";
 import { CoachInsights } from "./CoachInsights";
 import { ShareDashboardButton } from "./ShareDashboardButton";
+import { PrintDashboardButton } from "./PrintDashboardButton";
 import { ProviderHealthCheckButton } from "./ProviderHealthCheckButton";
 import { getDashboardToken } from "@/lib/dashboard-share";
 import { getProviderHealth } from "@/lib/provider-health";
@@ -121,20 +122,25 @@ export default async function DashboardPage(props: {
             <Link
               href="/dashboard?tv=1"
               target="_blank"
-              className="ds-btn ds-btn-secondary"
+              className="ds-btn ds-btn-secondary no-print"
               style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", fontSize: 14, textDecoration: "none" }}
               title="Полноэкранное табло для ТВ в офисе"
             >
               <Tv size={16} /> ТВ-режим
             </Link>
           )}
+          {!isManager && <PrintDashboardButton />}
           {!isManager && (
-            <ShareDashboardButton initialToken={dashboardShareToken} baseUrl={baseUrl} />
+            <span className="no-print">
+              <ShareDashboardButton initialToken={dashboardShareToken} baseUrl={baseUrl} />
+            </span>
           )}
         </div>
       </div>
 
-      <DashboardFilters managers={isManager ? undefined : data.managersList} />
+      <div className="no-print">
+        <DashboardFilters managers={isManager ? undefined : data.managersList} />
+      </div>
 
       {/* §5.1-§5.2 MASTER-TZ: для менеджера — зоны роста + лента подсказок */}
       {isManager && <CoachInsights user={me} />}

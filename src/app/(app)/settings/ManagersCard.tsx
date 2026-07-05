@@ -9,6 +9,7 @@ interface Manager {
   name: string;
   email: string | null;
   is_active: number;
+  excluded_from_reports: number;
   default_product: string | null;
   crm_sync_enabled: number;
   calls: number;
@@ -62,6 +63,7 @@ export function ManagersCard() {
     try {
       const body: Record<string, unknown> = { id };
       if ("is_active" in patch) body.is_active = !!patch.is_active;
+      if ("excluded_from_reports" in patch) body.excluded_from_reports = !!patch.excluded_from_reports;
       if ("default_product" in patch) body.default_product = patch.default_product ?? null;
       if ("crm_sync_enabled" in patch) body.crm_sync_enabled = !!patch.crm_sync_enabled;
       await fetch("/call-agent/api/managers", {
@@ -73,10 +75,6 @@ export function ManagersCard() {
     } catch {
       void refresh();
     }
-  }
-
-  function toggleActive(id: string, is_active: boolean) {
-    void patchManager(id, { is_active: is_active ? 1 : 0 });
   }
 
   function setProduct(id: string, product: string) {
@@ -110,10 +108,10 @@ export function ManagersCard() {
             display: "flex", alignItems: "center", justifyContent: "space-between",
             gap: 10, flexWrap: "wrap",
             padding: "10px 12px",
-            background: m.is_active ? "var(--card)" : "var(--muted)",
+            background: !m.excluded_from_reports ? "var(--card)" : "var(--muted)",
             border: "1px solid var(--border)",
             borderRadius: 6,
-            opacity: m.is_active ? 1 : 0.65,
+            opacity: !m.excluded_from_reports ? 1 : 0.65,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 180 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -162,12 +160,13 @@ export function ManagersCard() {
               {/* Видимость */}
               <button
                 type="button"
-                onClick={() => toggleActive(m.id, !m.is_active)}
-                className={`ds-btn ${m.is_active ? "ds-btn-secondary" : "ds-btn-ghost"}`}
+                onClick={() => patchManager(m.id, { excluded_from_reports: m.excluded_from_reports ? 0 : 1 })}
+                className={`ds-btn ${!m.excluded_from_reports ? "ds-btn-secondary" : "ds-btn-ghost"}`}
                 style={{ minWidth: 130, justifyContent: "center" }}
+                title="Скрыть из всех отчётов (напр. директор). Устойчиво к синку из Bitrix."
               >
-                {m.is_active
-                  ? <><Eye size={14} /> Показывается</>
+                {!m.excluded_from_reports
+                  ? <><Eye size={14} /> В отчётах</>
                   : <><EyeOff size={14} /> Скрыт</>
                 }
               </button>

@@ -60,6 +60,7 @@ type Analysis = {
   client_name: string | null;
   checklist_scores_json: string | null;
   coaching_tips_json: string | null;
+  rop_notes_json: string | null;
 };
 
 type Dialogue = Array<{ speaker: "manager" | "client" | "unknown"; text: string }>;
@@ -92,6 +93,8 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
     ? JSON.parse(analysis.checklist_scores_json) : [];
   const coachingTips: string[] = analysis?.coaching_tips_json
     ? JSON.parse(analysis.coaching_tips_json) : [];
+  const ropNotes: string[] = analysis?.rop_notes_json
+    ? JSON.parse(analysis.rop_notes_json) : [];
   const dialogue: Dialogue = transcript?.dialogue_json ? JSON.parse(transcript.dialogue_json) : [];
 
   // ЗАДАЧА C: расхождения с CRM по этому звонку.
@@ -292,6 +295,25 @@ export default async function CallDetailPage(props: { params: Promise<{ id: stri
               <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
                 {coachingTips.map((tip, i) => (
                   <li key={i} className="ds-body-sm" style={{ lineHeight: 1.5 }}>{tip}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Прямая оценка для РОПа — менеджеру НЕ показываем */}
+          {me.role !== "manager" && ropNotes.length > 0 && (
+            <div style={{
+              marginTop: 14, padding: 12,
+              background: "rgba(245, 158, 11, 0.06)",
+              border: "1px solid rgba(245, 158, 11, 0.22)",
+              borderRadius: 8,
+            }}>
+              <div className="ds-caption" style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: "#d97706" }}>
+                <CircleDot size={12} /> Для РОПа — прямая оценка (менеджер не видит)
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                {ropNotes.map((n, i) => (
+                  <li key={i} className="ds-body-sm" style={{ lineHeight: 1.5 }}>{n}</li>
                 ))}
               </ul>
             </div>
@@ -513,9 +535,9 @@ function typeLabel(t: string | null, ch: string | null): string {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13 }}>
-      <span style={{ color: "var(--muted-foreground)" }}>{label}</span>
-      <span style={{ fontWeight: 500 }}>{value}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13, gap: 10 }}>
+      <span style={{ color: "var(--muted-foreground)", flexShrink: 0 }}>{label}</span>
+      <span style={{ fontWeight: 500, textAlign: "right", minWidth: 0, overflowWrap: "anywhere" }}>{value}</span>
     </div>
   );
 }

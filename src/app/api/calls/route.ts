@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDbAsync } from "@/lib/db-compat";
-import { guard } from "@/lib/auth";
+import { getSessionUser } from "@/lib/auth";
+import { rlsFor } from "@/lib/rls";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const g = await guard(); if (g) return g;
+  const me = await getSessionUser();
+  if (!me) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = req.nextUrl;
   const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
@@ -14,8 +16,10 @@ export async function GET(req: NextRequest) {
   const sentiment = searchParams.get("sentiment");
   const q = searchParams.get("q");
 
-  const where: string[] = [];
-  const params: unknown[] = [];
+  // Tenant + (для manager) manager-скоуп — обязательный фильтр всегда идёт первым.
+  const rls = rlsFor(me, { table: "c" });
+  const where: string[] = [rls.sql];
+  const params: unknown[] = [...rls.params];
 
   if (status) { where.push("c.status = ?"); params.push(status); }
   if (sentiment) { where.push("a.sentiment = ?"); params.push(sentiment); }
@@ -24,7 +28,7 @@ export async function GET(req: NextRequest) {
     params.push(`%${q}%`);
   }
 
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const whereSql = `WHERE ${where.join(" AND ")}`;
   const db = getDbAsync();
   const rows = await db
     .prepare(

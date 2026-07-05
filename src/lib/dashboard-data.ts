@@ -162,6 +162,7 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
        WHERE c.tenant_id = ?
          AND c.manager_id IS NOT NULL AND c.manager_id != ''
          AND (m.is_active IS NULL OR m.is_active = 1)
+       AND (m.excluded_from_reports IS NULL OR m.excluded_from_reports = false)
        GROUP BY c.manager_id
        ORDER BY name`
     )
@@ -221,6 +222,7 @@ export async function loadDashboardData(opts: DashboardDataOpts): Promise<Dashbo
      LEFT JOIN managers m ON m.id = c.manager_id
      WHERE c.manager_id IS NOT NULL AND c.manager_id != ''
        AND (m.is_active IS NULL OR m.is_active = 1)
+       AND (m.excluded_from_reports IS NULL OR m.excluded_from_reports = false)
        ${andSql}
      GROUP BY c.manager_id
      ORDER BY calls DESC`

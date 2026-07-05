@@ -102,54 +102,90 @@ export function resolveModel(
 }
 
 /**
+ * Перманентная ошибка провайдера — квота/биллинг исчерпаны или ключ невалиден.
+ * В отличие от транзиента (rate-limit/overloaded) её бессмысленно ретраить на том
+ * же провайдере — надо уходить на запасного. OpenAI при исчерпании отдаёт 429
+ * insufficient_quota; Anthropic — 400 «credit balance is too low»; auth — 401.
+ */
+function isPermanentProviderError(e: unknown): boolean {
+  const err = e as { status?: number; message?: string };
+  const status = err.status ?? 0;
+  const msg = (err.message ?? "").toLowerCase();
+  return (
+    status === 401 || status === 403 ||
+    /insufficient_quota|exceeded your current quota|credit balance is too low|billing|invalid_api_key|invalid x-api-key|authentication_error/.test(msg)
+  );
+}
+
+/**
  * Вызывает LLM с принудительным tool-use. Гарантирует что вернётся
  * структурированный JSON по schema (модель не может ответить «текстом мимо»).
  *
  * Retry: до 3 попыток для 429/529/overloaded с backoff 3s → 9s → 27s.
+ * FALLBACK: при перманентной ошибке провайдера (квота/биллинг/auth) —
+ *   авто-переключение на ВТОРОГО провайдера (Claude↔OpenAI), чтобы анализ не вставал
+ *   из-за исчерпания баланса у одного. Транзиенты ретраятся на своём провайдере.
  * Budget: проверка ДО запроса (BudgetExceededError если лимит), запись расхода ПОСЛЕ.
  */
 export async function callWithTool<T = unknown>(args: ToolCallArgs): Promise<ToolCallResult<T>> {
   const fallbackProvider = args.provider || getActiveProvider();
   const tier = args.modelTier || "premium";
-  const { provider, model } = resolveModel(args.modelOverride, fallbackProvider, tier);
+  const primary = resolveModel(args.modelOverride, fallbackProvider, tier);
 
-  // §4.4 Бюджет-гард — проверяем ДО запроса
-  if (args.tenantId) {
-    const kind = provider === "anthropic" ? "anthropic_tokens" : "openai_chat_tokens";
-    await checkBudget(args.tenantId, kind);
-  }
-
-  const maxAttempts = 3;
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const out = provider === "anthropic"
-        ? await callAnthropic<T>(args, model)
-        : await callOpenAi<T>(args, model);
-
-      // Запись расхода
-      if (args.tenantId) {
-        const kind = provider === "anthropic" ? "anthropic_tokens" : "openai_chat_tokens";
-        await recordUsage(args.tenantId, kind, out.inputTokens + out.outputTokens, args.callId);
-      }
-      return out;
-    } catch (e) {
-      lastErr = e;
-      const err = e as { status?: number; message?: string };
-      const status = err.status ?? 0;
-      const msg = err.message ?? "";
-      const isRetryable =
-        status === 429 || status === 529 ||
-        /overloaded/i.test(msg) || /rate.?limit/i.test(msg);
-      if (!isRetryable || attempt === maxAttempts) throw e;
-      const baseDelay = 3000 * Math.pow(3, attempt - 1);
-      const jitter = Math.floor(Math.random() * 1000);
-      const delayMs = baseDelay + jitter;
-      console.warn(`[ai-provider:${provider}] attempt ${attempt}/${maxAttempts} failed (${status} ${msg.slice(0, 80)}), retry in ${delayMs}ms`);
-      await new Promise((r) => setTimeout(r, delayMs));
+  // Вызов на ОДНОМ провайдере с транзиентным retry.
+  const runOnProvider = async (provider: AiProvider, model: string): Promise<ToolCallResult<T>> => {
+    // §4.4 Бюджет-гард — проверяем ДО запроса
+    if (args.tenantId) {
+      const kind = provider === "anthropic" ? "anthropic_tokens" : "openai_chat_tokens";
+      await checkBudget(args.tenantId, kind);
     }
+
+    const maxAttempts = 3;
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const out = provider === "anthropic"
+          ? await callAnthropic<T>(args, model)
+          : await callOpenAi<T>(args, model);
+
+        if (args.tenantId) {
+          const kind = provider === "anthropic" ? "anthropic_tokens" : "openai_chat_tokens";
+          await recordUsage(args.tenantId, kind, out.inputTokens + out.outputTokens, args.callId);
+        }
+        return out;
+      } catch (e) {
+        lastErr = e;
+        const err = e as { status?: number; message?: string };
+        const status = err.status ?? 0;
+        const msg = err.message ?? "";
+        // Перманентную ошибку не ретраим здесь — пусть внешний уровень уйдёт на fallback.
+        if (isPermanentProviderError(e)) throw e;
+        const isRetryable =
+          status === 429 || status === 529 ||
+          /overloaded/i.test(msg) || /rate.?limit/i.test(msg);
+        if (!isRetryable || attempt === maxAttempts) throw e;
+        const baseDelay = 3000 * Math.pow(3, attempt - 1);
+        const jitter = Math.floor(Math.random() * 1000);
+        const delayMs = baseDelay + jitter;
+        console.warn(`[ai-provider:${provider}] attempt ${attempt}/${maxAttempts} failed (${status} ${msg.slice(0, 80)}), retry in ${delayMs}ms`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    throw lastErr;
+  };
+
+  try {
+    return await runOnProvider(primary.provider, primary.model);
+  } catch (e) {
+    // Fallback на второго провайдера ТОЛЬКО при перманентной ошибке (квота/биллинг/auth).
+    if (!isPermanentProviderError(e)) throw e;
+    const altProvider: AiProvider = primary.provider === "anthropic" ? "openai" : "anthropic";
+    const altKeyPresent = altProvider === "anthropic" ? !!process.env.ANTHROPIC_API_KEY : !!process.env.OPENAI_API_KEY;
+    if (!altKeyPresent) throw e; // у запасного нет ключа — смысла нет
+    const altModel = MODEL_MAP[altProvider][tier];
+    console.warn(`[ai-provider] ${primary.provider} недоступен (квота/биллинг/auth) → fallback на ${altProvider}:${altModel}`);
+    return await runOnProvider(altProvider, altModel);
   }
-  throw lastErr;
 }
 
 // ─── Anthropic implementation ─────────────────────────────

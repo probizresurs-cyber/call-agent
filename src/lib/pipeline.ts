@@ -16,6 +16,7 @@ import {
 } from "./bitrix";
 import { transcribeFile } from "./transcribe";
 import { analyzeCall, type CallAnalysis } from "./analyzer";
+import { spendForCall, getBillingStatus } from "./tokens";
 import { createReminderFromAnalysis } from "./reminders";
 import { detectProduct, type ProductCandidate } from "./product-detector";
 import { detectDiscrepancies } from "./discrepancy-detector";
@@ -30,6 +31,19 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   const db = getDbAsync();
   const row = await db.prepare(`SELECT * FROM calls WHERE id = ?`).get<CallRow>(callId);
   if (!row) throw new Error(`Call ${callId} не найден`);
+
+  // Гард токен-биллинга: если у тенанта включён enforce и баланс ≤ 0 —
+  // не тратим AI, помечаем звонок и выходим. После пополнения можно
+  // повторить через «Перезапустить обработку».
+  const billing = await getBillingStatus(row.tenant_id ?? 1);
+  if (billing.blocked) {
+    await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
+      "Недостаточно токенов — пополните баланс аккаунта",
+      callId
+    );
+    await setCallStatus(callId, "failed");
+    return;
+  }
 
   await db.prepare(`UPDATE calls SET attempts = attempts + 1 WHERE id = ?`).run(callId);
 
@@ -123,13 +137,49 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   // короткие/пустые/галлюцинированные транскрипты НЕ анализируем — помечаем
   // no_recording с честной пометкой (вместо мусорного разбора).
   {
-    const speech = (t.text || "").trim();
-    const low = speech.toLowerCase();
+    // Убираем повторяющиеся ДЛИННЫЕ предложения (оставляем первое вхождение). Так
+    // исчезает зацикленная Whisper-подсказка/фраза («Орлинк — полное название…» ×N),
+    // но живой диалог сохраняется. Шум налипает и на валидные звонки, поэтому чистим,
+    // а не выбрасываем.
+    const dedupeRepeats = (text: string): string => {
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const s of text.split(/(?<=[.!?])\s+|\n+/)) {
+        const key = s.trim().toLowerCase().replace(/\s+/g, " ");
+        if (key.length >= 12) {
+          if (seen.has(key)) continue;
+          seen.add(key);
+        }
+        out.push(s);
+      }
+      return out.join(" ").replace(/\s+/g, " ").trim();
+    };
+
+    const orig = (t.text || "").trim();
+    const origLen = orig.length;
+
+    // Мера «повтор-мусора» считается по ОРИГИНАЛУ (до чистки): делим на фразы
+    // (вкл. тире), берём и ДОЛЮ уникальности, и АБСОЛЮТНЫЙ объём уникального контента.
+    // Пустой эхо-повтор («Орлинк — полное название…» ×N) → и то и другое мало.
+    // Валидный звонок с шумным префиксом → доля уникальности низкая, НО уникального
+    // контента много (реальный диалог) — поэтому НЕ мусор.
+    const lowOrig = orig.toLowerCase();
+    const phrases = lowOrig.split(/[.!?\n]+|—/).map((s) => s.trim()).filter((s) => s.length > 8);
+    const uniq = new Set(phrases);
+    const uniqueRatio = phrases.length ? uniq.size / phrases.length : 1;
+    const uniqueContentLen = [...uniq].join(" ").replace(/[^a-zа-яё0-9]+/gi, " ").replace(/\s+/g, " ").trim().length;
+    const isRepeatedGarbage = phrases.length >= 6 && uniqueRatio < 0.35 && uniqueContentLen < 120;
+
+    // Чистка для анализа: убираем повторяющиеся длинные предложения (шумный префикс).
+    const cleaned = dedupeRepeats(orig);
+    const low = cleaned.toLowerCase();
+
     const HALLUCINATIONS = ["продолжение следует", "субтитры", "спасибо за просмотр", "редактор субтитров", "amara.org", "благодарю за внимание"];
-    const isHallucination = speech.length > 0 && speech.length < 60 && HALLUCINATIONS.some((h) => low.includes(h));
-    const tooShort = speech.length < 15 || (row.duration_sec ?? 0) < 7;
-    if (tooShort || isHallucination) {
-      // Сохраняем транскрипт (кэш — чтобы ретрай не гонял Whisper заново) и помечаем no_recording.
+    const isHallucination = cleaned.length > 0 && cleaned.length < 60 && HALLUCINATIONS.some((h) => low.includes(h));
+    const tooShort = cleaned.length < 15 || (row.duration_sec ?? 0) < 7;
+
+    if (tooShort || isHallucination || isRepeatedGarbage) {
+      // Кэшируем транскрипт (чтобы ретрай не гонял Whisper заново) и помечаем no_recording.
       await db.prepare(
         `INSERT INTO transcripts (call_id, text, segments_json, dialogue_json, language, model)
          VALUES (?, ?, ?, ?, ?, ?)
@@ -138,11 +188,18 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
       ).run(callId, t.text, JSON.stringify(t.segments), JSON.stringify([]), t.language, t.model);
       await setCallStatus(callId, "no_recording");
       await db.prepare(`UPDATE calls SET error = ? WHERE id = ?`).run(
-        `Нет речи для анализа: звонок ${row.duration_sec ?? 0}с${isHallucination ? " (пустая/тихая запись)" : ""}`,
+        `Нет речи для анализа: звонок ${row.duration_sec ?? 0}с${isHallucination ? " (пустая/тихая запись)" : " (нет осмысленной речи / повтор-мусор Whisper)"}`,
         callId
       );
-      console.log(`[pipeline] #${callId}: пропуск анализа — нет полезной речи (${row.duration_sec ?? 0}с, ${speech.length} симв.)`);
+      console.log(`[pipeline] #${callId}: пропуск анализа — нет полезной речи (${row.duration_sec ?? 0}с, uniqLen=${uniqueContentLen}, ratio=${uniqueRatio.toFixed(2)})`);
       return;
+    }
+
+    // Валидный звонок: подменяем текст очищенным (без зацикленного шума) — анализ
+    // пойдёт по чистой стенограмме, без «Орлинк — полное название…» ×N.
+    if (cleaned && cleaned.length < origLen) {
+      t = { ...t, text: cleaned };
+      console.log(`[pipeline] #${callId}: вычищен повтор-мусор Whisper (${origLen}→${cleaned.length} симв.)`);
     }
   }
 
@@ -261,8 +318,8 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   await db.prepare(
     `INSERT INTO analyses (call_id, summary, sentiment, manager_score, script_compliance,
        next_action, objections_json, topics_json, raw_json, model,
-       client_name, checklist_scores_json, detected_product, coaching_tips_json, call_stage)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       client_name, checklist_scores_json, detected_product, coaching_tips_json, rop_notes_json, call_stage)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(call_id) DO UPDATE SET
        summary=excluded.summary, sentiment=excluded.sentiment,
        manager_score=excluded.manager_score, script_compliance=excluded.script_compliance,
@@ -271,6 +328,7 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
        client_name=excluded.client_name, checklist_scores_json=excluded.checklist_scores_json,
        detected_product=excluded.detected_product,
        coaching_tips_json=excluded.coaching_tips_json,
+       rop_notes_json=excluded.rop_notes_json,
        call_stage=excluded.call_stage,
        created_at=datetime('now')`
   ).run(
@@ -288,6 +346,7 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
     JSON.stringify(analysis.checklist_scores ?? []),
     product ?? null,
     JSON.stringify(analysis.coaching_tips ?? []),
+    JSON.stringify(analysis.rop_notes ?? []),
     analysis.call_stage ?? "cold"
   );
 
@@ -355,6 +414,13 @@ export async function processCall(callId: number, opts?: { scriptProductOverride
   }
 
   await setCallStatus(callId, "done");
+
+  // Списываем 1 токен за разобранный звонок (идемпотентно по callId — ретрай не дублирует).
+  try {
+    await spendForCall(row.tenant_id ?? 1, callId, 1);
+  } catch (e) {
+    console.warn(`[pipeline] #${callId}: не удалось списать токен: ${(e as Error).message}`);
+  }
 }
 
 /**

@@ -61,8 +61,13 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
               всего: {allManagers.length}
             </span>
           </div>
-          {allManagers.length === 0 ? <Empty /> : (
-            <div style={{ overflowX: "auto" }}>
+          {allManagers.length === 0 ? <Empty /> : (<>
+            <div className="only-mobile">
+              {allManagers.map((m) => (
+                <ManagerCard key={m.manager_id} m={m} />
+              ))}
+            </div>
+            <div className="only-desktop" style={{ overflowX: "auto" }}>
               <table className="ds-table">
                 <thead>
                   <tr>
@@ -120,7 +125,7 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
                 </tbody>
               </table>
             </div>
-          )}
+          </>)}
           <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 10, fontSize: 11 }}>
             * <b>Контактов</b> — звонки длительностью ≥ {contactThreshold} сек (разговор состоялся).<br/>
             ** <b>Пропущ.</b> — входящие звонки на которые не ответили (длительность 0 сек). Совпадает с колонкой «Пропущенные» в Битрикс.<br/>
@@ -337,7 +342,12 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
           <Empty hint="Скрипты с привязкой к продуктам ещё не настроены или нет проанализированных звонков." />
         ) : (<>
           <ProductBar items={productStats} />
-          <div style={{ overflowX: "auto" }}>
+          <div className="only-mobile" style={{ marginTop: 14 }}>
+            {productStats.map((p) => (
+              <ProductCard key={p.product || "unknown"} p={p} />
+            ))}
+          </div>
+          <div className="only-desktop" style={{ overflowX: "auto" }}>
             <table className="ds-table" style={{ marginTop: 14 }}>
               <thead>
                 <tr>
@@ -398,10 +408,10 @@ export function DashboardSections({ data, mode }: DashboardSectionsProps) {
 
 function Kpi({ icon: Icon, label, value, color }: { icon: LucideIcon; label: string; value: string; color?: string }) {
   return (
-    <div className="ds-card">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-        <span className="ds-caption">{label}</span>
-        <Icon size={16} strokeWidth={2} color={color || "var(--muted-foreground)"} />
+    <div className="ds-card" style={{ minWidth: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8, gap: 6 }}>
+        <span className="ds-caption" style={{ minWidth: 0, overflowWrap: "anywhere", whiteSpace: "normal" }}>{label}</span>
+        <Icon size={16} strokeWidth={2} color={color || "var(--muted-foreground)"} style={{ flexShrink: 0 }} />
       </div>
       <div style={{ fontSize: 26, fontWeight: 700, color: color || "var(--foreground)", lineHeight: 1.1 }}>{value}</div>
     </div>
@@ -511,6 +521,82 @@ function ProductBar({ items }: { items: Array<{ product: string | null; calls: n
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Мобильные карточки (замена широких таблиц на телефоне) ──
+
+function MCell({ label, value, color }: { label: string; value: React.ReactNode; color?: string }) {
+  return (
+    <div style={{ background: "var(--muted)", borderRadius: 8, padding: "7px 9px", minWidth: 0 }}>
+      <div style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2, color: color || "var(--foreground)", overflowWrap: "anywhere" }}>{value}</div>
+    </div>
+  );
+}
+
+type MgrRow = DashboardData["allManagers"][number];
+function ManagerCard({ m }: { m: MgrRow }) {
+  const st = m.pos + m.neu + m.neg;
+  const pct = m.calls > 0 ? Math.round((m.connected / m.calls) * 100) : 0;
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 10, background: "var(--card)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        <div style={{ fontWeight: 600, fontSize: 15, overflowWrap: "anywhere" }}>
+          {m.manager_name || <span style={{ color: "var(--muted-foreground)" }}>ID {m.manager_id}</span>}
+        </div>
+        <div style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}>
+          {m.avg_score != null ? (<><Star size={14} color="var(--warning)" />{m.avg_score.toFixed(1)}</>) : <span style={{ color: "var(--muted-foreground)" }}>—</span>}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        <MCell label="Всего" value={m.calls} />
+        <MCell label="Контактов" value={`${m.connected} (${pct}%)`} color="var(--success)" />
+        <MCell label="Минут" value={formatTotalMinutes(m.total_seconds)} />
+        <MCell label="Вход." value={m.incoming} />
+        <MCell label="Исход." value={m.outgoing} />
+        <MCell label="Пропущ." value={m.missed} color={m.missed > 0 ? "var(--destructive)" : undefined} />
+        <MCell label="Чек-лист" value={m.avg_compliance != null ? `${Math.round(m.avg_compliance * 100)}%` : "—"} color="var(--primary)" />
+        <MCell label="Мин. на конт." value={formatTotalMinutes(m.contact_seconds)} color="var(--success)" />
+      </div>
+      {st > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 }}>Настроение</div>
+          <SentimentMini pos={m.pos} neu={m.neu} neg={m.neg} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ProdRow = DashboardData["productStats"][number];
+function ProductCard({ p }: { p: ProdRow }) {
+  const st = p.pos + p.neu + p.neg;
+  const pct = p.calls > 0 ? Math.round((p.connected / p.calls) * 100) : 0;
+  return (
+    <div style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 10, background: "var(--card)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <span style={{ width: 12, height: 12, borderRadius: 3, background: getProductColor(p.product), flexShrink: 0, display: "inline-block" }} />
+          <span style={{ fontWeight: p.product && !p.product.startsWith("__") ? 600 : 400, fontSize: 15, color: !p.product ? "var(--muted-foreground)" : "var(--foreground)", overflowWrap: "anywhere" }}>{productLabel(p.product)}</span>
+        </span>
+        <div style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 700 }}>
+          {p.avg_score != null ? (<><Star size={14} color="var(--warning)" />{p.avg_score.toFixed(1)}</>) : <span style={{ color: "var(--muted-foreground)" }}>—</span>}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        <MCell label="Звонков" value={p.calls} />
+        <MCell label="Контактов" value={`${p.connected} (${pct}%)`} color="var(--success)" />
+        <MCell label="Минут" value={formatTotalMinutes(p.total_seconds)} />
+        <MCell label="Чек-лист" value={p.avg_compliance != null ? `${Math.round(p.avg_compliance * 100)}%` : "—"} color="var(--primary)" />
+      </div>
+      {st > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 10, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 }}>Настроение</div>
+          <SentimentMini pos={p.pos} neu={p.neu} neg={p.neg} />
+        </div>
+      )}
     </div>
   );
 }

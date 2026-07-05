@@ -6,13 +6,14 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3, Phone, Settings, LogOut, ShieldCheck, Headphones,
   User as UserIcon, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale,
-  FileText, ClipboardList, Menu, X,
+  FileText, ClipboardList, TrendingUp, BookOpen, Menu, X,
 } from "lucide-react";
+import { ThemeSwitcher } from "./ThemeSwitcher";
 
 // Иконки передаём строкой (server→client boundary не сериализует компоненты),
 // здесь маппим обратно на lucide-компонент.
 const ICONS = {
-  BarChart3, Phone, Settings, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale, FileText, ClipboardList,
+  BarChart3, Phone, Settings, Activity, Upload, FilePlus2, Users, Trophy, Bell, Scale, FileText, ClipboardList, TrendingUp, BookOpen,
 } as const;
 
 export type NavIconName = keyof typeof ICONS;
@@ -85,6 +86,9 @@ export function MobileNav({
             }}
           >CA</div>
           <span style={{ fontWeight: 600, fontSize: 14 }}>Call-Agent</span>
+        </div>
+        <div style={{ marginLeft: "auto" }}>
+          <ThemeSwitcher variant="bar" />
         </div>
       </header>
 
@@ -174,6 +178,10 @@ export function MobileNav({
             gap: 8,
           }}
         >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "2px 4px" }}>
+            <span style={{ fontSize: 11, color: "var(--sidebar-muted)" }}>Тема оформления</span>
+            <ThemeSwitcher variant="sidebar" />
+          </div>
           <div
             style={{
               padding: "8px 12px",

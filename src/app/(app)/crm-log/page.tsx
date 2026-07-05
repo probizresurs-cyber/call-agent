@@ -47,7 +47,7 @@ export default async function CrmLogPage(props: { searchParams: Promise<{ mode?:
         Каждое «Отправить в Bitrix» по звонку пишет сюда строку — что бы / что было отправлено.
         Помогает доказать перед заказчиком «мы отправили то и тогда», а также не дублировать те же
         комментарии при повторных попытках. <b>Симуляция</b> = DRY_RUN включён, в Bitrix реально ничего
-        не уходит (см. <Link href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройки → Системные флаги</Link>).
+        не уходит (см. <Link href="/settings" style={{ color: "var(--primary)" }}>Настройки → Системные флаги</Link>).
       </p>
 
       {rows.length === 0 ? (
@@ -118,7 +118,7 @@ function Row({ r }: { r: CrmLogEntry }) {
         {formatDateTime(r.created_at)}
       </td>
       <td>
-        <Link href={`/call-agent/calls/${r.call_id}`} style={{ color: "var(--primary)", fontWeight: 500 }}>
+        <Link href={`/calls/${r.call_id}`} style={{ color: "var(--primary)", fontWeight: 500 }}>
           #{r.call_id}
         </Link>
       </td>

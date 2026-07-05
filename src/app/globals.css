@@ -47,6 +47,34 @@
   --accent: #232746;
 }
 
+/* Тёплая тема — кремовая «бумага», тёплые нейтрали, терракотовый акцент */
+.warm {
+  --background: #f4ebdc;
+  --foreground: #3a2e23;
+  --card: #fdf8ef;
+  --card-foreground: #3a2e23;
+  --muted: #ece0cd;
+  --muted-foreground: #7c6a54;
+  --border: #e2d3ba;
+  --input: #e2d3ba;
+  --input-bg: #fdf8ef;
+  --primary: #bf6a3f;
+  --primary-foreground: #ffffff;
+  --accent: #f3e4cf;
+  --success: #4f8a3f;
+  --warning: #c67912;
+  --destructive: #c2452f;
+
+  --sidebar-bg: #2c2018;
+  --sidebar-fg: #f1e7d7;
+  --sidebar-muted: #b39c80;
+  --sidebar-hover: #3a2a1e;
+  --sidebar-active: #48332330;
+
+  --shadow: 0 1px 2px rgba(58,46,35,0.05), 0 4px 16px rgba(191,106,63,0.08);
+  --shadow-lg: 0 4px 6px rgba(58,46,35,0.06), 0 10px 40px rgba(191,106,63,0.12);
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -293,6 +321,9 @@ html, body {
       на мобиле видна только строка из 3 пресетов, остальное — под «Ещё». ── */
 .dash-more-btn { display: none; }   /* кнопка «Ещё» — скрыта на десктопе */
 @media (max-width: 768px) {
+  /* Мобилка: контейнер кабинета не растягивается под широкий контент — нет
+     горизонтального «зума». Широкие таблицы/графики скроллятся в своих обёртках (overflow-x:auto). */
+  .shell-main { min-width: 0; overflow-x: hidden; }
   .dash-more-btn { display: inline-flex !important; order: 99; margin-left: auto; }
   /* Пока не раскрыто — прячем CRM-строку, доп.фильтры и вторичные пресеты */
   .dash-filters:not(.expanded) .dash-filter-crm,
@@ -331,4 +362,138 @@ details[open] > summary .ds-chevron {
   filter: blur(7px);
   user-select: none;
   transition: filter 0.12s ease;
+}
+
+/* ── Печать / PDF (кнопка «PDF» на дашборде) ──
+   Печатаем чистую версию: навигация, кнопки и фильтры скрыты, карточки без теней. */
+@media print {
+  .shell > *:not(.shell-main) { display: none !important; }  /* навигация/сайдбар */
+  .no-print { display: none !important; }
+  .shell { display: block !important; background: #fff !important; }
+  .shell-main { padding: 0 !important; max-width: 100% !important; overflow: visible !important; }
+  body { background: #fff !important; }
+  .ds-card { box-shadow: none !important; border: 1px solid #ddd !important; break-inside: avoid; }
+  .kpi-grid-5, .kpi-grid-4 { grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; }
+  .ds-table { font-size: 9.5px !important; }
+  .ds-table th, .ds-table td { padding: 4px 6px !important; }
+  .ds-card, .ds-table-wrap { overflow: visible !important; }
+  a { text-decoration: none !important; color: inherit !important; }
+  @page { margin: 14mm; }
+}
+
+/* Адаптив таблиц: на десктопе — таблица, на мобиле — карточки */
+.only-mobile { display: none; }
+@media (max-width: 768px) {
+  .only-desktop { display: none !important; }
+  .only-mobile { display: block !important; }
+}
+
+
+/* Центр знаний — рендер HTML-статьи */
+.kb-prose{padding:36px clamp(20px,4vw,52px) 44px;line-height:1.68;font-size:15.5px}
+
+.kb-prose > *:first-child{margin-top:0}
+
+/* Лид-абзац — первый параграф статьи, крупнее и заметнее */
+.kb-prose > p:first-of-type{
+  font-size:18px;
+  line-height:1.55;
+  color:var(--foreground);
+  font-weight:450;
+}
+
+.kb-prose h2{
+  font-size:22px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+  color:var(--foreground);
+  margin:44px 0 16px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.kb-prose h2:first-child{margin-top:0;padding-top:0;border-top:none}
+.kb-prose h2::before{
+  content:"";
+  display:inline-block;
+  width:4px;
+  height:20px;
+  border-radius:3px;
+  background:var(--primary);
+  flex-shrink:0;
+}
+
+.kb-prose h3{
+  font-size:16.5px;
+  font-weight:600;
+  color:var(--foreground);
+  margin:22px 0 8px;
+}
+
+.kb-prose p{margin:12px 0;color:var(--foreground)}
+
+.kb-prose ul,.kb-prose ol{margin:12px 0;padding-left:22px;display:flex;flex-direction:column;gap:7px}
+.kb-prose li{margin:0;color:var(--foreground)}
+.kb-prose ul{list-style:none;padding-left:4px}
+.kb-prose ul > li{position:relative;padding-left:20px}
+.kb-prose ul > li::before{
+  content:"";
+  position:absolute;
+  left:2px;
+  top:9px;
+  width:6px;
+  height:6px;
+  border-radius:50%;
+  background:var(--primary);
+}
+.kb-prose ol{padding-left:22px}
+.kb-prose ol > li::marker{color:var(--primary);font-weight:700}
+
+.kb-prose strong{font-weight:650;color:var(--foreground)}
+
+.kb-prose code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:0.9em;
+  background:var(--accent);
+  color:var(--primary);
+  padding:2px 6px;
+  border-radius:5px;
+  border:1px solid var(--border);
+}
+
+.kb-prose a{color:var(--primary);text-decoration:underline;text-underline-offset:2px}
+
+.kb-prose hr{border:none;border-top:1px solid var(--border);margin:28px 0}
+
+/* Врезка-карточка — оборачивает ключевые смысловые блоки */
+.kb-card{
+  background:var(--muted);
+  border:1px solid var(--border);
+  border-radius:var(--radius-xl);
+  padding:18px 20px;
+  margin:18px 0;
+}
+.kb-card > *:first-child{margin-top:0}
+.kb-card > *:last-child{margin-bottom:0}
+.kb-card h3{margin-top:0}
+
+/* Заметка/подсказка — акцентная плашка слева */
+.kb-note{
+  background:var(--accent);
+  border-left:3px solid var(--primary);
+  border-radius:0 var(--radius) var(--radius) 0;
+  padding:14px 18px;
+  margin:18px 0;
+  font-size:14.5px;
+}
+.kb-note > *:first-child{margin-top:0}
+.kb-note > *:last-child{margin-bottom:0}
+
+@media (max-width: 640px){
+  .kb-prose{padding:22px 16px 32px}
+  .kb-prose > p:first-of-type{font-size:16.5px}
+  .kb-prose h2{font-size:19px;margin:32px 0 12px}
+  .kb-card,.kb-note{padding:14px 15px;margin:14px 0}
 }

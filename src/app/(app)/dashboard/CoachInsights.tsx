@@ -88,7 +88,7 @@ export async function CoachInsights({ user }: { user: SessionUser }) {
   if (aggregates.length === 0 && recentTips.length === 0) return null;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 24 }}>
       {/* Зоны роста — топ-3 худших пунктов чек-листа */}
       {aggregates.length > 0 && (
         <div className="ds-card">

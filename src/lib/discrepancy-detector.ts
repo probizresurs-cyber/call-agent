@@ -434,7 +434,16 @@ function extractCardFields(
     const label = resolveFieldLabel(key, fieldLabels[key] || "");
     if (!label) continue;
 
-    const strVal = Array.isArray(val) ? val.join(", ") : String(val);
+    const strVal = Array.isArray(val)
+      ? val
+          .map((el) =>
+            el && typeof el === "object" && "VALUE" in (el as Record<string, unknown>)
+              ? String((el as Record<string, unknown>).VALUE)
+              : String(el)
+          )
+          .filter(Boolean)
+          .join(", ")
+      : String(val);
     if (strVal.trim() === "") continue;
 
     // Значение-мусор (булево/код/служебный текст) — не сверяем.
@@ -669,8 +678,12 @@ async function saveAndRoute(
 /**
  * Применяет принятое расхождение к карточке Bitrix24:
  * обновляет поле field_name значением suggested_value через crm.deal.update / crm.lead.update.
+ * Для мультиполей (PHONE/EMAIL/WEB/IM) формирует массив [{ VALUE, VALUE_TYPE }],
+ * как их хранит Bitrix, а не плоскую строку.
  *
- * Вызывается из resolve-route когда tenant.discrepancy_action_mode = 'auto_approve'.
+ * Вызывается из resolve-route при action='accepted' ВСЕГДА, независимо от режима —
+ * сама функция проверяет dry-run тенанта (симуляция — не пишет в Bitrix, только
+ * логирует) и идемпотентность (не повторяет запись, если статус уже не 'pending').
  * Ошибки пробрасываются — вызывающий код должен их перехватить.
  */
 export async function applyDiscrepancyToBitrix(
@@ -704,7 +717,12 @@ export async function applyDiscrepancyToBitrix(
     return;
   }
 
-  const fields = { [field_name]: suggested_value };
+  // Мультиполя Bitrix (PHONE/EMAIL/WEB/IM) хранятся как массив объектов
+  // [{ VALUE, VALUE_TYPE }] — плоская строка их не заменит, нужен тот же формат.
+  const MULTI_FIELD_TYPES = new Set(["PHONE", "EMAIL", "WEB", "IM"]);
+  const fields = MULTI_FIELD_TYPES.has(field_name)
+    ? { [field_name]: [{ VALUE: suggested_value, VALUE_TYPE: "WORK" }] }
+    : { [field_name]: suggested_value };
 
   if (entity_type === "deal") {
     await callBitrixApi("crm.deal.update", { id: entity_id, fields });

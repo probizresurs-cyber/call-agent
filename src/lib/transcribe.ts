@@ -7,6 +7,7 @@ import {
   clearProviderHealthIfDegraded,
   ProviderQuotaError,
 } from "./provider-health";
+import { transcribeYandex } from "./transcribe-yandex";
 
 const WHISPER_MODEL = "whisper-1"; // у OpenAI это пока самая стабильная транскрипция
 
@@ -20,7 +21,28 @@ export interface TranscribeResult {
   model: string;
 }
 
+/**
+ * Транскрипция с fallback: сначала OpenAI Whisper, при его перманентном отказе
+ * (квота/биллинг/auth — ProviderQuotaError) — Yandex SpeechKit STT, если он
+ * настроен (YANDEX_STT_API_KEY). Так транскрипция не встаёт из-за одного провайдера.
+ */
 export async function transcribeFile(
+  filePath: string,
+  opts: { tenantId?: number; callId?: number; prompt?: string } = {}
+): Promise<TranscribeResult> {
+  const yandexAvailable = !!process.env.YANDEX_STT_API_KEY?.trim();
+  try {
+    return await transcribeWhisper(filePath, opts);
+  } catch (e) {
+    if (yandexAvailable && e instanceof ProviderQuotaError) {
+      console.warn(`[transcribe] Whisper недоступен (${e.reason}) → fallback на Yandex SpeechKit`);
+      return await transcribeYandex(filePath, { tenantId: opts.tenantId, callId: opts.callId });
+    }
+    throw e;
+  }
+}
+
+async function transcribeWhisper(
   filePath: string,
   opts: { tenantId?: number; callId?: number; prompt?: string } = {}
 ): Promise<TranscribeResult> {

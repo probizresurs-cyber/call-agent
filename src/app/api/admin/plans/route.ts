@@ -5,6 +5,7 @@
  * POST → создать или обновить план (по id в теле)
  * PUT  → обновить план (id + поля в теле)
  *
+ * Поле tokens_included — сколько токенов даёт тариф (для начисления баланса).
  * Защищён Bearer CA_ADMIN_TOKEN.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -37,6 +38,14 @@ function validatePlan(data: { name?: unknown; price_monthly?: unknown; calls_lim
   return null;
 }
 
+/** Нормализуем tokens_included: пусто/невалид → null, иначе целое 0..10_000_000. */
+function normTokens(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.min(10_000_000, Math.trunc(n));
+}
+
 interface PlanRow {
   id: number;
   name: string;
@@ -44,6 +53,7 @@ interface PlanRow {
   price_annual: number | null;
   calls_limit: number;
   managers_limit: number | null;
+  tokens_included: number | null;
   features_json: string | null;
   active: number | boolean;
   created_at: string;
@@ -66,6 +76,7 @@ export async function GET(req: NextRequest) {
       price_annual: r.price_annual,
       calls_limit: r.calls_limit,
       managers_limit: r.managers_limit,
+      tokens_included: r.tokens_included,
       features_json: r.features_json,
       active: !!r.active,
       created_at: String(r.created_at ?? ""),
@@ -84,39 +95,38 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, name, price_monthly, price_annual, calls_limit, managers_limit, features_json, active } = body;
+    const { id, name, price_monthly, price_annual, calls_limit, managers_limit, tokens_included, features_json, active } = body;
 
     const err = validatePlan({ name, price_monthly, calls_limit, managers_limit });
     if (err) return NextResponse.json({ ok: false, error: err }, { status: 400 });
 
     const db = getDbAsync();
+    const tokens = normTokens(tokens_included);
 
     if (id) {
-      // Update existing
       await db
         .prepare(
           `UPDATE ca_plans SET
              name = ?, price_monthly = ?, price_annual = ?,
-             calls_limit = ?, managers_limit = ?, features_json = ?, active = ?
+             calls_limit = ?, managers_limit = ?, tokens_included = ?, features_json = ?, active = ?
            WHERE id = ?`
         )
         .run(
           name, price_monthly, price_annual ?? null,
-          calls_limit, managers_limit ?? null, features_json ?? null,
+          calls_limit, managers_limit ?? null, tokens, features_json ?? null,
           active !== undefined ? (active ? 1 : 0) : 1,
           id
         );
       return NextResponse.json({ ok: true, updated: id });
     } else {
-      // Insert new
       const r = await db
         .prepare(
-          `INSERT INTO ca_plans (name, price_monthly, price_annual, calls_limit, managers_limit, features_json, active)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO ca_plans (name, price_monthly, price_annual, calls_limit, managers_limit, tokens_included, features_json, active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           name, price_monthly, price_annual ?? null,
-          calls_limit, managers_limit ?? null, features_json ?? null,
+          calls_limit, managers_limit ?? null, tokens, features_json ?? null,
           active !== undefined ? (active ? 1 : 0) : 1
         );
       return NextResponse.json({ ok: true, id: r.lastInsertRowid });
@@ -133,7 +143,7 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, name, price_monthly, price_annual, calls_limit, managers_limit, features_json, active } = body;
+    const { id, name, price_monthly, price_annual, calls_limit, managers_limit, tokens_included, features_json, active } = body;
 
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
 
@@ -141,16 +151,17 @@ export async function PUT(req: NextRequest) {
     if (putErr) return NextResponse.json({ ok: false, error: putErr }, { status: 400 });
 
     const db = getDbAsync();
+    const tokens = normTokens(tokens_included);
     await db
       .prepare(
         `UPDATE ca_plans SET
            name = ?, price_monthly = ?, price_annual = ?,
-           calls_limit = ?, managers_limit = ?, features_json = ?, active = ?
+           calls_limit = ?, managers_limit = ?, tokens_included = ?, features_json = ?, active = ?
          WHERE id = ?`
       )
       .run(
         name, price_monthly, price_annual ?? null,
-        calls_limit, managers_limit ?? null, features_json ?? null,
+        calls_limit, managers_limit ?? null, tokens, features_json ?? null,
         active !== undefined ? (active ? 1 : 0) : 1,
         id
       );

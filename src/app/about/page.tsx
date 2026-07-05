@@ -17,7 +17,7 @@ import {
   PhoneCall, ArrowRight, Sparkles, ClipboardCheck, Scale, BarChart3,
   Download, FileText, BrainCircuit, LayoutDashboard, MessagesSquare,
   Tv, Trophy, TrendingUp, Clock, ShieldCheck, Database,
-  ChevronRight, HelpCircle, FileCheck2, BellRing, Check, X, Building2,
+  ChevronRight, HelpCircle, FileCheck2, BellRing, Check, X, Building2, Plus, Rocket,
 } from "lucide-react";
 import ContactForm from "./ContactForm";
 import CookieBanner from "../_components/CookieBanner";
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   description:
     "Ваш отдел продаж делает сотни звонков в неделю — все прослушать невозможно. Call-Agent слушает за вас: AI разбирает каждый звонок и встречу по вашему скрипту, ловит расхождения с CRM и показывает руководителю всю картину продаж на одном дашборде. Внедрение за 1 день, 3 дня бесплатно.",
   openGraph: {
-    title: "Сотни звонков. А слышит руководитель — три.",
+    title: "Сотни звонков в неделю — все прослушать невозможно",
     description:
       "Call-Agent слушает за вас: AI-разбор каждого звонка по вашему скрипту, сверка с CRM, дашборд руководителя и автоотчёты. Контроль продаж на фактах.",
     type: "website",
@@ -38,9 +38,21 @@ export const metadata: Metadata = {
 const BRAND = "#7c70e0";
 
 export default function AboutPage() {
-  // 40 «звонков» за неделю — подсвечены только 3 (те, что реально услышал РОП).
+  // 40 «звонков» за неделю. Подсвеченные разнесены по сетке (без соседства и линий):
+  // фиолетовые (5) — прослушал РОП; оранжевые/красные — проблемные звонки,
+  // которые никто не прослушал.
   const CALLS = Array.from({ length: 40 }, (_, i) => i);
-  const HEARD = new Set([7, 19, 31]);
+  const HEARD = new Set([1, 11, 16, 30, 36]);
+  const WARN = "#f2960b";
+  const CRIT = "#e5484d";
+  // Проблемные звонки: level "warn" (оранжевый) / "crit" (красный) + подсказка.
+  const PROBLEMS: Record<number, { level: "warn" | "crit"; label: string }> = {
+    6: { level: "warn", label: "Не отработаны возражения" },
+    15: { level: "crit", label: "Сделка потеряна — клиент ушёл к конкуренту" },
+    21: { level: "warn", label: "Не назвали цену и условия" },
+    26: { level: "crit", label: "Слил горячего клиента — не перезвонил" },
+    33: { level: "warn", label: "Не назначили следующий шаг" },
+  };
 
   return (
     <main
@@ -116,29 +128,20 @@ export default function AboutPage() {
                 fontSize: 13, fontWeight: 600, marginBottom: 22,
               }}
             >
-              <Sparkles size={14} /> Контроль продаж на фактах, а не на ощущениях
+              <Sparkles size={14} /> Контроль продаж на фактах и цифрах
             </div>
 
             <h1
               style={{
-                fontSize: "clamp(34px, 5vw, 56px)", lineHeight: 1.05, fontWeight: 800,
-                margin: "0 0 22px", letterSpacing: "-0.02em",
+                fontSize: "clamp(24px, 3.1vw, 37px)", lineHeight: 1.14, fontWeight: 800,
+                margin: "0 0 22px", letterSpacing: "-0.015em",
               }}
             >
-              Сотни звонков.<br />
-              А слышит руководитель —{" "}
-              <span style={{ color: BRAND }}>три.</span>
+              Ваш отдел продаж делает сотни, а то и тысячи звонков в неделю.
+              Все прослушать —{" "}
+              <span style={{ color: BRAND }}>невозможно.</span>
             </h1>
 
-            <p
-              style={{
-                fontSize: "clamp(16px, 1.7vw, 19px)", lineHeight: 1.6,
-                color: "var(--muted-foreground)", margin: "0 0 14px", maxWidth: 560,
-              }}
-            >
-              Ваш отдел продаж делает <b style={{ color: "var(--foreground)" }}>сотни, а то и тысячи звонков в неделю</b>.
-              Все прослушать невозможно.
-            </p>
             <p
               style={{
                 fontSize: "clamp(16px, 1.7vw, 19px)", lineHeight: 1.6,
@@ -211,30 +214,47 @@ export default function AboutPage() {
             >
               {CALLS.map((i) => {
                 const heard = HEARD.has(i);
+                const problem = PROBLEMS[i];
+                const accent = problem ? (problem.level === "crit" ? CRIT : WARN) : null;
+                const title = heard
+                  ? "Прослушан руководителем"
+                  : problem
+                    ? `Никто не прослушал · ${problem.label}`
+                    : "Никто не прослушал";
                 return (
                   <div
                     key={i}
-                    title={heard ? "Услышан руководителем" : "Никто не слушал"}
+                    title={title}
                     style={{
                       aspectRatio: "1", borderRadius: 8,
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      background: heard ? BRAND : "color-mix(in oklch, var(--muted-foreground) 12%, transparent)",
-                      border: heard ? "none" : "1px solid var(--border)",
+                      background: heard
+                        ? BRAND
+                        : accent
+                          ? `color-mix(in oklch, ${accent} 16%, transparent)`
+                          : "color-mix(in oklch, var(--muted-foreground) 12%, transparent)",
+                      border: heard
+                        ? "none"
+                        : accent
+                          ? `1px solid ${accent}`
+                          : "1px solid var(--border)",
                     }}
                   >
                     <PhoneCall
                       size={13}
-                      color={heard ? "#fff" : "var(--muted-foreground)"}
+                      color={heard ? "#fff" : accent ? accent : "var(--muted-foreground)"}
                       strokeWidth={2}
-                      style={{ opacity: heard ? 1 : 0.45 }}
+                      style={{ opacity: heard || accent ? 1 : 0.45 }}
                     />
                   </div>
                 );
               })}
             </div>
-            <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-              <span style={{ color: BRAND, fontWeight: 700 }}>■</span> — звонки, которые реально услышал РОП.
-              Остальные <b style={{ color: "var(--foreground)" }}>37 из 40</b> — чёрный ящик.
+            <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.6 }}>
+              <span style={{ color: BRAND, fontWeight: 700 }}>■</span> — прослушал РОП: <b style={{ color: "var(--foreground)" }}>5 из 40</b>.
+              <br />
+              <span style={{ color: WARN, fontWeight: 700 }}>■</span>{" "}
+              <span style={{ color: CRIT, fontWeight: 700 }}>■</span> — звонки с проблемами, которые <b style={{ color: "var(--foreground)" }}>не прослушаны</b>: потерянные сделки, не отработанные возражения.
             </div>
           </div>
         </section>
@@ -255,7 +275,7 @@ export default function AboutPage() {
             {[
               {
                 t: "РОП не успевает слушать",
-                d: "РОП физически не успевает прослушать сотни звонков — а решения приходится принимать по тем немногим, что услышал.",
+                d: "РОП физически не успевает прослушать сотни звонков — а решения приходится принимать по тем немногим, что прослушал.",
               },
               {
                 t: "Сделки теряются",
@@ -428,11 +448,11 @@ export default function AboutPage() {
           <SectionHeading
             kicker="Результат"
             title={<>Что получает <span style={{ color: BRAND }}>бизнес</span></>}
-            subtitle="Не «ещё один дашборд», а деньги, время и единый стандарт продаж."
+            subtitle="Деньги, время и единый стандарт продаж — на данных из каждого разговора."
           />
           <div
             style={{
-              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              display: "flex", flexWrap: "wrap", justifyContent: "center",
               gap: 18, marginTop: 36,
             }}
           >
@@ -447,6 +467,7 @@ export default function AboutPage() {
                 key={t}
                 style={{
                   display: "flex", gap: 16, alignItems: "flex-start",
+                  flex: "1 1 300px", maxWidth: 340,
                   background: "var(--card)", border: "1px solid var(--border)",
                   borderRadius: 14, padding: 22,
                 }}
@@ -580,31 +601,36 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* ── ТАРИФЫ (кратко) ── */}
+        {/* ── ТАРИФЫ ── */}
         <section style={{ padding: "8px 0 64px" }}>
           <SectionHeading
             kicker="Тарифы"
-            title={<>Прозрачно, <span style={{ color: BRAND }}>от 3 500 ₽/мес</span></>}
-            subtitle="Без скрытых платежей и платы за пользователей. 14 дней бесплатно."
+            title={<>Прозрачно, <span style={{ color: BRAND }}>от 15 000 ₽/мес</span></>}
+            subtitle="Без скрытых платежей и платы за пользователей. Платите за результат."
           />
           <div
             style={{
-              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 16, marginTop: 36,
+              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+              gap: 16, marginTop: 40, alignItems: "stretch",
             }}
           >
             {[
-              { name: "Старт", price: "3 500", meta: "до 200 звонков · 1 тенант", popular: false },
-              { name: "Базовый", price: "5 500", meta: "до 500 звонков · до 5 менеджеров", popular: true },
-              { name: "Про", price: "12 000", meta: "до 1 500 звонков · до 20 менеджеров", popular: false },
-              { name: "Бизнес", price: "30 000", meta: "до 5 000 звонков · ∞ менеджеров", popular: false },
+              { name: "Старт", price: "от 15 000", meta: "до 200 звонков · 1 тенант", popular: false,
+                features: ["До 200 звонков в месяц", "AI-транскрипция и анализ", "Чек-лист качества (QC)", "Дашборд по менеджерам", "1 тенант"] },
+              { name: "Базовый", price: "25 000", meta: "до 500 звонков · до 5 менеджеров", popular: true,
+                features: ["До 500 звонков в месяц", "Всё из тарифа Старт", "До 5 менеджеров", "Сравнение с CRM-карточкой", "Инбокс расхождений", "Публичный дашборд"] },
+              { name: "Про", price: "39 000", meta: "до 1 500 звонков · до 20 менеджеров", popular: false,
+                features: ["До 1 500 звонков в месяц", "Всё из тарифа Базовый", "До 20 менеджеров", "Геймификация (лидерборд)", "Кабинет менеджера", "Напоминания и follow-up", "API-доступ"] },
+              { name: "Бизнес", price: "от 79 000", meta: "до 5 000 звонков · ∞ менеджеров", popular: false,
+                features: ["До 5 000 звонков в месяц", "Всё из тарифа Про", "Неограниченно менеджеров", "Авто-запись в CRM", "Приоритетная поддержка", "Выделенный онбординг"] },
             ].map((p) => (
               <div
                 key={p.name}
                 style={{
-                  background: p.popular ? "color-mix(in oklch, var(--primary) 7%, var(--card))" : "var(--card)",
+                  display: "flex", flexDirection: "column",
+                  background: p.popular ? "color-mix(in oklch, var(--primary) 6%, var(--card))" : "var(--card)",
                   border: p.popular ? `1.5px solid ${BRAND}` : "1px solid var(--border)",
-                  borderRadius: 14, padding: 22, position: "relative",
+                  borderRadius: 16, padding: 24, position: "relative",
                 }}
               >
                 {p.popular && (
@@ -618,29 +644,75 @@ export default function AboutPage() {
                     ПОПУЛЯРНЫЙ
                   </div>
                 )}
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>{p.name}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 8 }}>
-                  <span style={{ fontSize: 30, fontWeight: 800, color: BRAND, letterSpacing: "-0.02em" }}>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{p.name}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
+                  <span style={{ fontSize: 28, fontWeight: 800, color: BRAND, letterSpacing: "-0.02em" }}>
                     {p.price}
                   </span>
                   <span style={{ fontSize: 14, color: "var(--muted-foreground)" }}>₽/мес</span>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{p.meta}</div>
+                <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 18 }}>{p.meta}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
+                  {p.features.map((f) => (
+                    <div key={f} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13.5, lineHeight: 1.4 }}>
+                      <Check size={15} color={BRAND} strokeWidth={3} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+                <a
+                  href="#request-demo"
+                  style={{
+                    marginTop: "auto", textAlign: "center", textDecoration: "none",
+                    background: p.popular ? BRAND : "transparent",
+                    color: p.popular ? "#fff" : BRAND,
+                    border: p.popular ? "none" : `1.5px solid ${BRAND}`,
+                    padding: "11px 16px", borderRadius: 11, fontWeight: 700, fontSize: 14,
+                  }}
+                >
+                  Попробовать
+                </a>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", marginTop: 28 }}>
-            <Link
-              href="/pricing"
+
+          {/* Тестовый тариф — кнопкой снизу */}
+          <div
+            style={{
+              display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
+              gap: 20, marginTop: 24,
+              background: "color-mix(in oklch, var(--primary) 8%, var(--card))",
+              border: `1px dashed ${BRAND}`, borderRadius: 16, padding: "22px 26px",
+            }}
+          >
+            <div style={{ display: "flex", gap: 16, alignItems: "center", flex: "1 1 340px" }}>
+              <div
+                style={{
+                  width: 46, height: 46, borderRadius: 12, flexShrink: 0,
+                  background: BRAND, display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >
+                <Rocket size={22} color="#fff" strokeWidth={2} />
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 3 }}>
+                  Хотите сначала просто попробовать?
+                </div>
+                <div style={{ fontSize: 14, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+                  Тестовый доступ — <b style={{ color: "var(--foreground)" }}>5 рабочих дней</b> на ваших звонках за <b style={{ color: "var(--foreground)" }}>10 000&nbsp;₽</b>.
+                </div>
+              </div>
+            </div>
+            <a
+              href="#request-demo"
               style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                background: "var(--card)", color: "var(--foreground)",
-                border: "1px solid var(--border)", padding: "12px 24px",
-                borderRadius: 11, fontWeight: 600, fontSize: 15, textDecoration: "none",
+                display: "inline-flex", alignItems: "center", gap: 8, whiteSpace: "nowrap",
+                background: BRAND, color: "#fff", padding: "13px 26px",
+                borderRadius: 12, fontWeight: 700, fontSize: 15, textDecoration: "none",
               }}
             >
-              Подробнее о тарифах <ChevronRight size={16} />
-            </Link>
+              Запросить тестовый доступ <ArrowRight size={18} />
+            </a>
           </div>
         </section>
 
@@ -672,6 +744,7 @@ export default function AboutPage() {
             ].map((item) => (
               <details
                 key={item.q}
+                className="faq-item"
                 style={{
                   background: "var(--card)", border: "1px solid var(--border)",
                   borderRadius: 12, padding: "16px 20px",
@@ -679,12 +752,23 @@ export default function AboutPage() {
               >
                 <summary
                   style={{
-                    display: "flex", alignItems: "center", gap: 10,
+                    display: "flex", alignItems: "center", gap: 12,
                     fontSize: 15.5, fontWeight: 600, cursor: "pointer", listStyle: "none",
                   }}
                 >
                   <HelpCircle size={18} color={BRAND} style={{ flexShrink: 0 }} />
-                  {item.q}
+                  <span style={{ flex: 1 }}>{item.q}</span>
+                  <span
+                    className="faq-plus"
+                    style={{
+                      flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                      width: 26, height: 26, borderRadius: 8,
+                      background: "color-mix(in oklch, var(--primary) 12%, transparent)",
+                      transition: "transform 0.2s ease",
+                    }}
+                  >
+                    <Plus size={16} color={BRAND} strokeWidth={2.6} />
+                  </span>
                 </summary>
                 <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: "12px 0 0", paddingLeft: 28 }}>
                   {item.a}
@@ -701,7 +785,7 @@ export default function AboutPage() {
             title={<>Запросить <span style={{ color: BRAND }}>демо</span></>}
             subtitle="Оставьте контакты — и сразу откроется живой демо-дашборд с разбором звонков. Телефон обязателен: по нему мы свяжемся и поможем подключить ваш отдел продаж."
           />
-          <div style={{ maxWidth: 620, margin: "36px auto 0" }}>
+          <div style={{ maxWidth: 760, margin: "36px auto 0" }}>
             <ContactForm />
           </div>
         </section>
@@ -775,8 +859,8 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: 48, flexWrap: "wrap" }}>
-            <div>
+          <div style={{ display: "flex", gap: 72, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 120 }}>
               <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "var(--muted-foreground)", marginBottom: 12 }}>
                 Продукт
               </div>
@@ -806,7 +890,7 @@ export default function AboutPage() {
           style={{
             maxWidth: 1080, margin: "32px auto 0", paddingTop: 24,
             borderTop: "1px solid var(--border)",
-            fontSize: 13, color: "var(--muted-foreground)",
+            fontSize: 13, color: "var(--muted-foreground)", textAlign: "center",
           }}
         >
           © {new Date().getFullYear()} Call-Agent. Все права защищены.
@@ -819,6 +903,12 @@ export default function AboutPage() {
       {/* Адаптив: на узком экране hero в одну колонку, форма в одну колонку,
           таблица сравнения превращается в карточки */}
       <style>{`
+        .faq-item { transition: border-color 0.2s ease; }
+        .faq-item:hover { border-color: color-mix(in oklch, ${BRAND} 45%, var(--border)); }
+        .faq-item[open] { border-color: ${BRAND}; }
+        .faq-item[open] .faq-plus { transform: rotate(45deg); background: color-mix(in oklch, ${BRAND} 20%, transparent); }
+        .faq-item summary:hover .faq-plus { background: color-mix(in oklch, ${BRAND} 20%, transparent); }
+        .faq-item summary::-webkit-details-marker { display: none; }
         @media (max-width: 820px) {
           .about-hero { grid-template-columns: 1fr !important; gap: 32px !important; }
         }
