@@ -38,7 +38,7 @@ export default function LegalDoc({
           }}
         >
           <Link
-            href="/about"
+            href="/"
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               color: "var(--muted-foreground)", textDecoration: "none", fontSize: 14, fontWeight: 500,
@@ -77,7 +77,7 @@ export default function LegalDoc({
         {/* Низ */}
         <div style={{ marginTop: 40, paddingTop: 24, borderTop: "1px solid var(--border)" }}>
           <Link
-            href="/about"
+            href="/"
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               color: BRAND, textDecoration: "none", fontSize: 14, fontWeight: 600,
