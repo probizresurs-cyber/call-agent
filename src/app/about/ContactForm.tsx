@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * Форма заявки на лендинге Call-Agent с 152-ФЗ обвязкой.
+ * Форма заявки на лендинге Колл Агента с 152-ФЗ обвязкой.
  *
  * Приём включён (FORM_ENABLED=true): сабмит → POST /call-agent/api/contact,
  * заявка сохраняется в БД (таблица contact_requests), смотрим на
  * /contact-requests. FORM_ENABLED=false скрывает приём (форма видна, но не шлёт).
  *
- * Два чекбокса (по официальной инструкции заказчика по ПД), оба НЕ отмечены
- * по умолчанию (согласие пользователь ставит сам — иначе оно невалидно):
- *   1) согласие на обработку ПД — ОБЯЗАТЕЛЬНЫЙ (ссылки: /consent + /privacy);
- *   2) согласие на рассылку      — НЕОБЯЗАТЕЛЬНЫЙ (ссылка: /consent-marketing).
- * Кнопка активна, когда указаны имя + ТЕЛЕФОН (обязателен) И отмечено согласие
- * на ПДн. Согласие на рассылку на активацию НЕ влияет (нельзя принуждать).
+ * Три чекбокса, все НЕ отмечены по умолчанию (согласие пользователь ставит
+ * сам — иначе оно невалидно):
+ *   1) согласие на обработку ПД     — ОБЯЗАТЕЛЬНЫЙ (ссылки: /consent + /privacy);
+ *   2) согласие с условиями оферты  — ОБЯЗАТЕЛЬНЫЙ (ссылка: /oferta);
+ *   3) согласие на рассылку          — НЕОБЯЗАТЕЛЬНЫЙ (ссылка: /consent-marketing).
+ * Кнопка активна, когда указаны имя + ТЕЛЕФОН (обязателен) И отмечены оба
+ * обязательных согласия. Согласие на рассылку на активацию НЕ влияет (нельзя
+ * принуждать).
  *
  * После успешной отправки СРАЗУ открываем демо-доступ: переход на /call-agent/demo
  * (ставит read-only demo-сессию и ведёт на дашборд ?period=all).
@@ -34,8 +36,9 @@ export default function ContactForm() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
-  // Согласия. Обязательное: на обработку ПДн. Необязательное: рассылка.
+  // Согласия. Обязательные: на обработку ПДн и с офертой. Необязательное: рассылка.
   const [agreePd, setAgreePd] = useState(false); // обязательный
+  const [agreeOferta, setAgreeOferta] = useState(false); // обязательный
   const [agreeMarketing, setAgreeMarketing] = useState(false); // необязательный
   const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -43,9 +46,9 @@ export default function ContactForm() {
 
   // Телефон обязателен (по нему открываем демо и связываемся), имя — тоже.
   const hasContact = name.trim().length > 0 && phone.trim().length > 0;
-  // Кнопка активна, если форма включена, заполнены имя+телефон и отмечено согласие
-  // на ПДн (рекламная рассылка — необязательна, на активацию НЕ влияет).
-  const canSubmit = FORM_ENABLED && agreePd && hasContact && !submitting;
+  // Кнопка активна, если форма включена, заполнены имя+телефон и отмечены оба
+  // обязательных согласия (рекламная рассылка — необязательна, на активацию НЕ влияет).
+  const canSubmit = FORM_ENABLED && agreePd && agreeOferta && hasContact && !submitting;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,6 +66,7 @@ export default function ContactForm() {
           email,
           message,
           consent_pd: true, // обязательное согласие (иначе кнопка неактивна)
+          consent_oferta: true, // обязательное согласие (иначе кнопка неактивна)
           marketing_consent: agreeMarketing,
         }),
       });
@@ -216,7 +220,7 @@ export default function ContactForm() {
         />
       </div>
 
-      {/* ── Три согласия (152-ФЗ), все НЕ отмечены по умолчанию ── */}
+      {/* ── Согласия, все НЕ отмечены по умолчанию ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 18 }}>
         {/* 1. Согласие на обработку ПД — ОБЯЗАТЕЛЬНЫЙ */}
         <label style={checkboxRowStyle}>
@@ -238,7 +242,23 @@ export default function ContactForm() {
           </span>
         </label>
 
-        {/* 2. Согласие на рекламную рассылку — НЕОБЯЗАТЕЛЬНЫЙ */}
+        {/* 2. Согласие с условиями оферты — ОБЯЗАТЕЛЬНЫЙ */}
+        <label style={checkboxRowStyle}>
+          <input
+            type="checkbox"
+            checked={agreeOferta}
+            onChange={(e) => setAgreeOferta(e.target.checked)}
+            style={checkboxStyle}
+          />
+          <span>
+            Соглашаюсь с условиями{" "}
+            <Link href="/oferta" style={linkStyle} target="_blank">
+              Публичной оферты
+            </Link>
+          </span>
+        </label>
+
+        {/* 3. Согласие на рекламную рассылку — НЕОБЯЗАТЕЛЬНЫЙ */}
         <label style={checkboxRowStyle}>
           <input
             type="checkbox"

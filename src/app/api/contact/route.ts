@@ -45,11 +45,18 @@ export async function POST(req: Request) {
     const message = str(body.message, MAX_MESSAGE);
     const marketingConsent = body.marketing_consent === true || body.marketing_consent === 1;
     const consentPd = body.consent_pd === true || body.consent_pd === 1;
+    const consentOferta = body.consent_oferta === true || body.consent_oferta === 1;
 
-    // Согласие на обработку ПДн — обязательно (защита на сервере, не только в UI).
+    // Согласие на обработку ПДн и с офертой — обязательны (защита на сервере, не только в UI).
     if (!consentPd) {
       return NextResponse.json(
         { ok: false, error: "Требуется согласие на обработку персональных данных" },
+        { status: 400 }
+      );
+    }
+    if (!consentOferta) {
+      return NextResponse.json(
+        { ok: false, error: "Требуется согласие с условиями публичной оферты" },
         { status: 400 }
       );
     }

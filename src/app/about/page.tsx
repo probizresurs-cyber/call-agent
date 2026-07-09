@@ -922,6 +922,7 @@ export default function AboutPage() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 9, fontSize: 14 }}>
                 {/* Политика обработки ПД обязательно размещается в подвале сайта (152-ФЗ) */}
+                <Link href="/oferta" style={footerLink}>Публичная оферта</Link>
                 <Link href="/privacy" style={footerLink}>Политика обработки персональных данных</Link>
                 <Link href="/cookie-policy" style={footerLink}>Политика обработки файлов cookie</Link>
                 <Link href="/consent" style={footerLink}>Согласие на обработку ПДн</Link>

@@ -1,5 +1,5 @@
 /**
- * Общий каркас для публичных юридических документов Call-Agent
+ * Общий каркас для публичных юридических документов Колл Агента
  * (Политика ПД, Согласия, Cookie-политика).
  *
  * Server component. Стиль платформы: CSS-переменные темы + бренд #7c70e0,
@@ -55,7 +55,7 @@ export default function LegalDoc({
             >
               <PhoneCall size={16} color="#fff" strokeWidth={2.4} />
             </div>
-            <span style={{ fontWeight: 800, fontSize: 15 }}>Call-Agent</span>
+            <span style={{ fontWeight: 800, fontSize: 15 }}>Колл Агент</span>
           </div>
         </header>
 
