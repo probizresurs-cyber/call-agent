@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import {
   Check, X, Zap, TrendingUp, Rocket, Building2,
@@ -13,94 +12,85 @@ const PLANS = [
   {
     id: "start",
     name: "Старт",
-    price: 3500,
+    price: 9800,
     Icon: Zap,
     color: "#64748b",
     accent: "rgba(100,116,139,0.14)",
     border: "rgba(100,116,139,0.28)",
-    calls: 200,
-    meta: "1 тенант",
     popular: false,
     features: [
-      [true,  "До 200 звонков в месяц"],
+      [true,  "4 000 минут разговоров в месяц"],
       [true,  "AI-транскрипция и анализ"],
       [true,  "Чек-лист качества QC"],
       [true,  "Дашборд по менеджерам"],
-      [true,  "1 тенант"],
-      [false, "Сравнение с Bitrix-карточкой"],
+      [true,  "Режим обработки: Аналитика"],
+      [false, "Сравнение с CRM-карточкой"],
       [false, "Инбокс расхождений"],
       [false, "Геймификация"],
-      [false, "API доступ"],
+      [false, "Режим Live"],
     ],
   },
   {
     id: "base",
     name: "Базовый",
-    price: 5500,
+    price: 19800,
     Icon: TrendingUp,
     color: "#7c70e0",
     accent: "rgba(124,112,224,0.13)",
     border: "rgba(124,112,224,0.45)",
-    calls: 500,
-    meta: "до 5 менеджеров",
     popular: true,
     features: [
-      [true,  "До 500 звонков в месяц"],
+      [true,  "10 000 минут разговоров в месяц"],
       [true,  "AI-транскрипция и анализ"],
       [true,  "Чек-лист качества QC"],
-      [true,  "До 5 менеджеров"],
-      [true,  "Сравнение с Bitrix-карточкой"],
+      [true,  "Сравнение разговора с CRM-карточкой"],
       [true,  "Инбокс расхождений"],
       [true,  "Публичный дашборд (ссылка)"],
-      [false, "Геймификация"],
+      [true,  "Режим обработки: Аналитика"],
+      [false, "Режим Live"],
       [false, "API доступ"],
     ],
   },
   {
     id: "pro",
     name: "Про",
-    price: 12000,
+    price: 39800,
     Icon: Rocket,
     color: "#0ea5e9",
     accent: "rgba(14,165,233,0.11)",
     border: "rgba(14,165,233,0.38)",
-    calls: 1500,
-    meta: "до 20 менеджеров",
     popular: false,
     features: [
-      [true,  "До 1 500 звонков в месяц"],
+      [true,  "20 000 минут разговоров в месяц"],
       [true,  "Всё из тарифа Базовый"],
-      [true,  "До 20 менеджеров"],
-      [true,  "Геймификация (лидерборд, ачивки)"],
+      [true,  "Режим Live: разбор и подсказка через пару минут после звонка"],
       [true,  "Кабинет менеджера"],
+      [true,  "Геймификация (лидерборд, ачивки)"],
       [true,  "Напоминания и follow-up"],
-      [true,  "API доступ"],
     ],
   },
   {
     id: "business",
     name: "Бизнес",
-    price: 30000,
+    price: 79800,
     Icon: Building2,
     color: "#f59e0b",
     accent: "rgba(245,158,11,0.11)",
     border: "rgba(245,158,11,0.38)",
-    calls: 5000,
-    meta: "∞ менеджеров",
     popular: false,
     features: [
-      [true,  "До 5 000 звонков в месяц"],
-      [true,  "Всё из тарифа Про"],
+      [true,  "50 000 минут разговоров в месяц"],
+      [true,  "Всё из тарифа Про (включая Live)"],
       [true,  "Неограниченно менеджеров"],
-      [true,  "Авто-запись в Bitrix (AI пишет сам)"],
-      [true,  "Приоритетная поддержка"],
-      [true,  "Выделенный онбординг"],
+      [true,  "Авто-запись в CRM (AI пишет сам)"],
+      [true,  "API-доступ"],
+      [true,  "Приоритетная поддержка и выделенный онбординг"],
     ],
   },
 ] as const;
 
 const COMPETITORS = [
-  { name: "Call-Agent Базовый",          price: "5 500 ₽/мес",   ours: true  },
+  { name: "Колл Агент Базовый",          price: "19 800 ₽/мес",   ours: true  },
   { name: "MANGO Office Speech Analytics", price: "~15 000 ₽/мес", ours: false },
   { name: "Imot.io",                      price: "от 40 000 ₽/мес", ours: false },
   { name: "SalesAI",                      price: "от 49 000 ₽/мес", ours: false },
@@ -113,14 +103,12 @@ function fmt(n: number) { return n.toLocaleString("ru-RU"); }
 /* ─── Components ────────────────────────────────────────────── */
 
 function PlanCard({
-  plan, annual,
+  plan,
 }: {
   plan: typeof PLANS[number];
-  annual: boolean;
 }) {
   const { Icon } = plan;
-  const price = annual ? Math.round(plan.price * 0.8) : plan.price;
-  const saving = fmt(Math.round(plan.price * 0.2 * 12));
+  const price = plan.price;
 
   return (
     <div style={{
@@ -158,24 +146,19 @@ function PlanCard({
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{plan.name}</div>
-          <div style={{ color: "#4b5563", fontSize: 12, marginTop: 2 }}>
-            {plan.meta} · до {fmt(plan.calls)} зв/мес
-          </div>
         </div>
       </div>
 
       {/* Price */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+          {plan.id === "business" && (
+            <span style={{ fontSize: 20, fontWeight: 700, color: plan.color, marginRight: -2 }}>от</span>
+          )}
           <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: "-0.03em", color: plan.color }}>
             {fmt(price)}
           </span>
           <span style={{ color: "#4b5563", fontSize: 14 }}>₽/мес</span>
-        </div>
-        <div style={{ fontSize: 12, marginTop: 3, color: "#4b5563", minHeight: 18 }}>
-          {annual
-            ? <><s style={{ color: "#374151" }}>{fmt(plan.price)} ₽</s>{" "}· экономия <span style={{ color: "#a89ef0" }}>{saving} ₽/год</span></>
-            : null}
         </div>
       </div>
 
@@ -185,6 +168,7 @@ function PlanCard({
           <li key={i} style={{
             display: "flex", alignItems: "flex-start", gap: 8,
             color: ok ? "#c9d1dc" : "#2d3748", fontSize: 13.5, lineHeight: 1.4,
+            fontWeight: ok && (text as string).startsWith("Режим Live") ? 700 : 400,
           }}>
             {ok
               ? <Check size={14} color={plan.color} style={{ marginTop: 2, flexShrink: 0 }} />
@@ -205,7 +189,7 @@ function PlanCard({
           ? { background: "linear-gradient(135deg,#5b4fc7,#a89ef0)", color: "#fff", border: "none" }
           : { background: plan.accent, border: `1px solid ${plan.border}`, color: plan.color }),
       }}>
-        Попробовать 14 дней бесплатно
+        Попробовать — 3 дня бесплатно
       </Link>
     </div>
   );
@@ -214,8 +198,6 @@ function PlanCard({
 /* ─── Main ──────────────────────────────────────────────────── */
 
 export default function PricingClient() {
-  const [annual, setAnnual] = useState(false);
-
   return (
     <div style={{
       minHeight: "100vh",
@@ -237,7 +219,7 @@ export default function PricingClient() {
           fontWeight: 700, fontSize: 16,
         }}>
           <PhoneCall size={18} color="#7c70e0" />
-          Call-Agent
+          Колл Агент
         </Link>
         <div style={{ display: "flex", gap: 8 }}>
           <Link href="/dashboard" style={{
@@ -280,57 +262,67 @@ export default function PricingClient() {
         </h1>
 
         <p style={{ color: "#6b7280", fontSize: 16, maxWidth: 460, margin: "0 auto 32px", lineHeight: 1.6 }}>
-          Контроль качества звонков, AI-чеклисты и сравнение с Bitrix-карточкой.
+          Контроль качества звонков, AI-чеклисты и сравнение разговора с карточкой вашей CRM.
           Платите за результат.
         </p>
-
-        {/* Toggle */}
-        <div style={{
-          display: "inline-flex", gap: 4, padding: 5,
-          background: "#161b26", border: "1px solid #1f2535", borderRadius: 10,
-        }}>
-          {([["Помесячно", false], ["Годовой", true]] as [string, boolean][]).map(([label, val]) => (
-            <button key={label} onClick={() => setAnnual(val)} style={{
-              padding: "7px 18px", borderRadius: 7, border: "none", cursor: "pointer",
-              background: annual === val ? "#1e2a3a" : "transparent",
-              color: annual === val ? "#e8eaf0" : "#6b7280",
-              fontWeight: annual === val ? 600 : 400, fontSize: 14,
-              fontFamily: "inherit", display: "flex", alignItems: "center", gap: 7,
-              transition: "all 0.15s",
-            }}>
-              {label}
-              {val && (
-                <span style={{
-                  background: "rgba(124,112,224,0.2)", color: "#a89ef0",
-                  fontSize: 11, padding: "2px 7px", borderRadius: 5, fontWeight: 700,
-                }}>−20%</span>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Plans */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(auto-fit,minmax(255px,1fr))",
-        gap: 18, maxWidth: 1160, margin: "0 auto 72px",
+        gap: 18, maxWidth: 1160, margin: "0 auto 40px",
         alignItems: "start",
       }}>
         {PLANS.map(plan => (
-          <PlanCard key={plan.id} plan={plan} annual={annual} />
+          <PlanCard key={plan.id} plan={plan} />
         ))}
+      </div>
+
+      {/* Footnote */}
+      <p style={{
+        textAlign: "center", color: "#4b5563", fontSize: 12.5, lineHeight: 1.6,
+        maxWidth: 640, margin: "0 auto 56px",
+      }}>
+        Перерасход: 3&nbsp;₽/мин в режиме Аналитика, 5&nbsp;₽/мин в режиме Live. Звонки короче 30 секунд
+        не тарифицируются — вы платите только за состоявшиеся разговоры. Ориентир «≈ звонков» рассчитан
+        из средней длительности разговора 4 минуты.
+      </p>
+
+      {/* Modes */}
+      <div style={{ maxWidth: 900, margin: "0 auto 64px" }}>
+        <h2 style={{
+          textAlign: "center", fontSize: 20, fontWeight: 700,
+          marginBottom: 28, color: "#6b7280", letterSpacing: "-0.01em",
+        }}>
+          Режимы обработки: Аналитика или Live
+        </h2>
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))", gap: 18,
+        }}>
+          <div style={{ background: "#0f1420", border: "1px solid #1a2030", borderRadius: 14, padding: "22px 24px" }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10, color: "#d1d5db" }}>Режим «Аналитика»</div>
+            <p style={{ color: "#6b7280", fontSize: 13.5, lineHeight: 1.6, marginBottom: 12 }}>
+              Звонки обрабатываются пачками в течение ночи. К 9:00 утра у руководителя готов полный разбор
+              вчерашнего дня: расшифровки, оценки по чек-листу, расхождения с CRM и обновлённый дашборд.
+            </p>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#a89ef0" }}>Доступен на всех тарифах</div>
+          </div>
+          <div style={{ background: "rgba(124,112,224,0.07)", border: "1px solid rgba(124,112,224,0.4)", borderRadius: 14, padding: "22px 24px" }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10, color: "#d1d5db" }}>Режим «Live»</div>
+            <p style={{ color: "#6b7280", fontSize: 13.5, lineHeight: 1.6, marginBottom: 12 }}>
+              Разбор звонка и персональная подсказка менеджеру приходят через 2–3 минуты после завершения
+              разговора — руководитель может отреагировать на горящую сделку в тот же час.
+            </p>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#a89ef0" }}>Доступен на тарифах Про и Бизнес</div>
+          </div>
+        </div>
       </div>
 
       {/* Notes */}
       <div style={{ textAlign: "center", marginBottom: 64 }}>
         <p style={{ color: "#4b5563", fontSize: 14, marginBottom: 5 }}>
-          📞 Встречи, чаты, email — тоже анализируем. Не только звонки.
-        </p>
-        <p style={{ color: "#374151", fontSize: 13 }}>
-          Себестоимость анализа одного звонка от{" "}
-          <span style={{ color: "#a89ef0", fontWeight: 600 }}>4.6 ₽</span>
-          {" "}— при 500 звонках/мес
+          📞 Звонки и встречи под одним анализом. Чаты и почта — скоро.
         </p>
       </div>
 
@@ -388,9 +380,9 @@ export default function PricingClient() {
       }}>
         {[
           ["Есть ли ограничение по длине звонка?", "Нет. Анализируем звонки любой длины — от 30 секунд до нескольких часов."],
-          ["Можно подключить несколько менеджеров?", "Да, начиная с тарифа Базовый. Каждый видит только свои звонки."],
-          ["Что если превышу лимит звонков?", "Новые звонки встанут в очередь. Мы уведомим и предложим доп. пакет."],
-          ["Нужна ли интеграция с Bitrix24?", "Нет, платформа работает и без CRM — можно загружать записи вручную."],
+          ["Можно подключить несколько менеджеров?", "Да, количество менеджеров ничем не ограничено — лимит только по минутам разговоров в месяц."],
+          ["Что если превышу лимит минут?", "Разговоры сверх лимита продолжают обрабатываться — включается перерасход: 3 ₽/мин в режиме Аналитика, 5 ₽/мин в режиме Live. Доступ не блокируется, мы заранее уведомим."],
+          ["Нужна ли интеграция с CRM?", "Нет, платформа работает и без CRM — можно загружать записи вручную. Из коробки поддерживаем Bitrix24, amoCRM и любую другую CRM."],
         ].map(([q, a]) => (
           <div key={q} style={{
             background: "#0f1420", border: "1px solid #1a2030",
@@ -410,10 +402,10 @@ export default function PricingClient() {
         borderRadius: 18, padding: "36px 32px", textAlign: "center",
       }}>
         <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 10, letterSpacing: "-0.02em" }}>
-          14 дней бесплатно
+          3 дня бесплатно
         </h2>
         <p style={{ color: "#6b7280", fontSize: 15, marginBottom: 24, lineHeight: 1.6 }}>
-          Без карты. Без обязательств. Подключите Bitrix24 и загрузите первые звонки за 15 минут.
+          Без карты. Без обязательств. Подключим вашу CRM или телефонию и разберём первые звонки за один день.
         </p>
         <Link href="/login" style={{
           display: "inline-flex", alignItems: "center", gap: 8,

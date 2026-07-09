@@ -1,10 +1,10 @@
 /**
- * Публичный продающий лендинг Call-Agent — полный одностраничник.
+ * Публичный продающий лендинг Колл Агент — полный одностраничник.
  * Доступен без авторизации по /call-agent/about. В стиле платформы
  * (CSS-переменные темы + бренд #7c70e0, lucide-иконки, адаптив).
  *
  * Секции: Hero → Проблема → (абзац-решение) → Как работает → Что умеет →
- * Что получает бизнес → Для кого → Почему Call-Agent (таблица) → Тарифы →
+ * Что получает бизнес → Для кого → Почему Колл Агент (таблица) → Тарифы →
  * Частые вопросы → Форма заявки (#request-demo, ContactForm) → Финальный CTA → Футер.
  * Cookie-баннер подключён внизу.
  *
@@ -17,21 +17,21 @@ import {
   PhoneCall, ArrowRight, Sparkles, ClipboardCheck, Scale, BarChart3,
   Download, FileText, BrainCircuit, LayoutDashboard, MessagesSquare,
   Tv, Trophy, TrendingUp, Clock, ShieldCheck, Database,
-  ChevronRight, HelpCircle, FileCheck2, BellRing, Check, X, Building2, Plus, Rocket,
+  ChevronRight, HelpCircle, FileCheck2, BellRing, Check, X, Building2, Plus, Rocket, Compass, Moon, Zap,
 } from "lucide-react";
 import ContactForm from "./ContactForm";
 import CookieBanner from "../_components/CookieBanner";
 
 export const metadata: Metadata = {
-  title: "Call-Agent — AI-контроль каждого звонка отдела продаж",
+  title: "Колл Агент — AI-контроль каждого звонка отдела продаж",
   description:
-    "Ваш отдел продаж делает сотни звонков в неделю — все прослушать невозможно. Call-Agent слушает за вас: AI разбирает каждый звонок и встречу по вашему скрипту, ловит расхождения с CRM и показывает руководителю всю картину продаж на одном дашборде. Внедрение за 1 день, 3 дня бесплатно.",
+    "Ваш отдел продаж делает сотни звонков в неделю — все прослушать невозможно. Колл Агент слушает за вас: AI разбирает каждый звонок и встречу по вашему скрипту, ловит расхождения с CRM и показывает руководителю всю картину продаж на одном дашборде. Внедрение за 1 день, 3 дня бесплатно.",
   openGraph: {
     title: "Сотни звонков в неделю — все прослушать невозможно",
     description:
-      "Call-Agent слушает за вас: AI-разбор каждого звонка по вашему скрипту, сверка с CRM, дашборд руководителя и автоотчёты. Контроль продаж на фактах.",
+      "Колл Агент слушает за вас: AI-разбор каждого звонка по вашему скрипту, сверка с CRM, дашборд руководителя и автоотчёты. Контроль продаж на фактах.",
     type: "website",
-    siteName: "Call-Agent",
+    siteName: "Колл Агент",
   },
 };
 
@@ -81,7 +81,7 @@ export default function AboutPage() {
               <PhoneCall size={20} color="#fff" strokeWidth={2.4} />
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1 }}>Call-Agent</div>
+              <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1 }}>Колл Агент</div>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>
                 AI-контроль качества продаж
               </div>
@@ -148,7 +148,7 @@ export default function AboutPage() {
                 color: "var(--muted-foreground)", margin: "0 0 14px", maxWidth: 560,
               }}
             >
-              Call-Agent слушает за вас. AI разбирает каждый звонок и встречу, показывает,
+              Колл Агент слушает за вас. AI разбирает каждый звонок и встречу, показывает,
               кто как продаёт, где теряются сделки и что улучшить — <b style={{ color: "var(--foreground)" }}>без ручной прослушки</b>.
             </p>
             <p
@@ -399,13 +399,17 @@ export default function AboutPage() {
             }}
           >
             {[
-              { Icon: ClipboardCheck, t: "Разбор каждого разговора", d: "Оценка менеджера 0–10, чек-лист по пунктам, тональность, возражения, следующий шаг и персональные подсказки — через минуту после звонка." },
+              { Icon: ClipboardCheck, t: "Разбор каждого разговора", d: "Оценка менеджера 0–10, чек-лист по пунктам, тональность, возражения, следующий шаг — через минуту после звонка." },
+              { Icon: BrainCircuit, t: "Учит после каждого звонка", d: "Не просто оценка — доброжелательная подсказка менеджеру: что сказать по-другому в следующий раз, чтобы довести разговор до сделки." },
               { Icon: LayoutDashboard, t: "Дашборд руководителя", d: "Метрики по каждому менеджеру: кто держит планку, кто проседает, какой пункт скрипта команда проваливает чаще всего." },
-              { Icon: Scale, t: "Сверка с CRM", d: "Находит расхождения между разговором и карточкой: в CRM 150 000, а в разговоре согласовали 250 000 — раньше эти деньги терялись, теперь расхождение видно сразу." },
+              { Icon: Scale, t: "Сверка с CRM", d: "Находит расхождения между разговором и карточкой: в CRM 150 000, а в разговоре согласовали 250 000 — раньше эти деньги терялись, теперь расхождение не просто видно, а одной кнопкой дописывается в карточку." },
               { Icon: FileCheck2, t: "Скрипт и чек-лист под вас", d: "Загружаете свой скрипт и стандарт качества — система оценивает именно по нему. Нет жёсткого скрипта? Можно оценивать по структуре разговора, без привязки к точным формулировкам." },
               { Icon: BellRing, t: "Автоматические отчёты", d: "Сводка по команде каждое утро прямо в чат, по расписанию. Не нужно запрашивать и ждать. А менеджеры больше не тратят время на ручные отчёты." },
+              { Icon: Clock, t: "Не забудет перезвонить", d: "Клиент называет дату и время следующего созвона — система сама ставит менеджеру напоминание, без записи в блокнот." },
               { Icon: Trophy, t: "Мотивация команды", d: "Лидерборд, рейтинг менеджеров, личный кабинет с зонами роста." },
               { Icon: Tv, t: "ТВ-табло", d: "Показатели отдела на экране в офисе, рейтинг менеджеров крупно, в реальном времени." },
+              { Icon: Compass, t: "Кабинет РОПа", d: "Один экран для руководителя: звонки, которые нужно послушать в первую очередь, у кого из команды просела динамика, свежие заметки по менеджерам." },
+              { Icon: ShieldCheck, t: "100% по 152-ФЗ", d: "Телефон, email, ФИО и адреса клиентов маскируются перед отправкой в AI — реальные персональные данные в обработку не попадают." },
               { Icon: MessagesSquare, t: "Больше каналов", d: "Чаты, почта и переписка в CRM — система будет так же разбирать и оценивать их, не только звонки и встречи.", soon: true },
             ].map(({ Icon, t, d, soon }) => (
               <div
@@ -520,7 +524,7 @@ export default function AboutPage() {
               </div>
               <p style={{ fontSize: "clamp(16px, 1.7vw, 18px)", lineHeight: 1.6, margin: 0 }}>
                 Для любого отдела продаж, где основной канал — телефон. Чем больше звонков,
-                тем больше теряется без контроля — и тем нужнее Call-Agent. Подключаемся
+                тем больше теряется без контроля — и тем нужнее Колл Агент. Подключаемся
                 к любой CRM или напрямую к телефонии.
               </p>
             </div>
@@ -531,7 +535,7 @@ export default function AboutPage() {
         <section style={{ padding: "8px 0 64px" }}>
           <SectionHeading
             kicker="Сравнение"
-            title={<>Почему <span style={{ color: BRAND }}>Call-Agent</span></>}
+            title={<>Почему <span style={{ color: BRAND }}>Колл Агент</span></>}
             subtitle="Ручной контроль против AI-разбора каждого разговора."
           />
           <div
@@ -558,7 +562,7 @@ export default function AboutPage() {
                   display: "flex", alignItems: "center", gap: 8,
                 }}
               >
-                <PhoneCall size={16} strokeWidth={2.4} /> Call-Agent
+                <PhoneCall size={16} strokeWidth={2.4} /> Колл Агент
               </div>
             </div>
             {[
@@ -591,7 +595,7 @@ export default function AboutPage() {
                     background: "color-mix(in oklch, var(--primary) 7%, transparent)",
                     color: "var(--foreground)", display: "flex", alignItems: "center", gap: 8,
                   }}
-                  data-label="Call-Agent"
+                  data-label="Колл Агент"
                 >
                   <Check size={15} color={BRAND} strokeWidth={3} style={{ flexShrink: 0 }} />
                   {row.ca}
@@ -605,7 +609,7 @@ export default function AboutPage() {
         <section style={{ padding: "8px 0 64px" }}>
           <SectionHeading
             kicker="Тарифы"
-            title={<>Прозрачно, <span style={{ color: BRAND }}>от 15 000 ₽/мес</span></>}
+            title={<>Прозрачно, <span style={{ color: BRAND }}>от 9 800 ₽/мес</span></>}
             subtitle="Без скрытых платежей и платы за пользователей. Платите за результат."
           />
           <div
@@ -615,14 +619,14 @@ export default function AboutPage() {
             }}
           >
             {[
-              { name: "Старт", price: "от 15 000", meta: "до 200 звонков · 1 тенант", popular: false,
-                features: ["До 200 звонков в месяц", "AI-транскрипция и анализ", "Чек-лист качества (QC)", "Дашборд по менеджерам", "1 тенант"] },
-              { name: "Базовый", price: "25 000", meta: "до 500 звонков · до 5 менеджеров", popular: true,
-                features: ["До 500 звонков в месяц", "Всё из тарифа Старт", "До 5 менеджеров", "Сравнение с CRM-карточкой", "Инбокс расхождений", "Публичный дашборд"] },
-              { name: "Про", price: "39 000", meta: "до 1 500 звонков · до 20 менеджеров", popular: false,
-                features: ["До 1 500 звонков в месяц", "Всё из тарифа Базовый", "До 20 менеджеров", "Геймификация (лидерборд)", "Кабинет менеджера", "Напоминания и follow-up", "API-доступ"] },
-              { name: "Бизнес", price: "от 79 000", meta: "до 5 000 звонков · ∞ менеджеров", popular: false,
-                features: ["До 5 000 звонков в месяц", "Всё из тарифа Про", "Неограниченно менеджеров", "Авто-запись в CRM", "Приоритетная поддержка", "Выделенный онбординг"] },
+              { name: "Старт", price: "9 800", popular: false,
+                features: ["4 000 минут разговоров в месяц", "AI-транскрипция с разделением менеджер/клиент", "Оценка по чек-листу качества (QC)", "Дашборд по менеджерам", "Режим обработки: Аналитика"] },
+              { name: "Базовый", price: "19 800", popular: true,
+                features: ["10 000 минут разговоров в месяц", "Всё из тарифа Старт", "Сравнение разговора с CRM-карточкой", "Инбокс расхождений", "Публичный дашборд", "Режим обработки: Аналитика"] },
+              { name: "Про", price: "39 800", popular: false,
+                features: ["20 000 минут разговоров в месяц", "Всё из тарифа Базовый", "Режим Live: разбор и подсказка через пару минут после звонка", "Кабинет менеджера", "Геймификация (лидерборд)", "Напоминания и follow-up"] },
+              { name: "Бизнес", price: "от 79 800", popular: false,
+                features: ["50 000 минут разговоров в месяц", "Всё из тарифа Про (включая Live)", "Неограниченно менеджеров", "Авто-запись в CRM", "API-доступ", "Приоритетная поддержка и выделенный онбординг"] },
             ].map((p) => (
               <div
                 key={p.name}
@@ -645,18 +649,17 @@ export default function AboutPage() {
                   </div>
                 )}
                 <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{p.name}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 18 }}>
                   <span style={{ fontSize: 28, fontWeight: 800, color: BRAND, letterSpacing: "-0.02em" }}>
                     {p.price}
                   </span>
                   <span style={{ fontSize: 14, color: "var(--muted-foreground)" }}>₽/мес</span>
                 </div>
-                <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 18 }}>{p.meta}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 22 }}>
                   {p.features.map((f) => (
                     <div key={f} style={{ display: "flex", gap: 9, alignItems: "flex-start", fontSize: 13.5, lineHeight: 1.4 }}>
                       <Check size={15} color={BRAND} strokeWidth={3} style={{ flexShrink: 0, marginTop: 2 }} />
-                      <span>{f}</span>
+                      <span style={f.startsWith("Режим Live") ? { fontWeight: 700 } : undefined}>{f}</span>
                     </div>
                   ))}
                 </div>
@@ -675,6 +678,49 @@ export default function AboutPage() {
               </div>
             ))}
           </div>
+
+          {/* ── РЕЖИМЫ ОБРАБОТКИ ── */}
+          <div style={{ marginTop: 48 }}>
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: BRAND, marginBottom: 8 }}>
+                Режимы обработки
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.01em" }}>
+                Аналитика или Live — выбирайте под задачу
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+              <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: "color-mix(in oklch, var(--primary) 10%, var(--card))", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Moon size={17} color={BRAND} />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>Режим «Аналитика»</div>
+                </div>
+                <p style={{ fontSize: 13.5, color: "var(--muted-foreground)", lineHeight: 1.55, marginBottom: 12 }}>
+                  Звонки обрабатываются пачками в течение ночи. К 9:00 утра у руководителя готов полный разбор вчерашнего дня: расшифровки, оценки по чек-листу, расхождения с CRM и обновлённый дашборд. Оптимально для контроля качества и регулярной аналитики отдела продаж.
+                </p>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: BRAND }}>Доступен на всех тарифах</div>
+              </div>
+              <div style={{ background: "color-mix(in oklch, var(--primary) 5%, var(--card))", border: `1.5px solid ${BRAND}`, borderRadius: 16, padding: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 10, background: BRAND, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Zap size={17} color="#fff" />
+                  </div>
+                  <div style={{ fontSize: 16, fontWeight: 700 }}>Режим «Live»</div>
+                </div>
+                <p style={{ fontSize: 13.5, color: "var(--muted-foreground)", lineHeight: 1.55, marginBottom: 12 }}>
+                  Разбор звонка и персональная подсказка менеджеру приходят через 2–3 минуты после завершения разговора. Менеджер видит, что сделал хорошо и что исправить в следующем звонке, а руководитель может отреагировать на горящую сделку в тот же час.
+                </p>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: BRAND }}>Доступен на тарифах Про и Бизнес</div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Сноска про перерасход ── */}
+          <p style={{ textAlign: "center", fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.6, marginTop: 28, maxWidth: 720, marginLeft: "auto", marginRight: "auto" }}>
+            Перерасход: 3&nbsp;₽/мин в режиме Аналитика, 5&nbsp;₽/мин в режиме Live. Звонки короче 30 секунд не тарифицируются — вы платите только за состоявшиеся разговоры. Ориентир «≈ звонков» рассчитан из средней длительности разговора 4 минуты.
+          </p>
 
           {/* Тестовый тариф — кнопкой снизу */}
           <div
@@ -739,7 +785,7 @@ export default function AboutPage() {
               },
               {
                 q: "Это законно? А персональные данные?",
-                a: "Все записи и расшифровки хранятся на серверах в РФ, а по запросу разворачиваем систему прямо на сервере вашей компании — данные не покидают контур РФ или ваших серверов. Вопросы согласия на запись закроем при настройке.",
+                a: "Записи и расшифровки хранятся на серверах в РФ. Перед AI-анализом телефоны, email, имена и адреса автоматически маскируются — в чистом виде разговор на анализ не уходит. Для повышенных требований разворачиваем систему прямо на сервере вашей компании. Вопросы согласия на запись закроем при настройке.",
               },
             ].map((item) => (
               <details
@@ -801,7 +847,7 @@ export default function AboutPage() {
             Узнайте, сколько сделок вы теряете прямо сейчас.
           </h2>
           <p style={{ fontSize: 17, color: "rgba(255,255,255,0.85)", margin: "0 0 28px", lineHeight: 1.5 }}>
-            Подключение — за один день. Call-Agent — контроль продаж на фактах.
+            Подключение — за один день. Колл Агент — контроль продаж на фактах.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <a
@@ -852,7 +898,7 @@ export default function AboutPage() {
               >
                 <PhoneCall size={17} color="#fff" strokeWidth={2.4} />
               </div>
-              <span style={{ fontWeight: 800, fontSize: 16 }}>Call-Agent</span>
+              <span style={{ fontWeight: 800, fontSize: 16 }}>Колл Агент</span>
             </div>
             <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
               AI-контроль качества коммуникаций отдела продаж. Каждый звонок, чат и встреча — под контролем.
@@ -893,7 +939,7 @@ export default function AboutPage() {
             fontSize: 13, color: "var(--muted-foreground)", textAlign: "center",
           }}
         >
-          © {new Date().getFullYear()} Call-Agent. Все права защищены.
+          © {new Date().getFullYear()} Колл Агент. Все права защищены.
         </div>
       </footer>
 
