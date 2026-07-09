@@ -6,9 +6,9 @@ import type { Metadata } from "next";
 import LegalDoc, { Section, P, List, Caption, OperatorBox } from "../_components/LegalDoc";
 
 export const metadata: Metadata = {
-  title: "Согласие на обработку через Яндекс.Метрику — Call-Agent",
+  title: "Согласие на обработку через Яндекс.Метрику — Call-Pilot",
   description:
-    "Текст согласия на обработку персональных данных посредством сервиса веб-аналитики Яндекс.Метрика на сайте Call-Agent.",
+    "Текст согласия на обработку персональных данных посредством сервиса веб-аналитики Яндекс.Метрика на сайте Call-Pilot.",
   robots: { index: false },
 };
 

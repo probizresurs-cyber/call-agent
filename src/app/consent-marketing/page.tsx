@@ -6,8 +6,8 @@ import type { Metadata } from "next";
 import LegalDoc, { Section, P, List, Caption, OperatorBox } from "../_components/LegalDoc";
 
 export const metadata: Metadata = {
-  title: "Согласие на получение рассылки — Call-Agent",
-  description: "Текст согласия на получение рекламных и маркетинговых рассылок от сервиса Call-Agent.",
+  title: "Согласие на получение рассылки — Call-Pilot",
+  description: "Текст согласия на получение рекламных и маркетинговых рассылок от сервиса Call-Pilot.",
   robots: { index: false },
 };
 

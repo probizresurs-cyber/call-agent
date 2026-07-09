@@ -10,8 +10,8 @@ import type { Metadata } from "next";
 import LegalDoc, { Section, P, List, Caption, OperatorBox } from "../_components/LegalDoc";
 
 export const metadata: Metadata = {
-  title: "Публичная оферта — Колл Агент",
-  description: "Договор-оферта на оказание услуг сервиса AI-контроля качества звонков «Колл Агент».",
+  title: "Публичная оферта — Call-Pilot",
+  description: "Договор-оферта на оказание услуг сервиса AI-контроля качества звонков «Call-Pilot».",
   robots: { index: false },
 };
 
@@ -19,7 +19,7 @@ export default function OfertaPage() {
   return (
     <LegalDoc title="Публичная оферта на оказание услуг">
       <Caption>
-        Договор-оферта на оказание услуг сервиса «Колл Агент» на сайте{" "}
+        Договор-оферта на оказание услуг сервиса «Call-Pilot» на сайте{" "}
         <a href="https://marketradar24.ru" style={{ color: "#7c70e0" }}>https://marketradar24.ru</a>
       </Caption>
 
@@ -39,7 +39,7 @@ export default function OfertaPage() {
         <P>
           Настоящий документ является публичной офертой Исполнителя в адрес любого
           дееспособного физического или юридического лица (далее — «Заказчик») заключить
-          договор на оказание услуг сервиса «Колл Агент» (далее — «Сервис») на условиях,
+          договор на оказание услуг сервиса «Call-Pilot» (далее — «Сервис») на условиях,
           изложенных ниже, в соответствии со ст. 437 Гражданского кодекса РФ.
         </P>
         <P>

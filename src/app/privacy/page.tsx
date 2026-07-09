@@ -8,8 +8,8 @@ import type { Metadata } from "next";
 import LegalDoc, { Section, P, List, DefList, AppendixCards } from "../_components/LegalDoc";
 
 export const metadata: Metadata = {
-  title: "Политика обработки персональных данных — Call-Agent",
-  description: "Политика обработки и защиты персональных данных пользователей сайта Call-Agent в соответствии с 152-ФЗ.",
+  title: "Политика обработки персональных данных — Call-Pilot",
+  description: "Политика обработки и защиты персональных данных пользователей сайта Call-Pilot в соответствии с 152-ФЗ.",
   robots: { index: false },
 };
 

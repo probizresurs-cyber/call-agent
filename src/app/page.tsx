@@ -1,11 +1,11 @@
 /**
- * Публичный продающий лендинг Колл Агент — полный одностраничник.
+ * Публичный продающий лендинг Call-Pilot — полный одностраничник.
  * Доступен без авторизации по корню /call-agent (раньше жил на /about —
  * маршрут удалён, теперь просто редиректит сюда же). В стиле платформы
  * (CSS-переменные темы + бренд #7c70e0, lucide-иконки, адаптив).
  *
  * Секции: Hero → Проблема → (абзац-решение) → Как работает → Что умеет →
- * Что получает бизнес → Для кого → Почему Колл Агент (таблица) → Тарифы →
+ * Что получает бизнес → Для кого → Почему Call-Pilot (таблица) → Тарифы →
  * Частые вопросы → Форма заявки (#request-demo, ContactForm) → Финальный CTA → Футер.
  * Cookie-баннер подключён внизу.
  *
@@ -24,15 +24,15 @@ import ContactForm from "./ContactForm";
 import CookieBanner from "./_components/CookieBanner";
 
 export const metadata: Metadata = {
-  title: "Колл Агент — AI-контроль каждого звонка отдела продаж",
+  title: "Call-Pilot — AI-контроль каждого звонка отдела продаж",
   description:
-    "Ваш отдел продаж делает сотни звонков в неделю — все прослушать невозможно. Колл Агент слушает за вас: AI разбирает каждый звонок и встречу по вашему скрипту, ловит расхождения с CRM и показывает руководителю всю картину продаж на одном дашборде. Внедрение за 1 день, 3 дня бесплатно.",
+    "Ваш отдел продаж делает сотни звонков в неделю — все прослушать невозможно. Call-Pilot слушает за вас: AI разбирает каждый звонок и встречу по вашему скрипту, ловит расхождения с CRM и показывает руководителю всю картину продаж на одном дашборде. Внедрение за 1 день, 3 дня бесплатно.",
   openGraph: {
     title: "Сотни звонков в неделю — все прослушать невозможно",
     description:
-      "Колл Агент слушает за вас: AI-разбор каждого звонка по вашему скрипту, сверка с CRM, дашборд руководителя и автоотчёты. Контроль продаж на фактах.",
+      "Call-Pilot слушает за вас: AI-разбор каждого звонка по вашему скрипту, сверка с CRM, дашборд руководителя и автоотчёты. Контроль продаж на фактах.",
     type: "website",
-    siteName: "Колл Агент",
+    siteName: "Call-Pilot",
   },
 };
 
@@ -82,7 +82,7 @@ export default function RootLandingPage() {
               <PhoneCall size={20} color="#fff" strokeWidth={2.4} />
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1 }}>Колл Агент</div>
+              <div style={{ fontWeight: 800, fontSize: 17, lineHeight: 1 }}>Call-Pilot</div>
               <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3 }}>
                 AI-контроль качества продаж
               </div>
@@ -158,7 +158,7 @@ export default function RootLandingPage() {
                 color: "var(--muted-foreground)", margin: "0 0 14px", maxWidth: 560,
               }}
             >
-              Колл Агент слушает за вас. AI разбирает каждый звонок и встречу, показывает,
+              Call-Pilot слушает за вас. AI разбирает каждый звонок и встречу, показывает,
               кто как продаёт, где теряются сделки и что улучшить — <b style={{ color: "var(--foreground)" }}>без ручной прослушки</b>.
             </p>
             <p
@@ -535,7 +535,7 @@ export default function RootLandingPage() {
               </div>
               <p style={{ fontSize: "clamp(16px, 1.7vw, 18px)", lineHeight: 1.6, margin: 0 }}>
                 Для любого отдела продаж, где основной канал — телефон. Чем больше звонков,
-                тем больше теряется без контроля — и тем нужнее Колл Агент. Подключаемся
+                тем больше теряется без контроля — и тем нужнее Call-Pilot. Подключаемся
                 к любой CRM или напрямую к телефонии.
               </p>
             </div>
@@ -546,7 +546,7 @@ export default function RootLandingPage() {
         <section style={{ padding: "8px 0 64px" }}>
           <SectionHeading
             kicker="Сравнение"
-            title={<>Почему <span style={{ color: BRAND }}>Колл Агент</span></>}
+            title={<>Почему <span style={{ color: BRAND }}>Call-Pilot</span></>}
             subtitle="Ручной контроль против AI-разбора каждого разговора."
           />
           <div
@@ -573,7 +573,7 @@ export default function RootLandingPage() {
                   display: "flex", alignItems: "center", gap: 8,
                 }}
               >
-                <PhoneCall size={16} strokeWidth={2.4} /> Колл Агент
+                <PhoneCall size={16} strokeWidth={2.4} /> Call-Pilot
               </div>
             </div>
             {[
@@ -606,7 +606,7 @@ export default function RootLandingPage() {
                     background: "color-mix(in oklch, var(--primary) 7%, transparent)",
                     color: "var(--foreground)", display: "flex", alignItems: "center", gap: 8,
                   }}
-                  data-label="Колл Агент"
+                  data-label="Call-Pilot"
                 >
                   <Check size={15} color={BRAND} strokeWidth={3} style={{ flexShrink: 0 }} />
                   {row.ca}
@@ -858,7 +858,7 @@ export default function RootLandingPage() {
             Узнайте, сколько сделок вы теряете прямо сейчас.
           </h2>
           <p style={{ fontSize: 17, color: "rgba(255,255,255,0.85)", margin: "0 0 28px", lineHeight: 1.5 }}>
-            Подключение — за один день. Колл Агент — контроль продаж на фактах.
+            Подключение — за один день. Call-Pilot — контроль продаж на фактах.
           </p>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
             <a
@@ -898,7 +898,7 @@ export default function RootLandingPage() {
               >
                 <PhoneCall size={17} color="#fff" strokeWidth={2.4} />
               </div>
-              <span style={{ fontWeight: 800, fontSize: 16 }}>Колл Агент</span>
+              <span style={{ fontWeight: 800, fontSize: 16 }}>Call-Pilot</span>
             </div>
             <p style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--muted-foreground)", margin: 0 }}>
               AI-контроль качества коммуникаций отдела продаж. Каждый звонок, чат и встреча — под контролем.
@@ -940,7 +940,7 @@ export default function RootLandingPage() {
             fontSize: 13, color: "var(--muted-foreground)", textAlign: "center",
           }}
         >
-          © {new Date().getFullYear()} Колл Агент. Все права защищены.
+          © {new Date().getFullYear()} Call-Pilot. Все права защищены.
         </div>
       </footer>
 
@@ -969,10 +969,22 @@ export default function RootLandingPage() {
           .hero-area-ctas { justify-content: center !important; }
           .price-card-name { text-align: center !important; }
           .price-card-price-row { justify-content: center !important; }
+          .compare-table {
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 14px !important;
+          }
           .compare-table .compare-row.compare-head { display: none !important; }
           .compare-table .compare-row {
             display: block !important;
-            border-bottom: 1px solid var(--border) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 14px !important;
+            overflow: hidden !important;
+            background: var(--card) !important;
           }
           .compare-table .compare-row > div {
             display: flex !important;
@@ -984,19 +996,23 @@ export default function RootLandingPage() {
           }
           .compare-table .compare-row > div::before {
             content: attr(data-label);
-            font-size: 12px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 600;
             color: var(--muted-foreground);
             text-transform: uppercase;
             letter-spacing: 0.04em;
             flex-shrink: 0;
+            opacity: 0.75;
           }
           .compare-table .compare-row > div[data-label="Параметр"] {
-            background: color-mix(in oklch, var(--primary) 7%, var(--card)) !important;
+            background: color-mix(in oklch, var(--primary) 8%, var(--card)) !important;
             font-weight: 700 !important;
+            font-size: 15px !important;
+            justify-content: flex-start !important;
+            border-bottom: 1px solid var(--border) !important;
           }
           .compare-table .compare-row > div[data-label="Параметр"]::before { content: ""; }
-          .compare-table .compare-row > div[data-label="Колл Агент"] {
+          .compare-table .compare-row > div[data-label="Call-Pilot"] {
             background: color-mix(in oklch, var(--primary) 9%, var(--card)) !important;
           }
         }

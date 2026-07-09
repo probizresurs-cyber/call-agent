@@ -90,7 +90,7 @@ const PLANS = [
 ] as const;
 
 const COMPETITORS = [
-  { name: "Колл Агент Базовый",          price: "19 800 ₽/мес",   ours: true  },
+  { name: "Call-Pilot Базовый",          price: "19 800 ₽/мес",   ours: true  },
   { name: "MANGO Office Speech Analytics", price: "~15 000 ₽/мес", ours: false },
   { name: "Imot.io",                      price: "от 40 000 ₽/мес", ours: false },
   { name: "SalesAI",                      price: "от 49 000 ₽/мес", ours: false },
@@ -219,7 +219,7 @@ export default function PricingClient() {
           fontWeight: 700, fontSize: 16,
         }}>
           <PhoneCall size={18} color="#7c70e0" />
-          Колл Агент
+          Call-Pilot
         </Link>
         <div style={{ display: "flex", gap: 8 }}>
           <Link href="/dashboard" style={{
