@@ -27,6 +27,30 @@ import { Send, CheckCircle2 } from "lucide-react";
 
 const BRAND = "#7c70e0";
 
+/**
+ * Маска телефона: РФ/Казахстан (+7) форматируются как "+7 XXX XXX-XX-XX",
+ * ведущая 8 конвертируется в 7 (привычный ввод). Остальные страны СНГ и
+ * другие коды — без жёсткой раскладки (разные форматы номеров), просто
+ * чистим мусор и оставляем ведущий "+", чтобы не блокировать ввод.
+ */
+function formatPhone(raw: string): string {
+  let digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("8") && digits.length === 11) {
+    digits = "7" + digits.slice(1);
+  }
+  if (digits.startsWith("7") && digits.length <= 11) {
+    const d = digits.slice(1);
+    let out = "+7";
+    if (d.length > 0) out += " " + d.slice(0, 3);
+    if (d.length > 3) out += " " + d.slice(3, 6);
+    if (d.length > 6) out += "-" + d.slice(6, 8);
+    if (d.length > 8) out += "-" + d.slice(8, 10);
+    return out;
+  }
+  if (digits.length === 0) return "";
+  return "+" + digits.slice(0, 15);
+}
+
 // ── Главный рубильник формы ──
 // true  = приём заявок включён: сабмит → POST /call-agent/api/contact (БД).
 // false = форма видна, но не отправляет (приём временно отключён).
@@ -181,7 +205,7 @@ export default function ContactForm() {
           <input
             type="tel"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(formatPhone(e.target.value))}
             placeholder="+7 ___ ___-__-__"
             style={inputStyle}
           />
@@ -294,7 +318,7 @@ export default function ContactForm() {
           transition: "background 150ms, opacity 150ms",
         }}
       >
-        <Send size={17} /> {submitting ? "Отправляем…" : "Получить демо-доступ"}
+        <Send size={17} /> {submitting ? "Отправляем…" : "Запросить демонстрацию"}
       </button>
 
       {/* Ошибка отправки */}

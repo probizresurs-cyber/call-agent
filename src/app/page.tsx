@@ -182,18 +182,6 @@ export default function RootLandingPage() {
             >
               Запросить демонстрацию <ArrowRight size={18} />
             </a>
-            <a
-              href="#request-demo"
-              className="hero-secondary-cta"
-              style={{
-                display: "inline-flex", alignItems: "center",
-                background: "var(--card)", color: "var(--foreground)",
-                border: "1px solid var(--border)", padding: "13px 24px",
-                borderRadius: 11, fontWeight: 600, fontSize: 16, textDecoration: "none",
-              }}
-            >
-              Получить демо-доступ
-            </a>
           </div>
 
           {/* Строка доверия */}
@@ -364,7 +352,7 @@ export default function RootLandingPage() {
           />
           <div
             style={{
-              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              display: "flex", flexWrap: "wrap", justifyContent: "center",
               gap: 18, marginTop: 36,
             }}
           >
@@ -376,27 +364,29 @@ export default function RootLandingPage() {
             ].map(({ Icon, n, t, d }) => (
               <div
                 key={n}
-                className="mobile-center-card"
                 style={{
+                  display: "flex", gap: 16, alignItems: "flex-start",
+                  flex: "1 1 260px", maxWidth: 340,
                   background: "var(--card)", border: "1px solid var(--border)",
                   borderRadius: 14, padding: 24, position: "relative",
                 }}
               >
-                <div style={{ fontSize: 13, fontWeight: 800, color: BRAND, letterSpacing: "0.06em", marginBottom: 14 }}>
-                  ШАГ {n}
-                </div>
                 <div
-                  className="card-icon-box"
                   style={{
-                    width: 42, height: 42, borderRadius: 11, marginBottom: 14,
+                    width: 42, height: 42, borderRadius: 11, flexShrink: 0,
                     background: "color-mix(in oklch, var(--primary) 14%, var(--card))",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}
                 >
                   <Icon size={22} color={BRAND} strokeWidth={2} />
                 </div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>{t}</h3>
-                <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--muted-foreground)", margin: 0 }}>{d}</p>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: BRAND, letterSpacing: "0.06em", marginBottom: 4 }}>
+                    ШАГ {n}
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>{t}</h3>
+                  <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--muted-foreground)", margin: 0 }}>{d}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -411,7 +401,7 @@ export default function RootLandingPage() {
           />
           <div
             style={{
-              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+              display: "flex", flexWrap: "wrap", justifyContent: "center",
               gap: 18, marginTop: 36,
             }}
           >
@@ -431,8 +421,9 @@ export default function RootLandingPage() {
             ].map(({ Icon, t, d, soon }) => (
               <div
                 key={t}
-                className="mobile-center-card"
                 style={{
+                  display: "flex", gap: 16, alignItems: "flex-start",
+                  flex: "1 1 280px", maxWidth: 340,
                   background: "var(--card)", border: "1px solid var(--border)",
                   borderRadius: 14, padding: 24, position: "relative",
                 }}
@@ -450,17 +441,18 @@ export default function RootLandingPage() {
                   </div>
                 )}
                 <div
-                  className="card-icon-box"
                   style={{
-                    width: 42, height: 42, borderRadius: 11, marginBottom: 16,
+                    width: 42, height: 42, borderRadius: 11, flexShrink: 0,
                     background: "color-mix(in oklch, var(--primary) 14%, var(--card))",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}
                 >
                   <Icon size={22} color={BRAND} strokeWidth={2} />
                 </div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>{t}</h3>
-                <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--muted-foreground)", margin: 0 }}>{d}</p>
+                <div style={{ paddingRight: soon ? 64 : 0 }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>{t}</h3>
+                  <p style={{ fontSize: 14, lineHeight: 1.55, color: "var(--muted-foreground)", margin: 0 }}>{d}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -667,8 +659,8 @@ export default function RootLandingPage() {
                     ПОПУЛЯРНЫЙ
                   </div>
                 )}
-                <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{p.name}</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 18 }}>
+                <div className="price-card-name" style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{p.name}</div>
+                <div className="price-card-price-row" style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 18 }}>
                   <span style={{ fontSize: 28, fontWeight: 800, color: BRAND, letterSpacing: "-0.02em" }}>
                     {p.price}
                   </span>
@@ -877,18 +869,7 @@ export default function RootLandingPage() {
                 borderRadius: 12, fontWeight: 800, fontSize: 17, textDecoration: "none",
               }}
             >
-              Запросить демонстрацию <ArrowRight size={19} />
-            </a>
-            <a
-              href="#request-demo"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 8,
-                background: "transparent", color: "#fff", padding: "14px 30px",
-                border: "1.5px solid rgba(255,255,255,0.7)",
-                borderRadius: 12, fontWeight: 700, fontSize: 17, textDecoration: "none",
-              }}
-            >
-              Получить демо-доступ
+              Запросить демонстрацию бесплатно <ArrowRight size={19} />
             </a>
           </div>
         </section>
@@ -985,11 +966,10 @@ export default function RootLandingPage() {
         @media (max-width: 560px) {
           .form-grid { grid-template-columns: 1fr !important; }
           .nav-hide-mobile { display: none !important; }
-          .hero-secondary-cta { display: none !important; }
           .hero-area-ctas { justify-content: center !important; }
-          .mobile-center-card { text-align: center !important; }
-          .card-icon-box { margin-left: auto !important; margin-right: auto !important; }
-          .compare-table .compare-head { display: none !important; }
+          .price-card-name { text-align: center !important; }
+          .price-card-price-row { justify-content: center !important; }
+          .compare-table .compare-row.compare-head { display: none !important; }
           .compare-table .compare-row {
             display: block !important;
             border-bottom: 1px solid var(--border) !important;
@@ -1016,6 +996,9 @@ export default function RootLandingPage() {
             font-weight: 700 !important;
           }
           .compare-table .compare-row > div[data-label="Параметр"]::before { content: ""; }
+          .compare-table .compare-row > div[data-label="Колл Агент"] {
+            background: color-mix(in oklch, var(--primary) 9%, var(--card)) !important;
+          }
         }
       `}</style>
     </main>
