@@ -15,11 +15,19 @@
  * НИКОГДА не хардкодится и не логируется.
  */
 
-// Базовый хост Bot API (можно переопределить прокси через CA_TELEGRAM_BASE_URL).
-const BASE = (process.env.CA_TELEGRAM_BASE_URL || "https://api.telegram.org").replace(/\/+$/, "");
-
 // Лимит длины сообщения Telegram — 4096; берём с запасом.
 const TG_LIMIT = 4000;
+
+// ВАЖНО: base()/token() — функции, а НЕ константы верхнего уровня. В standalone-
+// скриптах (scripts/telegram-poll.ts) import-декларации ES-модулей поднимаются
+// и выполняются ДО loadEnv(), поэтому `const BASE = process.env...` на верхнем
+// уровне модуля зафиксировал бы пустое значение (ещё до чтения .env) и всегда
+// бил бы в заблокированный api.telegram.org напрямую, игнорируя прокси. Внутри
+// Next.js-приложения этой проблемы нет (там .env грузится фреймворком раньше
+// любого кода), но лениво читать process.env правильно в обоих случаях.
+function base(): string {
+  return (process.env.CA_TELEGRAM_BASE_URL || "https://api.telegram.org").replace(/\/+$/, "");
+}
 
 function token(): string {
   return (process.env.CA_TELEGRAM_BOT_TOKEN || "").trim();
@@ -43,7 +51,7 @@ async function api<T = unknown>(
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await fetch(`${BASE}/bot${t}/${method}`, {
+    const res = await fetch(`${base()}/bot${t}/${method}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
