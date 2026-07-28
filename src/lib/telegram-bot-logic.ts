@@ -3,11 +3,15 @@
  * (scripts/telegram-poll.ts, основной режим) и webhook-роутом (запасной вариант,
  * см. src/app/api/telegram/webhook/route.ts).
  *
- * Сценарий: пользователь пишет боту → меню (inline-кнопки):
- *   «За всё время» / «За сегодня» / «За конкретную дату»
- * нажатие кнопки → генерируем отчёт по отделу и присылаем текст.
+ * Сценарий: пользователь пишет боту → меню (inline-кнопки) с теми же пресетами
+ * периода, что в личном кабинете (/reports): Сегодня / Вчера / Эта неделя /
+ * Прошлая неделя / Этот месяц / Прошлый месяц / За всё время / За конкретную дату.
+ * Нажатие кнопки → генерируем отчёт по отделу и присылаем текст.
  * «За конкретную дату» → просим прислать дату ДД.ММ.ГГГГ, любое сообщение-дата
  *   → отчёт за этот день.
+ *
+ * Расчёт диапазонов дат — как в PRESETS из ReportsClient.tsx (неделя с
+ * понедельника), чтобы периоды в боте и в кабинете совпадали день в день.
  *
  * ДОСТУП (данные продаж — чувствительные):
  *   CA_TELEGRAM_ALLOWED_CHAT_IDS — список разрешённых chat_id через запятую.
@@ -21,14 +25,82 @@ import { generateReport } from "./reports";
 
 const TENANT_ID = parseInt(process.env.CA_TELEGRAM_TENANT_ID || "1", 10) || 1;
 
-// Меню отчётов (inline-клавиатура).
+type PeriodKey =
+  | "today" | "yesterday" | "this_week" | "last_week"
+  | "this_month" | "last_month" | "all_time";
+
+// Меню отчётов (inline-клавиатура) — те же пресеты, что в /reports.
 const MENU = {
   inline_keyboard: [
-    [{ text: "За всё время", callback_data: "rep:all" }],
-    [{ text: "За сегодня", callback_data: "rep:today" }],
+    [{ text: "Сегодня", callback_data: "rep:today" }, { text: "Вчера", callback_data: "rep:yesterday" }],
+    [{ text: "Эта неделя", callback_data: "rep:this_week" }, { text: "Прошлая неделя", callback_data: "rep:last_week" }],
+    [{ text: "Этот месяц", callback_data: "rep:this_month" }, { text: "Прошлый месяц", callback_data: "rep:last_month" }],
+    [{ text: "За всё время", callback_data: "rep:all_time" }],
     [{ text: "За конкретную дату", callback_data: "rep:date" }],
   ],
 };
+
+const PERIOD_LABELS: Record<PeriodKey, string> = {
+  today: "Сегодня",
+  yesterday: "Вчера",
+  this_week: "Эта неделя",
+  last_week: "Прошлая неделя",
+  this_month: "Этот месяц",
+  last_month: "Прошлый месяц",
+  all_time: "За всё время",
+};
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+/** Понедельник как начало недели — как startOfWeek() в ReportsClient.tsx. */
+function startOfWeek(d: Date): Date {
+  const x = new Date(d);
+  const day = x.getDay();
+  const diff = day === 0 ? 6 : day - 1;
+  x.setDate(x.getDate() - diff);
+  return x;
+}
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+/** Диапазон дат для пресета — те же формулы, что PRESETS в ReportsClient.tsx. */
+function resolvePeriodKey(key: PeriodKey): { from: string; to: string } {
+  const now = new Date();
+  switch (key) {
+    case "today": {
+      const t = isoDate(now);
+      return { from: t, to: t };
+    }
+    case "yesterday": {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 1);
+      const s = isoDate(d);
+      return { from: s, to: s };
+    }
+    case "this_week":
+      return { from: isoDate(startOfWeek(now)), to: isoDate(now) };
+    case "last_week": {
+      const start = startOfWeek(now);
+      const lastEnd = new Date(start);
+      lastEnd.setDate(lastEnd.getDate() - 1);
+      const lastStart = startOfWeek(lastEnd);
+      return { from: isoDate(lastStart), to: isoDate(lastEnd) };
+    }
+    case "this_month":
+      return { from: isoDate(startOfMonth(now)), to: isoDate(now) };
+    case "last_month": {
+      const s = startOfMonth(now);
+      const lastEnd = new Date(s);
+      lastEnd.setDate(lastEnd.getDate() - 1);
+      const lastStart = startOfMonth(lastEnd);
+      return { from: isoDate(lastStart), to: isoDate(lastEnd) };
+    }
+    case "all_time":
+      return { from: "2000-01-01", to: isoDate(now) };
+  }
+}
 
 /** "*" → разрешено всем (временный режим); иначе — allowlist конкретных chat_id. */
 function isAllowed(chatId: string): boolean {
@@ -66,26 +138,20 @@ function ruDate(isoDate: string): string {
   return `${d}.${m}.${y}`;
 }
 
-/** Сгенерировать и отправить отчёт по команде. */
-async function sendReport(chatId: string, kind: "all" | "today" | "date", date?: string) {
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const today = iso(new Date());
-
+/** Сгенерировать и отправить отчёт по команде (пресет периода или конкретная дата). */
+async function sendReport(chatId: string, kind: PeriodKey | "date", date?: string) {
   let from: string;
   let to: string;
   let label: string;
-  if (kind === "all") {
-    from = "2000-01-01";
-    to = today;
-    label = "За всё время";
-  } else if (kind === "today") {
-    from = today;
-    to = today;
-    label = "Сегодня";
-  } else {
+  if (kind === "date") {
     from = date!;
     to = date!;
     label = ruDate(date!);
+  } else {
+    const r = resolvePeriodKey(kind);
+    from = r.from;
+    to = r.to;
+    label = PERIOD_LABELS[kind];
   }
 
   await tgSendMessage(chatId, "Готовлю отчёт…");
@@ -120,10 +186,12 @@ export async function handleTelegramUpdate(update: TgUpdate): Promise<void> {
       return;
     }
     const data = String(cq.data || "");
-    if (data === "rep:all") await sendReport(chatId, "all");
-    else if (data === "rep:today") await sendReport(chatId, "today");
-    else if (data === "rep:date")
+    if (data === "rep:date") {
       await tgSendMessage(chatId, "Пришлите дату в формате ДД.ММ.ГГГГ (например, 05.02.2026).");
+    } else if (data.startsWith("rep:")) {
+      const key = data.slice(4) as PeriodKey;
+      if (key in PERIOD_LABELS) await sendReport(chatId, key);
+    }
     return;
   }
 
