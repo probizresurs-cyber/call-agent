@@ -22,6 +22,7 @@
  */
 import { tgSendMessage, tgAnswerCallback, type TgUpdate } from "./telegram";
 import { generateReport } from "./reports";
+import { getDbAsync } from "./db-compat";
 
 const TENANT_ID = parseInt(process.env.CA_TELEGRAM_TENANT_ID || "1", 10) || 1;
 
@@ -98,7 +99,24 @@ function resolvePeriodKey(key: PeriodKey): { from: string; to: string } {
       return { from: isoDate(lastStart), to: isoDate(lastEnd) };
     }
     case "all_time":
+      // Заглушка на случай сбоя запроса реальной даты — см. getFirstCallDate().
       return { from: "2000-01-01", to: isoDate(now) };
+  }
+}
+
+/** Дата первого звонка тенанта (для периода «за всё время» — вместо условной
+ *  заглушки 2000-01-01). Если звонков ещё нет или запрос не удался — null. */
+async function getFirstCallDate(tenantId: number): Promise<string | null> {
+  try {
+    const db = getDbAsync();
+    const row = await db
+      .prepare(
+        `SELECT MIN(started_at) AS first FROM calls WHERE tenant_id = ? AND started_at IS NOT NULL`
+      )
+      .get<{ first: string | null }>(tenantId);
+    return row?.first ? row.first.slice(0, 10) : null; // ISO YYYY-MM-DD
+  } catch {
+    return null;
   }
 }
 
@@ -152,6 +170,11 @@ async function sendReport(chatId: string, kind: PeriodKey | "date", date?: strin
     from = r.from;
     to = r.to;
     label = PERIOD_LABELS[kind];
+    // «За всё время» — реальная дата первого звонка вместо условной 2000-01-01.
+    if (kind === "all_time") {
+      const first = await getFirstCallDate(TENANT_ID);
+      if (first) from = first;
+    }
   }
 
   await tgSendMessage(chatId, "Готовлю отчёт…");
