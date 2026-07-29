@@ -94,14 +94,19 @@ function splitText(text: string, limit = TG_LIMIT): string[] {
 
 /**
  * Отправить текстовое сообщение (с авторазбивкой длинных сообщений).
- * extra применяется к ПОСЛЕДНЕЙ части (например, reply_markup с меню).
- * Отправляем как plain text (без parse_mode), чтобы отчёт не ломался на разметке.
+ * extra.parse_mode (если задан) применяется КО ВСЕМ частям — нужно, чтобы HTML-
+ * теги (например, незакрытый <pre> в отчёте) не сломались, если текст вдруг
+ * разобьётся на несколько сообщений. Остальные поля extra (например,
+ * reply_markup с меню) применяются только к ПОСЛЕДНЕЙ части.
+ * Без extra.parse_mode отправляем как plain text — по умолчанию безопасно
+ * для текста с произвольными символами (BBCode-теги Bitrix и т.п.).
  */
 export async function tgSendMessage(
   chatId: string | number,
   text: string,
   extra?: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
+  const { parse_mode, ...restExtra } = extra || {};
   const parts = splitText(text);
   let last: { ok: boolean; error?: string } = { ok: true };
   for (let i = 0; i < parts.length; i++) {
@@ -110,7 +115,8 @@ export async function tgSendMessage(
       chat_id: chatId,
       text: parts[i],
       disable_web_page_preview: true,
-      ...(isLast && extra ? extra : {}),
+      ...(parse_mode ? { parse_mode } : {}),
+      ...(isLast && Object.keys(restExtra).length ? restExtra : {}),
     });
     if (!last.ok) return last;
   }
