@@ -21,10 +21,11 @@
  *   Незнакомому чату бот присылает его chat_id — так его и узнают.
  */
 import { tgSendMessage, tgAnswerCallback, type TgUpdate } from "./telegram";
-import { generateReport } from "./reports";
+import { loadDashboardData } from "./dashboard-data";
 import { getDbAsync } from "./db-compat";
 
 const TENANT_ID = parseInt(process.env.CA_TELEGRAM_TENANT_ID || "1", 10) || 1;
+const DASHBOARD_URL = "https://marketradar24.ru/call-agent/dashboard";
 
 type PeriodKey =
   | "today" | "yesterday" | "this_week" | "last_week"
@@ -156,6 +157,76 @@ function ruDate(isoDate: string): string {
   return `${d}.${m}.${y}`;
 }
 
+/** Экранирование для Telegram HTML parse_mode (вне тегов — только &, <, >). */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Оценка 0..10 (одна цифра после запятой) либо «—». */
+function fmtScore(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  return (Math.round(v * 10) / 10).toString();
+}
+/** Чек-лист 0..1 → проценты либо «—». */
+function fmtPct(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—";
+  return `${Math.round(v * 100)}%`;
+}
+/** Строка с датой периода: один день → «📅 09.06.2026», диапазон → «📅 09.06 — 10.06.2026». */
+function fmtDateLine(from: string, to: string): string {
+  const f = ruDate(from);
+  const t = ruDate(to);
+  return f === t ? `📅 ${f}` : `📅 ${f} — ${t}`;
+}
+
+/**
+ * Отчёт по команде в HTML-разметке Telegram (не BBCode Bitrix — Telegram его
+ * не понимает и показывает теги [B]/[/B] как есть). Таблица по менеджерам —
+ * моноширинный блок <pre>, чтобы столбцы совпадали, а не шли сплошным текстом.
+ */
+async function buildTelegramTeamReport(
+  tenantId: number,
+  from: string,
+  to: string,
+  periodLabel: string
+): Promise<string> {
+  const data = await loadDashboardData({ tenantId, from, to });
+  const { totals, aggs } = data;
+
+  const lines: string[] = [];
+  lines.push(`<b>📊 Отчёт по команде ${escapeHtml(periodLabel)}</b>`);
+  lines.push(fmtDateLine(from, to));
+  lines.push("");
+  lines.push(`Всего звонков: ${totals.total}, проанализировано: ${totals.done}`);
+  lines.push(`Средняя оценка команды: ${fmtScore(aggs.avg_score)}/10`);
+  lines.push(`Средний чек-лист: ${fmtPct(aggs.avg_compliance)}`);
+  lines.push("");
+
+  if (data.allManagers.length > 0) {
+    lines.push("<b>По менеджерам:</b>");
+
+    const rows = data.allManagers.map((m) => ({
+      name: escapeHtml((m.manager_name && m.manager_name.trim()) || `ID ${m.manager_id}`),
+      calls: String(m.calls),
+      score: fmtScore(m.avg_score),
+      pct: fmtPct(m.avg_compliance),
+    }));
+    const nameW = Math.max("Менеджер".length, ...rows.map((r) => r.name.length)) + 1;
+
+    const header =
+      "Менеджер".padEnd(nameW) + "Звонки".padStart(7) + "Оценка".padStart(8) + "Чек-лист".padStart(10);
+    const body = rows
+      .map((r) => r.name.padEnd(nameW) + r.calls.padStart(7) + r.score.padStart(8) + r.pct.padStart(10))
+      .join("\n");
+
+    lines.push(`<pre>${header}\n${body}</pre>`);
+    lines.push("");
+  }
+
+  lines.push(`Подробнее: ${DASHBOARD_URL}`);
+  return lines.join("\n");
+}
+
 /** Сгенерировать и отправить отчёт по команде (пресет периода или конкретная дата). */
 async function sendReport(chatId: string, kind: PeriodKey | "date", date?: string) {
   let from: string;
@@ -179,14 +250,8 @@ async function sendReport(chatId: string, kind: PeriodKey | "date", date?: strin
 
   await tgSendMessage(chatId, "Готовлю отчёт…");
   try {
-    const report = await generateReport({
-      tenantId: TENANT_ID,
-      scope: "team",
-      from,
-      to,
-      periodLabel: label,
-    });
-    await tgSendMessage(chatId, report.text, { reply_markup: MENU });
+    const text = await buildTelegramTeamReport(TENANT_ID, from, to, label);
+    await tgSendMessage(chatId, text, { parse_mode: "HTML", reply_markup: MENU });
   } catch (e) {
     await tgSendMessage(
       chatId,
