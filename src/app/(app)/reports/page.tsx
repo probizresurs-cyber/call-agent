@@ -21,7 +21,10 @@ export default async function ReportsPage() {
 
   const db = getDbAsync();
 
-  // Список звонящих менеджеров — «про кого» отчёт. id = Bitrix manager_id (= Bitrix user id).
+  // Список звонящих менеджеров — «про кого» отчёт и пул «Кому отправить» ниже.
+  // id = Bitrix manager_id (= Bitrix user id). is_active — статус из Bitrix (перезаписывается
+  // синком), excluded_from_reports — наш ручной флаг «скрыть отовсюду» (директор и т.п.),
+  // синком не затирается — оба условия нужны, чтобы скрытый менеджер не всплывал здесь.
   const managers = await db
     .prepare(
       `SELECT c.manager_id AS id,
@@ -31,6 +34,7 @@ export default async function ReportsPage() {
         WHERE c.tenant_id = ?
           AND c.manager_id IS NOT NULL AND c.manager_id != ''
           AND (m.is_active IS NULL OR m.is_active = 1)
+          AND (m.excluded_from_reports IS NULL OR m.excluded_from_reports = false)
         GROUP BY c.manager_id
         ORDER BY name`
     )

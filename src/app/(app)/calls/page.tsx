@@ -67,10 +67,11 @@ export default async function CallsListPage(props: {
       params.push(minDur);
     }
   }
-  // Скрытые менеджеры не показываются (фильтр настраивается в /settings)
+  // Скрытые менеджеры не показываются (excluded_from_reports, настраивается в /settings —
+  // «Видимость». is_active — статус из Bitrix, синком перезатирается, не то же самое).
   // Применяется только для head/admin/owner — у manager и так свой ID жёстко
   if (!isManager) {
-    where.push("(c.manager_id IS NULL OR c.manager_id NOT IN (SELECT id FROM managers WHERE is_active = 0))");
+    where.push("(c.manager_id IS NULL OR c.manager_id NOT IN (SELECT id FROM managers WHERE excluded_from_reports = true))");
   }
   const whereSql = `WHERE ${where.join(" AND ")}`;
 
@@ -84,6 +85,7 @@ export default async function CallsListPage(props: {
        WHERE c.tenant_id = ?
          AND c.manager_id IS NOT NULL AND c.manager_id != ''
          AND (m.is_active IS NULL OR m.is_active = 1)
+         AND (m.excluded_from_reports IS NULL OR m.excluded_from_reports = false)
        GROUP BY c.manager_id
        ORDER BY name`
     )
