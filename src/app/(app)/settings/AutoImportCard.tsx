@@ -72,7 +72,7 @@ export function AutoImportCard({ initial }: { initial: Status }) {
         <div>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Автоматический импорт</div>
           <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-            Воркер проверяет Битрикс каждые 5 минут и подтягивает новые звонки
+            Система проверяет Битрикс каждые 5 минут и подтягивает новые звонки
           </div>
         </div>
 

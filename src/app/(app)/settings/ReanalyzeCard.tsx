@@ -39,10 +39,10 @@ export function ReanalyzeCard() {
   async function run(mode: "done" | "failed" | "all") {
     const msg =
       mode === "done"
-        ? "Сбросить ВСЕ успешно обработанные звонки на переанализ? Они будут заново прогнаны через Claude с актуальными скриптами. Whisper повторно НЕ запускается (используем сохранённые транскрипты)."
+        ? "Пересчитать анализ всех уже обработанных звонков? Разбор нейросетью пройдёт заново с актуальными скриптами. Расшифровку звонка при этом повторно делать не будем — используем уже сохранённый текст."
         : mode === "failed"
-        ? "Сбросить все failed звонки на повторную обработку? Это в основном те, что упали из-за лимита API или временной ошибки. Если транскрипт есть — Whisper пропустится."
-        : "Сбросить done + failed звонки на переанализ?";
+        ? "Повторить обработку всех звонков с ошибкой? Это в основном те, что не прошли из-за временного сбоя. Если расшифровка уже есть — повторно делать её не будем."
+        : "Пересчитать анализ обработанных звонков и повторить те, что с ошибкой?";
     if (!confirm(msg)) return;
     setBusy(true);
     setResult(null);
@@ -67,25 +67,24 @@ export function ReanalyzeCard() {
   return (
     <>
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 12 }}>
-        Прогонит все звонки с готовыми транскриптами через Claude заново — с актуальными
-        скриптами и чек-листами. Полезно после изменения скриптов или порогов.
+        Заново разберёт нейросетью все звонки, у которых уже есть расшифровка — с актуальными
+        скриптами и чек-листами. Полезно, если вы поменяли скрипт продаж или правила проверки.
         <br />
-        <b>Whisper повторно не запускается</b> — используются сохранённые транскрипты, экономия ~75% стоимости.
-        ≈$0.01 за звонок (только Claude).
+        Саму расшифровку звонка заново делать не будем — используем уже сохранённую.
       </p>
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" className="ds-btn ds-btn-primary"
           onClick={() => run("done")} disabled={busy}>
           {busy ? <Loader2 size={14} className="mr-spin" /> : <RotateCcw size={14} />}
-          Переанализировать все done
+          Переанализировать готовые
         </button>
         <button type="button" className="ds-btn ds-btn-secondary"
           onClick={() => run("failed")} disabled={busy}>
-          <RotateCcw size={14} /> Только failed
+          <RotateCcw size={14} /> Только с ошибкой
         </button>
         <button type="button" className="ds-btn ds-btn-ghost"
           onClick={() => run("all")} disabled={busy}>
-          done + failed
+          Готовые + с ошибкой
         </button>
       </div>
       {result && (
@@ -95,25 +94,24 @@ export function ReanalyzeCard() {
           borderColor: "rgba(31,157,85,0.30)",
           fontSize: 13,
         }}>
-          ✓ Сброшено в очередь: <b>{result.reset}</b>.
-          Сейчас в pending: <b>{result.pendingNow}</b>.
-          Воркер начнёт обрабатывать сразу. Иди в Дашборд через 5-10 минут — увидишь как
-          обновляются метрики с новыми скриптами.
+          ✓ Поставлено в очередь: <b>{result.reset}</b>.
+          Сейчас ожидают обработки: <b>{result.pendingNow}</b>.
+          Обработка начнётся сразу — загляните в Дашборд через 5–10 минут,
+          увидите обновлённые метрики.
         </div>
       )}
 
       <hr style={{ border: 0, borderTop: "1px solid var(--border)", margin: "20px 0" }} />
 
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 8 }}>
-        <b>Пересчёт атрибуции менеджеров</b> — подтянуть из Битрикса для каждого звонка
-        с CRM-связью полю <code>RESPONSIBLE_ID</code> активности и заменить менеджера в
-        нашей БД на него. Полезно если в Битриксе звонок приходит диспетчеру, а
-        в работу его берёт другой менеджер.
+        <b>Пересчёт закреплённого менеджера</b> — сверяем с Битриксом, кто по факту ведёт
+        каждую сделку, и обновляем менеджера у нас, если он изменился. Полезно, если в Битриксе
+        звонок сначала приходит диспетчеру, а сделку в работу берёт другой менеджер.
       </p>
       <button type="button" className="ds-btn ds-btn-secondary"
         onClick={reattribute} disabled={reattribBusy}>
         {reattribBusy ? <Loader2 size={14} className="mr-spin" /> : <UsersIcon size={14} />}
-        Пересчитать атрибуцию менеджеров
+        Пересчитать закреплённого менеджера
       </button>
       {reattribResult && (
         <div className="ds-card" style={{
@@ -122,10 +120,10 @@ export function ReanalyzeCard() {
           borderColor: "rgba(91,79,199,0.30)",
           fontSize: 13,
         }}>
-          ✓ Обработано: <b>{reattribResult.processed}</b>.
+          ✓ Проверено звонков: <b>{reattribResult.processed}</b>.
           Изменено: <b>{reattribResult.updated}</b>.
           Без изменений: <b>{reattribResult.unchanged}</b>.
-          Обнови дашборд — увидишь новое распределение.
+          Обновите дашборд — увидите новое распределение по менеджерам.
         </div>
       )}
     </>

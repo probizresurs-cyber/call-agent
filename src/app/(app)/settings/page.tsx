@@ -37,7 +37,6 @@ export default async function SettingsPage() {
   const readOnly = me.readOnly;
 
   const webhookSet = !!process.env.BITRIX_WEBHOOK_URL?.trim();
-  const dryRun = process.env.BITRIX_DRY_RUN !== "false";
   const isManager = canManage(me.role);  // owner или admin
 
   const flags = await getFlagsSummary(me.tenantId);
@@ -210,11 +209,11 @@ export default async function SettingsPage() {
         </div>
       )}
 
-      {/* ───────── Системные флаги (видно только owner/admin) ───────── */}
+      {/* ───────── Автоматическая отправка (видно только owner/admin) ───────── */}
       {isManager && (
         <div className="ds-card" style={{ marginBottom: 16 }}>
           <h2 className="ds-h3" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-            <Shield size={16} strokeWidth={2} /> Системные флаги
+            <Shield size={16} strokeWidth={2} /> Автоматическая отправка
           </h2>
           <FlagsCard initial={flags} />
         </div>
@@ -281,24 +280,17 @@ export default async function SettingsPage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           <StatusRow
-            label="Входящий вебхук (BITRIX_WEBHOOK_URL)"
+            label="Связь с Битрикс24"
             ok={webhookSet}
-            okText="Настроен"
-            notText="Не задан — задайте в .env на сервере"
-          />
-          <StatusRow
-            label="Режим только-чтение (BITRIX_DRY_RUN)"
-            ok={dryRun}
-            okText="Включён — в карточки CRM ничего НЕ пишем"
-            notText="Выключен — комментарии будут попадать в карточки сделок/лидов"
+            okText="Подключено"
+            notText="Не подключено — обратитесь в поддержку, чтобы настроить"
           />
         </div>
 
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-          Для чтения нужен <b>входящий вебхук</b> с правами{" "}
-          <code>crm</code>, <code>telephony</code>, <code>user</code>.
-          Создаётся в Битрикс24 → Разработчикам → Другое → Входящий вебхук.
-          URL положить в <code>.env</code> на VPS, затем <code>pm2 restart call-agent</code>.
+          Система забирает звонки, сделки и лиды напрямую из вашего Битрикс24.
+          Если что-то перестало приходить — сначала проверьте статус выше, и если
+          не подключено — напишите в поддержку.
         </p>
       </div>
 
@@ -327,7 +319,7 @@ export default async function SettingsPage() {
         </h2>
         <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 14 }}>
           Подтянуть существующие звонки из Битрикса за выбранный период.
-          Скачаем записи, транскрибируем, проанализируем — всё попадёт в <b>Звонки</b> и в дашборд.
+          Скачаем записи, расшифруем, разберём нейросетью — всё попадёт в <b>Звонки</b> и в дашборд.
           В Битрикс ничего записываться не будет.
         </p>
         {!webhookSet ? (
@@ -336,7 +328,7 @@ export default async function SettingsPage() {
             border: "1px solid rgba(217,119,6,0.30)",
             borderRadius: 6, fontSize: 13,
           }}>
-            Сначала задайте <code>BITRIX_WEBHOOK_URL</code> в <code>.env</code> на сервере.
+            Сначала нужно подключить Битрикс24 — обратитесь в поддержку.
           </div>
         ) : (
           <ImportForm />

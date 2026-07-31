@@ -89,9 +89,10 @@ export function SendToCrmButton({ callId }: { callId: number }) {
               border: "1px solid rgba(245,158,11,0.30)",
               borderRadius: 6, fontSize: 12,
             }}>
-              <b>⚠ Это была симуляция.</b> Реально в Bitrix ничего не отправлено — включён DRY_RUN.
-              Переключите в <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках → Системные флаги</a>,
-              когда будете готовы писать в продакшен-CRM заказчика.
+              <b>⚠ Это был тестовый прогон.</b> В Битрикс ничего не отправлено — автоматическая
+              отправка сейчас выключена. Включить её можно в{" "}
+              <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках</a>,
+              когда будете готовы записывать комментарии в реальную CRM.
             </div>
           )}
         </div>
@@ -115,7 +116,7 @@ function ResultRow({ r, idx, expanded, onToggle }: { r: WriteResult; idx: number
     AlertCircle;
   const label =
     r.status === "sent" ? "Отправлено" :
-    r.status === "skipped_dry" ? "Симуляция" :
+    r.status === "skipped_dry" ? "Не отправлено (тест)" :
     r.status === "skipped_duplicate" ? "Уже отправлено ранее" :
     r.status === "failed" ? "Ошибка" : "Нет цели";
 

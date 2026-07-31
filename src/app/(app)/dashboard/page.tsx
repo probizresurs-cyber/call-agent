@@ -92,7 +92,8 @@ export default async function DashboardPage(props: {
         >
           <AlertTriangle size={20} style={{ color: "#dc2626", flexShrink: 0, marginTop: 2 }} />
           <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-            <b>Анализ звонков приостановлен:</b> {providerHealth.message}. Проверьте баланс/ключ OpenAI.{" "}
+            <b>Анализ звонков временно приостановлен.</b> Мы уже знаем о проблеме и разбираемся —
+            обработка возобновится автоматически.{" "}
             <span style={{ color: "var(--muted-foreground)" }}>
               Обнаружено: {formatDateTime(providerHealth.detected_at)}.
             </span>

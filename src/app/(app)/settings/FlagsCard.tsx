@@ -1,18 +1,18 @@
 "use client";
 
 /**
- * Карточка системных флагов: STANDALONE (read-only) + DRY_RUN (два независимых
- * рубильника per-tenant — CRM-write и отчёты в мессенджер).
+ * Карточка «Автоматическая отправка» — два независимых переключателя per-tenant:
+ * запись комментариев в CRM Bitrix и отправка отчётов в мессенджер.
  *
- * Видно только owner/admin. STANDALONE — из ENV, DRY_RUN — в tenants.settings.
+ * Видно только owner/admin. Текст — клиентский, без внутренней терминологии
+ * (это конечный пользователь-заказчик, а не разработчик).
  *
- * Зачем два рубильника: CRM-write (запись комментариев в timeline сделок) и
- * отправка отчётов через бота в мессенджер — это разные уровни риска. CRM-write
- * пишет в чужую CRM и виден всем — его выключают первым. Отчёты в мессенджер
- * никаких чужих записей не создают и обычно включаются раньше.
+ * Зачем два переключателя: запись в CRM видна всем, кто работает со сделкой —
+ * её обычно выключают первой на время проверки. Отчёты в мессенджер ничьих
+ * чужих записей не создают, поэтому их обычно включают раньше.
  */
 import { useState } from "react";
-import { ShieldAlert, ShieldCheck, Server, FileText, MessagesSquare } from "lucide-react";
+import { ShieldAlert, ShieldCheck, FileText, MessagesSquare } from "lucide-react";
 
 export interface FlagsInitial {
   standalone: boolean;
@@ -49,46 +49,30 @@ export function FlagsCard({ initial }: { initial: FlagsInitial }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* STANDALONE — read-only */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Server size={16} strokeWidth={2} color="var(--muted-foreground)" />
-          <div>
-            <div style={{ fontWeight: 500, fontSize: 14 }}>Режим работы</div>
-            <div className="ds-body-sm" style={{ color: "var(--muted-foreground)" }}>
-              {initial.standalone ? "Standalone — собственная инсталляция" : "Встроенный в Company24 Core (SSO)"}
-            </div>
-          </div>
-        </div>
-        <span className="ds-badge" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
-          {initial.standalone ? "STANDALONE" : "EMBEDDED"}
-        </span>
-      </div>
-
-      {/* DRY_RUN: CRM-write (запись комментариев в timeline сделок Bitrix) */}
+      {/* Запись комментариев в сделки/лиды Bitrix */}
       <FlagRow
         icon={<FileText size={16} strokeWidth={2} color={dryRunCrm ? "var(--success)" : "var(--destructive)"} />}
-        title="DRY_RUN — комментарии в CRM Bitrix"
+        title="Запись в CRM Bitrix"
         on={dryRunCrm}
         busy={busy === "crm"}
         onToggle={() => toggle("crm")}
-        descOn={<>Комментарии анализа звонка <b>НЕ пишутся</b> в timeline сделок/лидов Bitrix.
-          Можно безопасно тестировать pipeline — чужие сделки не получают наших записей.</>}
-        descOff={<>Анализ <b>пишется</b> комментарием в timeline сделки/лида Bitrix.
-          Виден всем кто работает со сделкой. Убедись что текст и формат финальны.</>}
+        descOn={<>Разбор звонка пока <b>НЕ добавляется</b> в сделки и лиды Bitrix — можно спокойно
+          проверить, как это работает, ничего лишнего в карточки не попадёт.</>}
+        descOff={<>Разбор звонка <b>автоматически добавляется</b> комментарием в сделку или лид
+          Bitrix — его увидят все, кто работает с этой сделкой.</>}
       />
 
-      {/* DRY_RUN: messages (отчёты через бота в мессенджер Bitrix) */}
+      {/* Отправка отчётов в мессенджер Bitrix */}
       <FlagRow
         icon={<MessagesSquare size={16} strokeWidth={2} color={dryRunMessages ? "var(--success)" : "var(--destructive)"} />}
-        title="DRY_RUN — отчёты в мессенджер Bitrix"
+        title="Отправка отчётов в мессенджер"
         on={dryRunMessages}
         busy={busy === "messages"}
         onToggle={() => toggle("messages")}
-        descOn={<>Отчёты через бота «Call-Agent» <b>НЕ отправляются</b> в Bitrix-мессенджер.
-          UI показывает «подготовлено (dry)». Удобно для тестирования формата отчёта.</>}
-        descOff={<>Отчёты <b>уходят вживую</b> от бота «Call-Agent» в личку юзера или в групповой чат.
-          Работает и ручная кнопка «Отправить», и авто-расписания.</>}
+        descOn={<>Отчёты пока <b>НЕ отправляются</b> в мессенджер Bitrix — можно проверить,
+          как выглядит текст отчёта, прежде чем включать по-настоящему.</>}
+        descOff={<>Отчёты <b>отправляются по-настоящему</b> — и кнопкой «Отправить» вручную,
+          и по расписанию, если оно настроено.</>}
       />
 
       {err && (
@@ -102,9 +86,8 @@ export function FlagsCard({ initial }: { initial: FlagsInitial }) {
       )}
 
       <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", fontSize: 11, lineHeight: 1.5 }}>
-        Рекомендуемая последовательность включения: сначала <b>отчёты OFF</b> (вживую),
-        протестировать на себе/РОПе → потом <b>CRM-write OFF</b>, когда формат финальный
-        и команда готова видеть анализ прямо в сделках Bitrix.
+        Рекомендуем сначала включить отправку отчётов и проверить на себе, а затем —
+        запись в CRM Bitrix, когда убедитесь, что формат разбора вас устраивает.
       </div>
     </div>
   );
@@ -152,7 +135,7 @@ function FlagRow({
           minWidth: 100,
         }}
       >
-        {busy ? "..." : (on ? "ON" : "OFF")}
+        {busy ? "..." : (on ? "Тест" : "Отправка идёт")}
       </button>
     </div>
   );

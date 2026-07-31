@@ -27,7 +27,7 @@ export function ProviderHealthCheckButton() {
         window.location.reload();
         return;
       }
-      setNote(data?.health?.message || "Провайдер всё ещё недоступен");
+      setNote("Пока не восстановилось — мы уже разбираемся, попробуйте чуть позже");
     } catch {
       setNote("Не удалось проверить — попробуйте позже");
     } finally {
@@ -45,7 +45,7 @@ export function ProviderHealthCheckButton() {
         style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}
       >
         <RotateCw size={12} />
-        {busy ? "Проверяю..." : "Проверить провайдера"}
+        {busy ? "Проверяю..." : "Проверить ещё раз"}
       </button>
       {note && <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{note}</span>}
     </div>

@@ -715,12 +715,13 @@ export function ReportsClient({
                 ? <CheckCircle2 size={16} style={{ color: "var(--primary)" }} />
                 : <AlertCircle size={16} style={{ color: "var(--destructive)" }} />}
               {sendInfo.dry
-                ? `Тестовый режим (dry-run): сообщения НЕ отправлены в Bitrix. Обработано ${sendInfo.total}.`
+                ? `Тестовый режим: сообщения НЕ отправлены в Bitrix. Обработано ${sendInfo.total}.`
                 : `Отправлено: ${sendInfo.sent} из ${sendInfo.total}`}
             </div>
             {sendInfo.dry && (
               <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 4 }}>
-                Включён DRY_RUN — отправка в Bitrix отключена. Снимите флаг на сервере, чтобы слать вживую.
+                Автоматическая отправка отчётов сейчас выключена — включить её можно в{" "}
+                <a href="/call-agent/settings" style={{ color: "var(--primary)" }}>Настройках</a>.
               </p>
             )}
             {sendInfo.results.length > 0 && (

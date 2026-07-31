@@ -24,17 +24,14 @@ type DailyThroughput = { day: string; done: number; failed: number };
 
 const PROCESSING_STATUSES = ["downloading", "transcribing", "analyzing", "syncing"];
 
-// Группировка ошибок по prefix-словам для понимания "где больно"
+// Группировка ошибок по prefix-словам — категории для клиента, без внутренних
+// названий поставщиков/технологий (Anthropic, Whisper, база данных и т.п.).
 function bucketError(err: string): string {
   const e = err.toLowerCase();
-  if (/anthropic|claude|529|overloaded/.test(e)) return "Anthropic (LLM)";
-  if (/openai|whisper|transcribe|country/.test(e)) return "OpenAI (Whisper)";
+  if (/anthropic|claude|529|overloaded|openai|whisper|transcribe|country/.test(e)) return "Анализ разговора";
   if (/bitrix|portal_user|crm|webhook/.test(e)) return "Bitrix24";
   if (/recording|no.?file|files in activity|webdav/.test(e)) return "Нет записи";
-  if (/postgres|sqlite|column|relation|database/.test(e)) return "База данных";
-  if (/timeout|econnreset|fetch failed|socket hang/.test(e)) return "Сеть";
-  if (/credit balance|payment/.test(e)) return "Закончились кредиты";
-  if (/forbidden|403|request not allowed/.test(e)) return "Гео-блок / прокси";
+  if (/postgres|sqlite|column|relation|database|timeout|econnreset|fetch failed|socket hang|credit balance|payment|forbidden|403|request not allowed/.test(e)) return "Технический сбой на нашей стороне";
   return "Прочее";
 }
 
@@ -122,7 +119,7 @@ export default async function QueuePage() {
         <Activity size={22} strokeWidth={2} /> Очередь обработки
       </h1>
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 20 }}>
-        Состояние пайплайна анализа звонков в реальном времени.
+        Как сейчас обрабатываются звонки — от новых до готового разбора.
       </p>
 
       {/* KPI-карточки */}
@@ -132,14 +129,14 @@ export default async function QueuePage() {
           label="В ожидании"
           value={String(totals["pending"] ?? 0)}
           color="var(--warning)"
-          hint="Ждут когда воркер их подберёт"
+          hint="Ждут своей очереди на обработку"
         />
         <KpiCard
           icon={<Zap size={18} strokeWidth={2} />}
           label="В обработке"
           value={String(processing)}
           color="var(--primary)"
-          hint={PROCESSING_STATUSES.join(" → ")}
+          hint="Загрузка → расшифровка → анализ → запись в CRM"
         />
         <KpiCard
           icon={<CheckCircle2 size={18} strokeWidth={2} />}
@@ -175,7 +172,7 @@ export default async function QueuePage() {
           <Metric
             label="Отставание"
             value={lagMinutes == null ? "—" : lagMinutes < 60 ? `${lagMinutes} мин` : `${Math.floor(lagMinutes / 60)} ч ${lagMinutes % 60} мин`}
-            hint={lastDoneAt ? `Последний done: ${formatDateTime(lastDoneAt)}` : "Не было успешных"}
+            hint={lastDoneAt ? `Последний обработан: ${formatDateTime(lastDoneAt)}` : "Ещё не было готовых"}
             warn={lagMinutes != null && lagMinutes > 30}
           />
         </div>

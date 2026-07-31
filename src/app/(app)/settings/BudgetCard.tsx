@@ -64,19 +64,19 @@ export function BudgetCard({ initial }: { initial: BudgetInitial }) {
         </div>
 
         <UsageRow
-          label="Anthropic — токены"
-          value={`${formatNum(usage.anthropicTokens)} токенов`}
+          label="Анализ разговоров"
+          value={`${formatNum(usage.anthropicTokens)} ед.`}
           limit={tokensLimit}
           pct={tokensPct}
-          hint={tokensLimit ? `~$${((usage.anthropicTokens / 1_000_000) * 9).toFixed(2)} по тарифу Sonnet 4.6 mix` : "лимит не задан"}
+          hint={tokensLimit ? `~$${((usage.anthropicTokens / 1_000_000) * 9).toFixed(2)} при текущих тарифах` : "лимит не задан"}
         />
 
         <UsageRow
-          label="OpenAI Whisper — минуты"
+          label="Расшифровка звонков"
           value={`${formatDuration(usage.openaiSeconds)}`}
           limit={secondsLimit}
           pct={secondsPct}
-          hint={secondsLimit ? `~$${((usage.openaiSeconds / 60) * 0.006).toFixed(2)} по тарифу $0.006/мин` : "лимит не задан"}
+          hint={secondsLimit ? `~$${((usage.openaiSeconds / 60) * 0.006).toFixed(2)} при текущих тарифах` : "лимит не задан"}
         />
       </div>
 
@@ -85,18 +85,18 @@ export function BudgetCard({ initial }: { initial: BudgetInitial }) {
         <div className="ds-body-sm" style={{ fontWeight: 600, marginBottom: 10 }}>Лимиты на месяц</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <Field
-            label="Anthropic токенов/мес"
+            label="Лимит на анализ разговоров (ед./мес)"
             placeholder="пусто = без лимита"
             value={tokens}
             onChange={setTokens}
-            hint="Один анализ звонка ≈ 5 000-8 000 токенов. 5 млн = ~700 звонков."
+            hint="Один анализ звонка ≈ 5 000–8 000 ед. 5 млн = ~700 звонков."
           />
           <Field
-            label="OpenAI Whisper секунд/мес"
+            label="Лимит на расшифровку звонков (сек/мес)"
             placeholder="пусто = без лимита"
             value={seconds}
             onChange={setSeconds}
-            hint="Минута Whisper = 60 сек. 100 000 сек ≈ 1666 мин ≈ 333 звонка по 5 мин."
+            hint="100 000 сек ≈ 1666 мин ≈ 333 звонка по 5 мин."
           />
           <div>
             <div className="ds-body-sm" style={{ marginBottom: 6, color: "var(--muted-foreground)", fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>

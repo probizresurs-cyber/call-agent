@@ -1,8 +1,7 @@
 /**
- * §5.5 + §9 MASTER-TZ — журнал CRM-write операций.
- *
- * Показывает что и куда было отправлено (или симулировано в DRY_RUN).
- * Это «бумажный след» — у заказчика и у нас всегда есть доказательство.
+ * История отправки в Битрикс — что и когда система записала в CRM по каждому
+ * звонку. Служит подтверждением: если понадобится проверить, ушёл ли
+ * конкретный комментарий и когда — ответ здесь.
  *
  * Доступ: owner / admin / head.
  */
@@ -34,20 +33,22 @@ export default async function CrmLogPage(props: { searchParams: Promise<{ mode?:
     <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
         <h1 className="ds-h1" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Upload size={22} strokeWidth={2} /> Журнал CRM-write
+          <Upload size={22} strokeWidth={2} /> История отправки в Битрикс
         </h1>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <FilterPill href="/crm-log" active={!mode} label={`Все (${stats.total})`} />
-          <FilterPill href="/crm-log?mode=dry" active={mode === "dry"} label={`Симуляция (${stats.dry})`} />
+          <FilterPill href="/crm-log?mode=dry" active={mode === "dry"} label={`Тестовые (${stats.dry})`} />
           <FilterPill href="/crm-log?mode=live" active={mode === "live"} label={`Отправлено (${stats.sent})`} />
         </div>
       </div>
 
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 20 }}>
-        Каждое «Отправить в Bitrix» по звонку пишет сюда строку — что бы / что было отправлено.
-        Помогает доказать перед заказчиком «мы отправили то и тогда», а также не дублировать те же
-        комментарии при повторных попытках. <b>Симуляция</b> = DRY_RUN включён, в Bitrix реально ничего
-        не уходит (см. <Link href="/settings" style={{ color: "var(--primary)" }}>Настройки → Системные флаги</Link>).
+        Каждая отправка комментария по звонку в Битрикс сохраняется здесь — что именно
+        и когда было записано в карточку сделки. Так не дублируются одни и те же
+        комментарии при повторных попытках. Если сейчас стоит отметка{" "}
+        <b>«Тестовый»</b> — значит автоматическая отправка в CRM пока выключена
+        и записи не уходят по-настоящему; включить её можно в{" "}
+        <Link href="/settings" style={{ color: "var(--primary)" }}>Настройках</Link>.
       </p>
 
       {rows.length === 0 ? (
@@ -55,7 +56,7 @@ export default async function CrmLogPage(props: { searchParams: Promise<{ mode?:
           <AlertCircle size={32} strokeWidth={1.5} color="var(--muted-foreground)" style={{ marginBottom: 10 }} />
           <div className="ds-body" style={{ color: "var(--muted-foreground)" }}>
             Записей нет. Откройте карточку любого звонка и нажмите «Отправить в Bitrix» —
-            появится запись (в DRY-режиме без реальной отправки).
+            здесь появится запись об этой попытке.
           </div>
         </div>
       ) : (
@@ -129,7 +130,7 @@ function Row({ r }: { r: CrmLogEntry }) {
           background: r.mode === "live" ? "rgba(34,197,94,0.10)" : "rgba(245,158,11,0.10)",
           color: r.mode === "live" ? "var(--success)" : "var(--warning)",
         }}>
-          {r.mode === "live" ? "LIVE" : "DRY"}
+          {r.mode === "live" ? "Отправка" : "Тестовый"}
         </span>
       </td>
       <td>
@@ -162,8 +163,8 @@ function Row({ r }: { r: CrmLogEntry }) {
 function labelForStatus(s: string): string {
   if (s === "sent") return "Отправлено";
   if (s === "failed") return "Ошибка";
-  if (s === "skipped_dry") return "Симуляция";
-  if (s === "skipped_duplicate") return "Дубль";
+  if (s === "skipped_dry") return "Не отправлено (тест)";
+  if (s === "skipped_duplicate") return "Уже отправлено";
   return s;
 }
 

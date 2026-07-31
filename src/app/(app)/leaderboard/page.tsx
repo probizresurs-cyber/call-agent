@@ -59,7 +59,7 @@ export default async function LeaderboardPage() {
       <div className="ds-card" style={{ padding: 0, overflow: "hidden" }}>
         {leaders.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--muted-foreground)" }}>
-            Пока никто не набрал 3+ done-звонка за 30 дней. Подождите пока воркер обработает свежие звонки.
+            Пока ни у кого нет минимум 3 разобранных звонков за 30 дней. Как только новые звонки будут обработаны — рейтинг появится.
           </div>
         ) : (
           <div style={{ overflowX: "auto", maxWidth: "100%" }}>

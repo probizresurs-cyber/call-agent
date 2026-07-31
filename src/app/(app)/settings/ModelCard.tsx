@@ -7,35 +7,32 @@
 import { useState } from "react";
 import { Bot } from "lucide-react";
 
+// value передаётся в API как есть (выбор модели анализа) — label/description
+// видит клиент, поэтому без внутренних названий вендоров/моделей и точных цен.
 const MODELS = [
   {
     value: null,
-    label: "Авто (из настроек сервера)",
-    price: null,
-    description: "Модель выбирается автоматически на основе конфигурации сервера.",
+    label: "Авто",
+    description: "Уровень анализа подбирается автоматически.",
   },
   {
     value: "openai:gpt-4o-mini",
-    label: "GPT-4o mini",
-    price: "~0.03 ₽/звонок",
-    description: "Достаточно для большинства звонков. Экономит бюджет при большом объёме.",
+    label: "Базовый",
+    description: "Достаточно для большинства звонков. Быстро и экономно при большом объёме.",
   },
   {
     value: "openai:gpt-4o",
-    label: "GPT-4o",
-    price: "~4.6 ₽/звонок",
-    description: "Стандартный уровень. Хорошо понимает контекст и чек-листы.",
+    label: "Стандартный",
+    description: "Хорошо понимает контекст и чек-листы.",
   },
   {
     value: "anthropic:claude-haiku-4-5",
-    label: "Claude Haiku",
-    price: "~0.04 ₽/звонок",
+    label: "Быстрый",
     description: "Быстрый и экономный. Хуже с длинными диалогами.",
   },
   {
     value: "anthropic:claude-sonnet-4-6",
-    label: "Claude Sonnet",
-    price: "~5.9 ₽/звонок",
+    label: "Углублённый",
     description: "Наилучшее качество. Глубокий анализ нюансов разговора.",
   },
 ] as const;
@@ -107,11 +104,6 @@ export function ModelCard({ initial }: { initial: string | null }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{m.label}</span>
-                  {m.price && (
-                    <span className="ds-caption" style={{ color: "var(--muted-foreground)", fontSize: 12 }}>
-                      {m.price}
-                    </span>
-                  )}
                 </div>
                 <div className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginTop: 2 }}>
                   {m.description}

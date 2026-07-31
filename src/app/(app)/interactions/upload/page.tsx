@@ -22,7 +22,7 @@ export default async function UploadPage() {
       </h1>
       <p className="ds-body-sm" style={{ color: "var(--muted-foreground)", marginBottom: 20 }}>
         Запись Zoom, Яндекс Телемост или голосовая запись с телефона/диктофона —
-        пройдёт через транскрипцию (Whisper) и тот же AI-анализ что и звонки.
+        расшифруем и разберём той же нейросетью, что и звонки.
         Результат появится в <a href="/call-agent/calls" style={{ color: "var(--primary)" }}>списке взаимодействий</a> через 30-60 секунд.
       </p>
 

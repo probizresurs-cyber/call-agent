@@ -184,7 +184,11 @@ export default async function DiscrepanciesPage(props: {
   const db = getDbAsync();
 
   // ── Build WHERE ──────────────────────────────────────────────
-  const where: string[] = ["cd.tenant_id = ?"];
+  // Скрытые менеджеры (excluded_from_reports) не должны упоминаться нигде
+  // в разделе — ни в списке, ни в счётчиках, ни в выпадающем фильтре.
+  const HIDE_EXCLUDED_MANAGERS =
+    `NOT EXISTS (SELECT 1 FROM managers mx WHERE mx.id = c.manager_id AND mx.tenant_id = cd.tenant_id AND mx.excluded_from_reports = true)`;
+  const where: string[] = ["cd.tenant_id = ?", HIDE_EXCLUDED_MANAGERS];
   const params: unknown[] = [me.tenantId];
 
   if (sp.status) {
@@ -202,7 +206,7 @@ export default async function DiscrepanciesPage(props: {
 
   const whereSql = `WHERE ${where.join(" AND ")}`;
 
-  // ── KPI counts (always full-tenant, no filters) ───────────────
+  // ── KPI counts (full-tenant, но без учёта скрытых менеджеров — см. HIDE_EXCLUDED_MANAGERS) ───
   const kpiRow = await db
     .prepare(
       `SELECT
@@ -211,7 +215,8 @@ export default async function DiscrepanciesPage(props: {
          SUM(CASE WHEN cd.status = 'rejected'     THEN 1 ELSE 0 END) AS rejected,
          SUM(CASE WHEN cd.status = 'auto_applied' THEN 1 ELSE 0 END) AS auto_applied
        FROM card_discrepancies cd
-       WHERE cd.tenant_id = ?`
+       JOIN calls c ON c.id = cd.call_id
+       WHERE cd.tenant_id = ? AND ${HIDE_EXCLUDED_MANAGERS}`
     )
     .get<KpiRow>(me.tenantId);
 
@@ -248,14 +253,19 @@ export default async function DiscrepanciesPage(props: {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // ── Managers list for filter ───────────────────────────────────
+  // LEFT JOIN managers — исключаем скрытых (excluded_from_reports) из
+  // выпадающего списка, как и на дашборде/лидерборде/динамике. Если у
+  // manager_id нет записи в managers (ещё не синхронизирован) — не исключаем.
   const managers = await db
     .prepare(
       `SELECT DISTINCT c.manager_id AS id,
               COALESCE(MAX(c.manager_name), '') AS name
        FROM card_discrepancies cd
        JOIN calls c ON c.id = cd.call_id
+       LEFT JOIN managers m ON m.id = c.manager_id AND m.tenant_id = cd.tenant_id
        WHERE cd.tenant_id = ?
          AND c.manager_id IS NOT NULL AND c.manager_id != ''
+         AND (m.excluded_from_reports IS NULL OR m.excluded_from_reports = false)
        GROUP BY c.manager_id
        ORDER BY name`
     )

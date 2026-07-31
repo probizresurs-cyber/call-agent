@@ -4,10 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Microscope, ChevronDown } from "lucide-react";
 
+// value передаётся в API как есть (выбор модели анализа) — label/hint видит клиент,
+// поэтому без внутренних названий вендоров/моделей.
 const MODELS = [
-  { value: "anthropic:claude-sonnet-4-6", label: "Claude Sonnet 4.6", hint: "Лучшее качество" },
-  { value: "anthropic:claude-opus-4-5",   label: "Claude Opus",        hint: "Максимальная глубина" },
-  { value: "openai:gpt-4o",               label: "GPT-4o",             hint: "Альтернативный взгляд" },
+  { value: "anthropic:claude-sonnet-4-6", label: "Стандартный",  hint: "Лучшее качество" },
+  { value: "anthropic:claude-opus-4-5",   label: "Углублённый",  hint: "Максимальная глубина" },
+  { value: "openai:gpt-4o",               label: "Альтернативный", hint: "Второй взгляд на разговор" },
 ];
 
 export function DeepAnalyzeButton({ callId }: { callId: number }) {
