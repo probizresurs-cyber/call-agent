@@ -175,6 +175,21 @@ async function transcribeWhisper(
         // kind="ok"/"network" — это реальный транзиент: бросаем исходную ошибку как раньше.
       }
 
+      // Гео-блок (403 "Country, region, or territory not supported") — в отличие от
+      // обрыва соединения выше, статус тут явный и однозначный, probe не нужен.
+      // 4 попытки уже дали Cloudflare Worker шанс уйти в другой регион (см. MAX_ATTEMPTS);
+      // если и после них статус всё ещё 403-гео-блок — это не транзиент, а провайдер
+      // блокирует прокси целиком. НЕ пишем setProviderHealth (баннер тревожил бы клиента
+      // зря) — Yandex-фолбэк ниже должен закрыть это молча, звонок в итоге не падает.
+      if (attempt === MAX_ATTEMPTS && status === 403 &&
+          (msg.includes("country, region, or territory") || msg.includes("unsupported_country_region_territory"))) {
+        throw new ProviderQuotaError(
+          "OpenAI недоступен из региона через текущий прокси — переключение на резервную транскрипцию",
+          "openai",
+          "geo_block"
+        );
+      }
+
       if (!retriable || attempt === MAX_ATTEMPTS) throw e;
 
       const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1); // 3s, 6s, 12s
